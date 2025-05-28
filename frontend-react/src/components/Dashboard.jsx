@@ -119,7 +119,6 @@ const Dashboard = () => {
 
   // Objeto de mapeo de iconos por título para el Dashboard Financiero
   const financialDashboardIcons = {
-    'PLAN DE CUENTAS': <FaScroll />,
     'ÓRDENES DE COMPRA': <FaShoppingCart />,
     'PRESUPUESTO': <FaPiggyBank />,
     'REPORTE FINANCIERO': <FaChartBar />,
@@ -183,6 +182,16 @@ const Dashboard = () => {
               >
                 <FaCog className="mr-4 text-xl" />
                 <span>Configuración</span>
+              </button>
+            </li>
+                        <li className="mb-2">
+              <button
+                onClick={() => setActiveSection('financial-dashboard')}
+                className={`flex items-center w-full px-4 py-3 rounded-lg transition-all duration-200
+                  ${activeSection === 'financial-dashboard' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-700 text-gray-300'}`}
+              >
+                <FaChartBar className="mr-4 text-xl" />
+                <span>Plan de Cuentas</span>
               </button>
             </li>
           </ul>

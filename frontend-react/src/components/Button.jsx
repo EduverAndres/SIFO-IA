@@ -1,5 +1,5 @@
 import React from 'react';
-
+// comentario para hacer el coomit
 const Button = ({ children, onClick, type = 'button', className = '', ...props }) => {
   return (
     <button
