@@ -1,4 +1,4 @@
-// src/pages/dashboard/Produccion.jsx
+// src/pages/dashboard/Produccion.jsx - Versión actualizada con vista de órdenes
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -15,12 +15,31 @@ import {
   FaTimes,
   FaCheck,
   FaExclamationTriangle,
+  FaSearch,
+  FaFilter,
+  FaDownload,
+  FaCheckCircle,
+  FaClock,
+  FaCalendarAlt,
+  FaFileAlt,
+  FaSort,
+  FaSortUp,
+  FaSortDown,
+  FaPrint,
 } from 'react-icons/fa';
 
 const Produccion = () => {
   const [activeTab, setActiveTab] = useState('crear-proveedor');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Estados para la vista de órdenes
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortField, setSortField] = useState('fechaCreacion');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [selectedOrden, setSelectedOrden] = useState(null);
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
 
   // Estados para formularios
   const [proveedorForm, setProveedorForm] = useState({
@@ -49,22 +68,62 @@ const Produccion = () => {
     precioUnitario: 0
   });
 
-  // Estados para órdenes de compra creadas
+  // Estados para órdenes de compra creadas (datos ampliados)
   const [ordenesCompra, setOrdenesCompra] = useState([
     {
       id: 'OC-2025-001',
-      proveedor: { id: 1, nombre: 'Tech Solutions S.A.' },
+      proveedor: { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
       fechaEntrega: '2025-02-15',
       fechaCreacion: '2025-01-28',
       detalles: [
-        { id: 1, producto: { nombre: 'Laptop Dell XPS' }, cantidad: 5, precioUnitario: 2500.00, total: 12500.00 }
+        { id: 1, producto: { nombre: 'Laptop Dell XPS', descripcion: 'Laptop de alto rendimiento' }, cantidad: 5, precioUnitario: 2500.00, total: 12500.00 },
+        { id: 2, producto: { nombre: 'Monitor 27"', descripcion: 'Monitor para diseño' }, cantidad: 3, precioUnitario: 450.00, total: 1350.00 }
       ],
-      total: 12500.00,
-      estado: 'Pendiente'
+      total: 13850.00,
+      estado: 'Pendiente',
+      observaciones: 'Entrega urgente para nuevo proyecto'
+    },
+    {
+      id: 'OC-2025-002',
+      proveedor: { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' },
+      fechaEntrega: '2025-02-10',
+      fechaCreacion: '2025-01-25',
+      detalles: [
+        { id: 3, producto: { nombre: 'Teclado Mecánico', descripcion: 'Teclado retroiluminado RGB' }, cantidad: 10, precioUnitario: 120.00, total: 1200.00 },
+        { id: 4, producto: { nombre: 'Mouse Gaming', descripcion: 'Mouse óptico de alta precisión' }, cantidad: 10, precioUnitario: 80.00, total: 800.00 }
+      ],
+      total: 2000.00,
+      estado: 'Aprobada',
+      observaciones: 'Equipos para la nueva sala de trabajo'
+    },
+    {
+      id: 'OC-2025-003',
+      proveedor: { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
+      fechaEntrega: '2025-02-05',
+      fechaCreacion: '2025-01-20',
+      detalles: [
+        { id: 5, producto: { nombre: 'Servidor Dell PowerEdge', descripcion: 'Servidor para aplicaciones críticas' }, cantidad: 1, precioUnitario: 8500.00, total: 8500.00 }
+      ],
+      total: 8500.00,
+      estado: 'Completada',
+      observaciones: 'Servidor principal para datacenter'
+    },
+    {
+      id: 'OC-2025-004',
+      proveedor: { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' },
+      fechaEntrega: '2025-01-30',
+      fechaCreacion: '2025-01-15',
+      detalles: [
+        { id: 6, producto: { nombre: 'Papel Bond A4', descripcion: 'Papel para impresora 75g' }, cantidad: 50, precioUnitario: 8.50, total: 425.00 },
+        { id: 7, producto: { nombre: 'Tinta para Impresora', descripcion: 'Cartuchos originales HP' }, cantidad: 20, precioUnitario: 45.00, total: 900.00 }
+      ],
+      total: 1325.00,
+      estado: 'Cancelada',
+      observaciones: 'Cancelada por cambio de proveedor'
     }
   ]);
 
-  // Datos simulados
+  // Datos simulados (mantenemos los existentes)
   const [proveedores, setProveedores] = useState([
     { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
     { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' }
@@ -75,7 +134,120 @@ const Produccion = () => {
     { id: 2, nombre: 'Monitor 27"', descripcion: 'Monitor para diseño', stock: 15, stockMinimo: 3, stockMaximo: 30 }
   ]);
 
-  // Manejadores de formularios
+  // Funciones de utilidad para órdenes
+  const getStatusDisplay = (estado) => {
+    switch (estado) {
+      case 'Completada':
+        return {
+          icon: <FaCheckCircle className="text-green-500" />,
+          text: 'Completada',
+          bgColor: 'bg-green-100',
+          textColor: 'text-green-800'
+        };
+      case 'Pendiente':
+        return {
+          icon: <FaClock className="text-yellow-500" />,
+          text: 'Pendiente',
+          bgColor: 'bg-yellow-100',
+          textColor: 'text-yellow-800'
+        };
+      case 'Aprobada':
+        return {
+          icon: <FaCheck className="text-blue-500" />,
+          text: 'Aprobada',
+          bgColor: 'bg-blue-100',
+          textColor: 'text-blue-800'
+        };
+      case 'Cancelada':
+        return {
+          icon: <FaTimes className="text-red-500" />,
+          text: 'Cancelada',
+          bgColor: 'bg-red-100',
+          textColor: 'text-red-800'
+        };
+      default:
+        return {
+          icon: <FaClock className="text-gray-500" />,
+          text: 'Desconocido',
+          bgColor: 'bg-gray-100',
+          textColor: 'text-gray-800'
+        };
+    }
+  };
+
+  // Funciones de filtrado y ordenamiento
+  const filteredOrdenes = ordenesCompra.filter(orden => {
+    const matchesSearch = orden.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         orden.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || orden.estado === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
+
+  const sortedOrdenes = [...filteredOrdenes].sort((a, b) => {
+    let aValue, bValue;
+    
+    switch (sortField) {
+      case 'id':
+        aValue = a.id;
+        bValue = b.id;
+        break;
+      case 'proveedor':
+        aValue = a.proveedor.nombre;
+        bValue = b.proveedor.nombre;
+        break;
+      case 'fechaCreacion':
+        aValue = new Date(a.fechaCreacion);
+        bValue = new Date(b.fechaCreacion);
+        break;
+      case 'fechaEntrega':
+        aValue = new Date(a.fechaEntrega);
+        bValue = new Date(b.fechaEntrega);
+        break;
+      case 'total':
+        aValue = a.total;
+        bValue = b.total;
+        break;
+      case 'estado':
+        aValue = a.estado;
+        bValue = b.estado;
+        break;
+      default:
+        aValue = a.fechaCreacion;
+        bValue = b.fechaCreacion;
+    }
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return <FaSort className="text-gray-400" />;
+    return sortDirection === 'asc' ? <FaSortUp className="text-blue-500" /> : <FaSortDown className="text-blue-500" />;
+  };
+
+  const verDetalleOrden = (orden) => {
+    setSelectedOrden(orden);
+    setShowDetalleModal(true);
+  };
+
+  const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
+    setOrdenesCompra(ordenesCompra.map(orden => 
+      orden.id === ordenId ? { ...orden, estado: nuevoEstado } : orden
+    ));
+    showSuccess(`Estado de la orden ${ordenId} cambiado a ${nuevoEstado}`);
+  };
+
+  // Manejadores de formularios (mantienen la funcionalidad existente)
   const handleProveedorSubmit = (e) => {
     e.preventDefault();
     if (proveedorForm.nombre && proveedorForm.contacto && proveedorForm.correo) {
@@ -107,16 +279,17 @@ const Produccion = () => {
     if (ordenCompraForm.proveedor && ordenCompraForm.fechaEntrega && ordenCompraForm.detalles.length > 0) {
       const proveedorSeleccionado = proveedores.find(p => p.id == ordenCompraForm.proveedor);
       const nuevaOrden = {
-        id: `OC-2025-${String(ordenesCompra.length + 2).padStart(3, '0')}`,
+        id: `OC-2025-${String(ordenesCompra.length + 5).padStart(3, '0')}`,
         proveedor: proveedorSeleccionado,
         fechaEntrega: ordenCompraForm.fechaEntrega,
         fechaCreacion: new Date().toISOString().split('T')[0],
         detalles: ordenCompraForm.detalles,
         total: ordenCompraForm.detalles.reduce((sum, detalle) => sum + detalle.total, 0),
-        estado: 'Pendiente'
+        estado: 'Pendiente',
+        observaciones: ''
       };
       
-      setOrdenesCompra([...ordenesCompra, nuevaOrden]);
+      setOrdenesCompra([nuevaOrden, ...ordenesCompra]);
       setOrdenCompraForm({ proveedor: '', fechaEntrega: '', detalles: [] });
       showSuccess(`¡Orden de compra ${nuevaOrden.id} creada exitosamente para ${proveedorSeleccionado.nombre}!`);
     }
@@ -215,6 +388,276 @@ const Produccion = () => {
 
         {/* Contenido de las pestañas */}
         <div className="p-6">
+          {/* Ver Órdenes de Compra */}
+          {activeTab === 'ver-ordenes' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Órdenes de Compra</h2>
+                <FaEye className="text-2xl text-indigo-600" />
+              </div>
+
+              {/* Estadísticas rápidas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-lg shadow border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Órdenes</p>
+                      <p className="text-2xl font-bold text-gray-800">{ordenesCompra.length}</p>
+                    </div>
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <FaShoppingCart className="text-blue-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Completadas</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {ordenesCompra.filter(o => o.estado === 'Completada').length}
+                      </p>
+                    </div>
+                    <div className="bg-green-100 p-3 rounded-full">
+                      <FaCheckCircle className="text-green-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Pendientes</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {ordenesCompra.filter(o => o.estado === 'Pendiente').length}
+                      </p>
+                    </div>
+                    <div className="bg-yellow-100 p-3 rounded-full">
+                      <FaClock className="text-yellow-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Valor Total</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        ${ordenesCompra.reduce((total, orden) => total + orden.total, 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="bg-purple-100 p-3 rounded-full">
+                      <FaDownload className="text-purple-600" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filtros y búsqueda */}
+              <div className="bg-white p-4 rounded-lg shadow border">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por ID o proveedor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FaFilter className="text-gray-400" />
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="all">Todos los estados</option>
+                      <option value="Completada">Completadas</option>
+                      <option value="Pendiente">Pendientes</option>
+                      <option value="Aprobada">Aprobadas</option>
+                      <option value="Cancelada">Canceladas</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de órdenes */}
+              <div className="bg-white rounded-lg shadow border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('id')}
+                        >
+                          <div className="flex items-center">
+                            ID Orden
+                            {getSortIcon('id')}
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('proveedor')}
+                        >
+                          <div className="flex items-center">
+                            Proveedor
+                            {getSortIcon('proveedor')}
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('fechaCreacion')}
+                        >
+                          <div className="flex items-center">
+                            F. Creación
+                            {getSortIcon('fechaCreacion')}
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('fechaEntrega')}
+                        >
+                          <div className="flex items-center">
+                            F. Entrega
+                            {getSortIcon('fechaEntrega')}
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('total')}
+                        >
+                          <div className="flex items-center">
+                            Total
+                            {getSortIcon('total')}
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                          onClick={() => handleSort('estado')}
+                        >
+                          <div className="flex items-center">
+                            Estado
+                            {getSortIcon('estado')}
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {sortedOrdenes.map((orden, index) => {
+                        const statusDisplay = getStatusDisplay(orden.estado);
+                        return (
+                          <tr key={index} className="hover:bg-gray-50 transition-colors duration-200">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{orden.id}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{orden.proveedor.nombre}</div>
+                                <div className="text-sm text-gray-500">{orden.proveedor.contacto}</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{orden.fechaCreacion}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{orden.fechaEntrega}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                ${orden.total.toLocaleString()}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.bgColor} ${statusDisplay.textColor}`}>
+                                <span className="mr-1">{statusDisplay.icon}</span>
+                                {statusDisplay.text}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex items-center space-x-2">
+                                <button 
+                                  onClick={() => verDetalleOrden(orden)}
+                                  className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-100 transition-colors duration-200"
+                                  title="Ver detalles"
+                                >
+                                  <FaEye className="text-sm" />
+                                </button>
+                                {orden.estado === 'Pendiente' && (
+                                  <button 
+                                    onClick={() => cambiarEstadoOrden(orden.id, 'Aprobada')}
+                                    className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-100 transition-colors duration-200"
+                                    title="Aprobar"
+                                  >
+                                    <FaCheck className="text-sm" />
+                                  </button>
+                                )}
+                                <button className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100 transition-colors duration-200">
+                                  <FaPrint className="text-sm" />
+                                </button>
+                                <button className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100 transition-colors duration-200">
+                                  <FaTrash className="text-sm" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {sortedOrdenes.length === 0 && (
+                  <div className="text-center py-12">
+                    <FaSearch className="mx-auto text-gray-400 text-4xl mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron órdenes</h3>
+                    <p className="text-gray-500">Intenta con diferentes términos de búsqueda o filtros</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Paginación */}
+              {sortedOrdenes.length > 0 && (
+                <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg shadow">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                      Anterior
+                    </button>
+                    <button className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                      Siguiente
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700">
+                        Mostrando <span className="font-medium">1</span> a <span className="font-medium">{sortedOrdenes.length}</span> de{' '}
+                        <span className="font-medium">{sortedOrdenes.length}</span> resultados
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <button className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                          Anterior
+                        </button>
+                        <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
+                          1
+                        </button>
+                        <button className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                          Siguiente
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Las otras pestañas mantienen su funcionalidad existente */}
           {/* Crear Proveedor */}
           {activeTab === 'crear-proveedor' && (
             <div className="space-y-6">
@@ -631,6 +1074,183 @@ const Produccion = () => {
           )}
         </div>
       </div>
+
+      {/* Modal para ver detalles de orden */}
+      {showDetalleModal && selectedOrden && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800">Detalle de Orden de Compra</h3>
+                  <p className="text-gray-600">{selectedOrden.id}</p>
+                </div>
+                <button
+                  onClick={() => setShowDetalleModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100"
+                >
+                  <FaTimes className="text-xl" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Información general */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-800">Información de la Orden</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ID de Orden:</span>
+                      <span className="font-medium">{selectedOrden.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fecha de Creación:</span>
+                      <span className="font-medium">{selectedOrden.fechaCreacion}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fecha de Entrega:</span>
+                      <span className="font-medium">{selectedOrden.fechaEntrega}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Estado:</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusDisplay(selectedOrden.estado).bgColor} ${getStatusDisplay(selectedOrden.estado).textColor}`}>
+                        {getStatusDisplay(selectedOrden.estado).text}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-800">Información del Proveedor</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Empresa:</span>
+                      <span className="font-medium">{selectedOrden.proveedor.nombre}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Contacto:</span>
+                      <span className="font-medium">{selectedOrden.proveedor.contacto}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Correo:</span>
+                      <span className="font-medium">{selectedOrden.proveedor.correo}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Detalles de productos */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-800 mb-4">Productos Solicitados</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Producto</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Descripción</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Cantidad</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Precio Unit.</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {selectedOrden.detalles.map((detalle) => (
+                        <tr key={detalle.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto.nombre}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{detalle.producto.descripcion}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 text-center">{detalle.cantidad}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">${detalle.precioUnitario.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">${detalle.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="mt-4 flex justify-end">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">
+                        Total de la Orden: ${selectedOrden.total.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {selectedOrden.detalles.length} producto{selectedOrden.detalles.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Observaciones */}
+              {selectedOrden.observaciones && (
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-800 mb-2">Observaciones</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-700">{selectedOrden.observaciones}</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Acciones */}
+              <div className="border-t pt-6">
+                <div className="flex flex-wrap gap-3 justify-end">
+                  {selectedOrden.estado === 'Pendiente' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          cambiarEstadoOrden(selectedOrden.id, 'Aprobada');
+                          setShowDetalleModal(false);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
+                      >
+                        <FaCheck className="mr-2" />
+                        Aprobar Orden
+                      </button>
+                      <button
+                        onClick={() => {
+                          cambiarEstadoOrden(selectedOrden.id, 'Cancelada');
+                          setShowDetalleModal(false);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center"
+                      >
+                        <FaTimes className="mr-2" />
+                        Cancelar Orden
+                      </button>
+                    </>
+                  )}
+                  {selectedOrden.estado === 'Aprobada' && (
+                    <button
+                      onClick={() => {
+                        cambiarEstadoOrden(selectedOrden.id, 'Completada');
+                        setShowDetalleModal(false);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center"
+                    >
+                      <FaCheckCircle className="mr-2" />
+                      Marcar como Completada
+                    </button>
+                  )}
+                  <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200 flex items-center">
+                    <FaPrint className="mr-2" />
+                    Imprimir
+                  </button>
+                  <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center">
+                    <FaDownload className="mr-2" />
+                    Descargar PDF
+                  </button>
+                  <button
+                    onClick={() => setShowDetalleModal(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
