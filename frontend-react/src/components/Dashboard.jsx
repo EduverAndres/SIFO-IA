@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx
+// src/components/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -15,42 +15,45 @@ import {
   FaPlus,
   FaBoxOpen,
   FaClipboardList,
-  FaUniversity, // Para Bancos/Tesorería
-  FaExchangeAlt, // Para Conciliación Bancaria
-  FaRobot, // Para Procesos IA
-  FaProjectDiagram, // Para Proyectos Financieros
-  FaHandHoldingUsd, // Para Cuentas por Pagar/Cobrar
-  FaReceipt, // Para Facturación Electrónica
-  FaDatabase, // Para Migración de Datos
-  FaUsersCog, // Para Integración CRM (FaUsers con FaCog)
-  FaScroll, // Para Plan de Cuentas
-  FaPiggyBank, // Para Presupuesto
-  FaWallet, // Para Caja y Bancos
-  FaFileInvoiceDollar, // Para Contabilidad NIIF
-  FaUserTie, // Para Nómina
-} from 'react-icons/fa'; // Importa una variedad de iconos
+  FaUniversity,
+  FaExchangeAlt,
+  FaRobot,
+  FaProjectDiagram,
+  FaHandHoldingUsd,
+  FaReceipt,
+  FaDatabase,
+  FaUsersCog,
+  FaScroll,
+  FaPiggyBank,
+  FaWallet,
+  FaFileInvoiceDollar,
+  FaUserTie,
+} from 'react-icons/fa';
 
 import Modal from './Modal';
 import OrdenesDeCompraMenuModal from './OrdenesDeCompraMenuModal';
-import CrearProveedorModal from '../components/CrearProveedorModal'; // Importación del modal de proveedor
-
+import CrearProveedorModal from '../components/CrearProveedorModal';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [activeSection, setActiveSection] = useState('overview');
   const [isOrdenesDeCompraMenuModalOpen, setIsOrdenesDeCompraMenuModalOpen] = useState(false);
-  const [isCrearOrdenCompraModalOpen, setIsCrearOrdenCompraModalOpen] = useState(false); // Mantener por si se usa en el futuro
-  const [isCrearProveedorModalOpen, setIsCrearProveedorModalOpen] = useState(false); // Estado para el modal de Crear Proveedor
+  const [isCrearOrdenCompraModalOpen, setIsCrearOrdenCompraModalOpen] = useState(false);
+  const [isCrearProveedorModalOpen, setIsCrearProveedorModalOpen] = useState(false);
   const [isCrearProductoModalOpen, setIsCrearProductoModalOpen] = useState(false);
   const [isAgregarDetalleModalOpen, setIsAgregarDetalleModalOpen] = useState(false);
   const [isVerOrdenesModalOpen, setIsVerOrdenesModalOpen] = useState(false);
 
-
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        navigate('/login');
+      }
     } else {
       navigate('/login');
     }
@@ -63,7 +66,14 @@ const Dashboard = () => {
     navigate('/');
   };
 
+  // Funciones para manejar modales con mejor control de estado
   const openOrdenesDeCompraMenuModal = () => {
+    // Cerrar otros modales antes de abrir este
+    setIsCrearOrdenCompraModalOpen(false);
+    setIsCrearProveedorModalOpen(false);
+    setIsCrearProductoModalOpen(false);
+    setIsAgregarDetalleModalOpen(false);
+    setIsVerOrdenesModalOpen(false);
     setIsOrdenesDeCompraMenuModalOpen(true);
   };
 
@@ -73,68 +83,87 @@ const Dashboard = () => {
 
   const openCrearOrdenCompraModal = () => {
     closeOrdenesDeCompraMenuModal();
-    // Este console.log se mantendrá, pero la acción de este botón se ha redirigido en OrdenesDeCompraMenuModal
     console.log("Se intentó abrir el modal 'Crear Orden de Compra', pero se redirigió a 'Crear Proveedor'");
-    setIsCrearOrdenCompraModalOpen(true); // Puedes mantener este estado si hay un "Crear Orden de Compra" real futuro
+    setIsCrearOrdenCompraModalOpen(true);
   };
 
   const closeCrearOrdenCompraModal = () => {
     setIsCrearOrdenCompraModalOpen(false);
   };
 
-  // Función para abrir el modal de Crear Proveedor
   const openCrearProveedorModal = () => {
-    // Si se llama desde el menú de órdenes, el menú ya estará cerrado por la lógica en OrdenesDeCompraMenuModal
-    // Pero si se llama directamente desde otro lado, podríamos querer cerrarlos.
     closeOrdenesDeCompraMenuModal();
     console.log("Abrir modal de Crear Proveedor");
     setIsCrearProveedorModalOpen(true);
   };
 
-  // Función para cerrar el modal de Crear Proveedor
   const closeCrearProveedorModal = () => {
     setIsCrearProveedorModalOpen(false);
   };
 
-
   const openCrearProductoModal = () => {
     closeOrdenesDeCompraMenuModal();
     console.log("Abrir modal de Crear Producto");
-    // setIsCrearProductoModalOpen(true); // Descomentar cuando tengas el componente
+    setIsCrearProductoModalOpen(true);
+  };
+
+  const closeCrearProductoModal = () => {
+    setIsCrearProductoModalOpen(false);
   };
 
   const openAgregarDetalleModal = () => {
     closeOrdenesDeCompraMenuModal();
     console.log("Abrir modal de Agregar Detalle");
-    // setIsAgregarDetalleModalOpen(true); // Descomentar cuando tengas el componente
+    setIsAgregarDetalleModalOpen(true);
+  };
+
+  const closeAgregarDetalleModal = () => {
+    setIsAgregarDetalleModalOpen(false);
   };
 
   const openVerOrdenesModal = () => {
     closeOrdenesDeCompraMenuModal();
     console.log("Abrir modal/página de Ver Órdenes");
-    // Puedes navegar a una ruta de tabla de órdenes o abrir otro modal
-    // navigate('/ordenes'); // Ejemplo de navegación
-    // setIsVerOrdenesModalOpen(true); // Ejemplo de modal
+    setIsVerOrdenesModalOpen(true);
   };
 
-  // Objeto de mapeo de iconos por título para el Dashboard Financiero
-  const financialDashboardIcons = {
-    'ÓRDENES DE COMPRA': <FaShoppingCart />,
-    'PRESUPUESTO': <FaPiggyBank />,
-    'REPORTE FINANCIERO': <FaChartBar />,
-    'CUENTAS POR PAGAR/COBRAR': <FaHandHoldingUsd />,
-    'TESORERÍA': <FaMoneyBillWave />,
-    'CONCILIACIÓN BANCARIA': <FaExchangeAlt />,
-    'PROCESOS IA': <FaRobot />,
-    'PROYECTOS FINANCIEROS': <FaProjectDiagram />,
-    'CAJA Y BANCOS': <FaWallet />,
-    'CONTABILIDAD NIIF': <FaFileInvoiceDollar />,
-    'NÓMINA': <FaUserTie />,
-    'FACTURACIÓN ELECTRÓNICA': <FaReceipt />,
-    'MIGRACIÓN DE DATOS': <FaDatabase />,
-    'INTEGRACIÓN CRM': <FaUsersCog />,
+  const closeVerOrdenesModal = () => {
+    setIsVerOrdenesModalOpen(false);
   };
 
+  // Función para obtener el título correcto basado en la sección activa
+  const getSectionTitle = () => {
+    switch (activeSection) {
+      case 'overview':
+        return 'Resumen de Actividad';
+      case 'financial-dashboard':
+        return 'Dashboard Financiero';
+      case 'settings':
+        return 'Ajustes de Usuario';
+      case 'plan-cuentas':
+        return 'Plan de Cuentas';
+      default:
+        return 'Dashboard';
+    }
+  };
+
+  // Definición de módulos financieros con sus iconos
+  const financialModules = [
+    { title: 'ÓRDENES DE COMPRA', icon: FaShoppingCart, action: openOrdenesDeCompraMenuModal },
+    { title: 'PRESUPUESTO', icon: FaPiggyBank, action: null },
+    { title: 'REPORTE FINANCIERO', icon: FaChartBar, action: null },
+    { title: 'CUENTAS POR PAGAR/COBRAR', icon: FaHandHoldingUsd, action: null },
+    { title: 'TESORERÍA', icon: FaMoneyBillWave, action: null },
+    { title: 'CONCILIACIÓN BANCARIA', icon: FaExchangeAlt, action: null },
+    { title: 'PROCESOS IA', icon: FaRobot, action: null },
+    { title: 'PROYECTOS FINANCIEROS', icon: FaProjectDiagram, action: null },
+    { title: 'CAJA Y BANCOS', icon: FaWallet, action: null },
+    { title: 'CONTABILIDAD NIIF', icon: FaFileInvoiceDollar, action: null },
+    { title: 'NÓMINA', icon: FaUserTie, action: null },
+    { title: 'FACTURACIÓN ELECTRÓNICA', icon: FaReceipt, action: null },
+    { title: 'MIGRACIÓN DE DATOS', icon: FaDatabase, action: null },
+    { title: 'INTEGRACIÓN CRM', icon: FaUsersCog, action: null },
+  ];
 
   if (!user) {
     return (
@@ -145,12 +174,12 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans"> {/* Aplica la fuente Poppins globalmente */}
+    <div className="flex h-screen bg-gray-100 font-sans">
       {/* Sidebar de Navegación */}
       <aside className="w-64 bg-gray-800 text-white flex flex-col p-4 shadow-lg">
         <div className="flex items-center mb-8 px-2 py-3 bg-gray-700 rounded-lg">
           <FaUserCircle className="text-4xl text-blue-400 mr-3" />
-          <h2 className="text-xl font-bold tracking-wide">{user.username}</h2> {/* Ajustado el tamaño y peso de la fuente */}
+          <h2 className="text-xl font-bold tracking-wide">{user.username}</h2>
         </div>
         <nav className="flex-1">
           <ul>
@@ -184,19 +213,19 @@ const Dashboard = () => {
                 <span>Configuración</span>
               </button>
             </li>
-                        <li className="mb-2">
+            <li className="mb-2">
               <button
-                onClick={() => setActiveSection('financial-dashboard')}
+                onClick={() => setActiveSection('plan-cuentas')}
                 className={`flex items-center w-full px-4 py-3 rounded-lg transition-all duration-200
-                  ${activeSection === 'financial-dashboard' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-700 text-gray-300'}`}
+                  ${activeSection === 'plan-cuentas' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-700 text-gray-300'}`}
               >
-                <FaChartBar className="mr-4 text-xl" />
+                <FaScroll className="mr-4 text-xl" />
                 <span>Plan de Cuentas</span>
               </button>
             </li>
           </ul>
         </nav>
-        <div className="mt-auto pt-4 border-t border-gray-700"> {/* Separador para el botón de logout */}
+        <div className="mt-auto pt-4 border-t border-gray-700">
           <button
             onClick={handleLogout}
             className="flex items-center w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-300 shadow-md"
@@ -209,15 +238,15 @@ const Dashboard = () => {
 
       {/* Área de Contenido Principal */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Navbar Superior */}
+        {/* Navbar Superior - AQUÍ ESTABA EL PROBLEMA */}
         <header className="flex justify-between items-center bg-white p-4 shadow-md z-10 border-b border-gray-200">
           <h1 className="text-3xl font-extrabold text-gray-800">
-            {activeSection === 'overview' && 'Resumen de Actividad'}
-            {activeSection === 'financial-dashboard' && 'Dashboard Financiero'}
-            {activeSection === 'settings' && 'Ajustes de Usuario'}
+            {getSectionTitle()}
           </h1>
           <div className="flex items-center">
-            <span className="text-gray-700 mr-3 text-lg">Hola, <span className="font-semibold">{user.username}</span></span>
+            <span className="text-gray-700 mr-3 text-lg">
+              Hola, <span className="font-semibold">{user.username}</span>
+            </span>
             <FaUserCircle className="text-4xl text-blue-500" />
           </div>
         </header>
@@ -226,7 +255,9 @@ const Dashboard = () => {
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
           {activeSection === 'overview' && (
             <div className="bg-white p-8 rounded-lg shadow-xl animate-fade-in">
-              <h3 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-3 border-gray-200">¡Bienvenido a tu Panel!</h3>
+              <h3 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-3 border-gray-200">
+                ¡Bienvenido a tu Panel!
+              </h3>
               <p className="text-gray-600 mb-6">
                 Aquí podrás ver un resumen rápido de tus actividades y accesos directos a las funciones clave de la aplicación.
               </p>
@@ -261,32 +292,37 @@ const Dashboard = () => {
 
           {activeSection === 'financial-dashboard' && (
             <div className="bg-white p-8 rounded-lg shadow-xl animate-fade-in">
-              <h3 className="text-2xl font-bold text-gray-700 mb-6 text-center border-b pb-4 border-gray-200">Módulos del Dashboard Financiero</h3>
+              <h3 className="text-2xl font-bold text-gray-700 mb-6 text-center border-b pb-4 border-gray-200">
+                Módulos del Dashboard Financiero
+              </h3>
               <p className="text-gray-600 mb-8 text-center text-lg">
                 Explora las diferentes áreas de gestión financiera a tu disposición.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {Object.entries(financialDashboardIcons).map(([title, icon], index) => (
-                  <div
-                    key={index}
-                    onClick={title === 'ÓRDENES DE COMPRA' ? openOrdenesDeCompraMenuModal : null}
-                    className={`bg-blue-50 p-6 rounded-lg shadow-md flex flex-col items-center justify-center text-center
+                {financialModules.map((module, index) => {
+                  const IconComponent = module.icon;
+                  return (
+                    <div
+                      key={`financial-module-${index}`}
+                      onClick={module.action || (() => console.log(`Clicked on ${module.title}`))}
+                      className="bg-blue-50 p-6 rounded-lg shadow-md flex flex-col items-center justify-center text-center
                                  hover:bg-blue-100 hover:shadow-lg transition-all duration-300 transform hover:scale-105
-                                 border border-blue-200 cursor-pointer`}
-                  >
-                    <span className="text-5xl text-blue-600 mb-3">
-                      {icon}
-                    </span>
-                    <p className="text-lg font-bold text-blue-800">{title}</p>
-                  </div>
-                ))}
+                                 border border-blue-200 cursor-pointer"
+                    >
+                      <IconComponent className="text-5xl text-blue-600 mb-3" />
+                      <p className="text-lg font-bold text-blue-800">{module.title}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {activeSection === 'settings' && (
             <div className="bg-white p-8 rounded-lg shadow-xl animate-fade-in">
-              <h3 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-3 border-gray-200">Configuración de Usuario</h3>
+              <h3 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-3 border-gray-200">
+                Configuración de Usuario
+              </h3>
               <p className="text-gray-600 mb-6">
                 Aquí podrás gestionar la configuración de tu cuenta.
               </p>
@@ -300,27 +336,49 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+
+          {activeSection === 'plan-cuentas' && (
+            <div className="bg-white p-8 rounded-lg shadow-xl animate-fade-in">
+              <h3 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-3 border-gray-200">
+                Plan de Cuentas
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Gestiona tu plan de cuentas contable.
+              </p>
+              <div className="text-center text-gray-500">
+                <FaScroll className="text-6xl mx-auto mb-4 text-gray-400" />
+                <p>Funcionalidad en desarrollo</p>
+              </div>
+            </div>
+          )}
         </main>
       </div>
-{/* implementacion */}
-      {/* Modal para el Menú de Órdenes de Compra */}
-      <Modal isOpen={isOrdenesDeCompraMenuModalOpen} onClose={closeOrdenesDeCompraMenuModal} title="Opciones de Órdenes de Compra">
-        <OrdenesDeCompraMenuModal
-          onClose={closeOrdenesDeCompraMenuModal}
-          // openCrearOrdenModal ya no se usa directamente desde este menú, se redirige
-          // openCrearOrdenModal={openCrearOrdenCompraModal} // Si lo necesitas para otra lógica, puedes dejarlo
-          openCrearProveedorModal={openCrearProveedorModal} // Se pasa la función para abrir el modal de proveedor
-          openCrearProductoModal={openCrearProductoModal}
-          openAgregarDetalleModal={openAgregarDetalleModal}
-          openVerOrdenesModal={openVerOrdenesModal}
-        />
-      </Modal>
 
-      {/* Modal para Crear Orden de Compra (solo se abre desde el menú de Órdenes de Compra) */}
-      {/* Se mantiene por si en el futuro quieres un modal real para "Crear Orden de Compra" */}
+      {/* Modales */}
+      {/* Modal para el Menú de Órdenes de Compra */}
+      {isOrdenesDeCompraMenuModalOpen && (
+        <Modal 
+          isOpen={isOrdenesDeCompraMenuModalOpen} 
+          onClose={closeOrdenesDeCompraMenuModal} 
+          title="Opciones de Órdenes de Compra"
+        >
+          <OrdenesDeCompraMenuModal
+            onClose={closeOrdenesDeCompraMenuModal}
+            openCrearProveedorModal={openCrearProveedorModal}
+            openCrearProductoModal={openCrearProductoModal}
+            openAgregarDetalleModal={openAgregarDetalleModal}
+            openVerOrdenesModal={openVerOrdenesModal}
+          />
+        </Modal>
+      )}
+
+      {/* Modal para Crear Orden de Compra */}
       {isCrearOrdenCompraModalOpen && (
-        <Modal isOpen={isCrearOrdenCompraModalOpen} onClose={closeCrearOrdenCompraModal} title="Crear Nueva Orden de Compra">
-          {/* Aquí iría tu componente CrearOrdenCompraModal real */}
+        <Modal 
+          isOpen={isCrearOrdenCompraModalOpen} 
+          onClose={closeCrearOrdenCompraModal} 
+          title="Crear Nueva Orden de Compra"
+        >
           <div className="p-4 text-center">
             <p className="text-gray-700">
               Este es un placeholder para el formulario de "Crear Orden de Compra".
@@ -343,12 +401,60 @@ const Dashboard = () => {
         </Modal>
       )}
 
-      {/* ... Otros modales que puedas tener o necesites implementar ... */}
-      {/* {isCrearProductoModalOpen && (
-        <Modal isOpen={isCrearProductoModalOpen} onClose={closeCrearProductoModal}>
-          <CrearProductoModal onClose={closeCrearProductoModal} />
+      {/* Modales adicionales con placeholders */}
+      {isCrearProductoModalOpen && (
+        <Modal 
+          isOpen={isCrearProductoModalOpen} 
+          onClose={closeCrearProductoModal}
+          title="Crear Producto"
+        >
+          <div className="p-4 text-center">
+            <p className="text-gray-700">Modal de Crear Producto - En desarrollo</p>
+            <button
+              onClick={closeCrearProductoModal}
+              className="mt-6 px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+            >
+              Cerrar
+            </button>
+          </div>
         </Modal>
-      )} */}
+      )}
+
+      {isAgregarDetalleModalOpen && (
+        <Modal 
+          isOpen={isAgregarDetalleModalOpen} 
+          onClose={closeAgregarDetalleModal}
+          title="Agregar Detalle a OC"
+        >
+          <div className="p-4 text-center">
+            <p className="text-gray-700">Modal de Agregar Detalle - En desarrollo</p>
+            <button
+              onClick={closeAgregarDetalleModal}
+              className="mt-6 px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+            >
+              Cerrar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {isVerOrdenesModalOpen && (
+        <Modal 
+          isOpen={isVerOrdenesModalOpen} 
+          onClose={closeVerOrdenesModal}
+          title="Ver Órdenes de Compra"
+        >
+          <div className="p-4 text-center">
+            <p className="text-gray-700">Modal de Ver Órdenes - En desarrollo</p>
+            <button
+              onClick={closeVerOrdenesModal}
+              className="mt-6 px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+            >
+              Cerrar
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
