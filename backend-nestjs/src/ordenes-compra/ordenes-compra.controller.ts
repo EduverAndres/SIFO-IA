@@ -1,27 +1,37 @@
+// backend-nestjs/src/ordenes-compra/ordenes-compra.controller.ts
 import {
   Controller,
   Post,
+  Get,
+  Put,
+  Delete,
+  Patch,
   Body,
+  Param,
+  ParseIntPipe,
   UsePipes,
   ValidationPipe,
   HttpStatus,
-  Res,
+  HttpException,
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  Query,
 } from '@nestjs/common';
 import { OrdenesCompraService } from './ordenes-compra.service';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
-import { Response } from 'express';
+import { UpdateEstadoOrdenDto } from './dto/update-estado-orden.dto';
+import { FiltrosOrdenDto } from './dto/filtros-orden.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
-import { diskStorage } from 'multer'; // <-- ¡IMPORTANTE! Añadimos diskStorage
+import { diskStorage } from 'multer';
+import { OrdenCompra } from './orden-compra.entity';
 
-// Configuración de Multer para guardar archivos en el disco
-const storage = diskStorage({ // <-- Usamos diskStorage para crear la instancia del motor de almacenamiento
-  destination: './uploads', // Directorio donde se guardarán los archivos temporalmente. ¡Asegúrate de que esta carpeta exista!
+// Configuración de Multer para guardar archivos
+const storage = diskStorage({
+  destination: './uploads',
   filename: (req, file, callback) => {
     const name = file.originalname.split('.')[0];
     const fileExtName = extname(file.originalname);
@@ -37,54 +47,178 @@ const storage = diskStorage({ // <-- Usamos diskStorage para crear la instancia 
 export class OrdenesCompraController {
   constructor(private readonly ordenesCompraService: OrdenesCompraService) {}
 
-  @Post('upload') // Nuevo endpoint para la subida de archivos
-  @UseInterceptors(FileInterceptor('archivo_adjunto', { storage })) // Usamos la instancia 'storage'
+  @Get()
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async findAll(@Query() filtros: FiltrosOrdenDto): Promise<OrdenCompra[]> {
+    try {
+      return await this.ordenesCompraService.findAll(filtros);
+    } catch (error) {
+      throw new HttpException(
+        'Error al obtener órdenes de compra',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Get('estadisticas')
+  async getEstadisticas() {
+    try {
+      return await this.ordenesCompraService.getEstadisticas();
+    } catch (error) {
+      throw new HttpException(
+        'Error al obtener estadísticas',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<OrdenCompra> {
+    try {
+      const orden = await this.ordenesCompraService.findOne(id);
+      if (!orden) {
+        throw new HttpException(
+          `Orden de compra con ID ${id} no encontrada`,
+          HttpStatus.NOT_FOUND
+        );
+      }
+      return orden;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Error al obtener orden de compra',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('archivo_adjunto', { storage }))
   async uploadFile(
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }), // Límite de 5MB
-          new FileTypeValidator({ fileType: /(pdf|jpg|jpeg|png)/ }), // Tipos de archivo permitidos
+          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }), // 5MB
+          new FileTypeValidator({ fileType: /(pdf|jpg|jpeg|png)/ }),
         ],
       }),
     )
-    file: Express.Multer.File, // Ya deberías tener @types/multer instalado para este tipo
+    file: Express.Multer.File,
   ) {
-    if (!file) {
-      return { message: 'No se subió ningún archivo.' };
+    try {
+      if (!file) {
+        throw new HttpException(
+          'No se subió ningún archivo',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      return {
+        message: 'Archivo subido exitosamente.',
+        filename: file.filename,
+        filepath: file.path,
+        url: `/uploads/${file.filename}`
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Error al subir archivo',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
-    // En un entorno real, guardarías la URL permanente del archivo en la base de datos
-    // o en un servicio de almacenamiento en la nube después de moverlo de la carpeta 'uploads'.
-    return {
-      message: 'Archivo subido exitosamente.',
-      filename: file.filename, // Devuelve el nombre del archivo guardado por Multer
-      filepath: file.path, // Devuelve la ruta completa del archivo en el servidor
-    };
   }
 
   @Post()
-  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  async create(
-    @Body() createOrdenDto: CreateOrdenCompraDto,
-    @Res() res: Response,
-  ) {
+  @UsePipes(new ValidationPipe({ 
+    whitelist: true, 
+    forbidNonWhitelisted: true,
+    transform: true 
+  }))
+  async create(@Body() createOrdenDto: CreateOrdenCompraDto): Promise<{ 
+    mensaje: string; 
+    orden: OrdenCompra 
+  }> {
     try {
       const orden = await this.ordenesCompraService.createOrdenCompra(createOrdenDto);
-      return res.status(HttpStatus.CREATED).json({
+      return {
         mensaje: 'Orden de compra creada exitosamente.',
-        id_orden: orden.id,
-      });
+        orden: orden
+      };
     } catch (error) {
-      if (error.status === HttpStatus.BAD_REQUEST || error.status === HttpStatus.NOT_FOUND) {
-        return res.status(error.status).json({
-          error: error.response?.message || error.message,
-          detalles: error.response?.detalles || null,
-        });
+      if (error instanceof HttpException) {
+        throw error;
       }
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        error: 'Error interno del servidor',
-        mensaje: 'No se pudo procesar la solicitud.',
-      });
+      console.error('Error al crear orden de compra:', error);
+      throw new HttpException(
+        error.message || 'Error interno del servidor al crear orden de compra',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Patch(':id/estado')
+  @UsePipes(new ValidationPipe({ 
+    whitelist: true, 
+    forbidNonWhitelisted: true,
+    transform: true 
+  }))
+  async updateEstado(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateEstadoDto: UpdateEstadoOrdenDto
+  ): Promise<{ mensaje: string; orden: OrdenCompra }> {
+    try {
+      const orden = await this.ordenesCompraService.updateEstado(id, updateEstadoDto.estado);
+      if (!orden) {
+        throw new HttpException(
+          `Orden de compra con ID ${id} no encontrada`,
+          HttpStatus.NOT_FOUND
+        );
+      }
+
+      // Si se proporcionaron observaciones, actualizarlas
+      if (updateEstadoDto.observaciones) {
+        orden.observaciones = updateEstadoDto.observaciones;
+        // Aquí podrías guardar las observaciones si es necesario
+      }
+
+      return {
+        mensaje: `Estado de la orden ${id} actualizado a ${updateEstadoDto.estado}`,
+        orden: orden
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Error al actualizar estado de la orden',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<{ message: string }> {
+    try {
+      const result = await this.ordenesCompraService.remove(id);
+      if (!result) {
+        throw new HttpException(
+          `Orden de compra con ID ${id} no encontrada`,
+          HttpStatus.NOT_FOUND
+        );
+      }
+      return { message: `Orden de compra con ID ${id} eliminada exitosamente` };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Error al eliminar orden de compra',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

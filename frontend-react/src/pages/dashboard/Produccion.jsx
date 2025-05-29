@@ -1,5 +1,4 @@
-// src/pages/dashboard/Produccion.jsx - Versión actualizada con vista de órdenes
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FaArrowLeft,
@@ -7,7 +6,6 @@ import {
   FaBoxOpen,
   FaShoppingCart,
   FaPlus,
-  FaMinus,
   FaEdit,
   FaTrash,
   FaEye,
@@ -20,121 +18,164 @@ import {
   FaDownload,
   FaCheckCircle,
   FaClock,
-  FaCalendarAlt,
-  FaFileAlt,
   FaSort,
   FaSortUp,
   FaSortDown,
   FaPrint,
+  FaSpinner,
 } from 'react-icons/fa';
+
+// Importar las funciones de la API
+import {
+  getProveedores,
+  crearProveedor,
+  actualizarProveedor,
+  eliminarProveedor,
+  getProductos,
+  crearProducto,
+  actualizarProducto,
+  eliminarProducto,
+  getOrdenesCompra,
+  crearOrdenCompra,
+  actualizarEstadoOrden,
+  eliminarOrdenCompra,
+  getEstadisticasProduccion
+} from '../../api/produccionApi';
 
 const Produccion = () => {
   const [activeTab, setActiveTab] = useState('crear-proveedor');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Estados para la vista de órdenes
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [sortField, setSortField] = useState('fechaCreacion');
+  const [sortField, setSortField] = useState('fecha_orden');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedOrden, setSelectedOrden] = useState(null);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
+
+  // Estados para datos de la API
+  const [proveedores, setProveedores] = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [ordenesCompra, setOrdenesCompra] = useState([]);
+  const [estadisticas, setEstadisticas] = useState({
+    total: 0,
+    pendientes: 0,
+    completadas: 0,
+    valorTotal: 0
+  });
 
   // Estados para formularios
   const [proveedorForm, setProveedorForm] = useState({
     nombre: '',
     contacto: '',
-    correo: ''
+    correo_electronico: ''
   });
 
   const [productoForm, setProductoForm] = useState({
     nombre: '',
     descripcion: '',
-    stock: 0,
-    stockMinimo: 1,
-    stockMaximo: 100
+    stock_actual: 0,
+    stock_minimo: 1,
+    stock_maximo: 100
   });
 
   const [ordenCompraForm, setOrdenCompraForm] = useState({
-    proveedor: '',
-    fechaEntrega: '',
+    id_proveedor: '',
+    fecha_entrega: '',
     detalles: []
   });
 
   const [detalleTemp, setDetalleTemp] = useState({
-    producto: '',
+    id_producto: '',
     cantidad: 1,
-    precioUnitario: 0
+    precio_unitario: 0
   });
 
-  // Estados para órdenes de compra creadas (datos ampliados)
-  const [ordenesCompra, setOrdenesCompra] = useState([
-    {
-      id: 'OC-2025-001',
-      proveedor: { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
-      fechaEntrega: '2025-02-15',
-      fechaCreacion: '2025-01-28',
-      detalles: [
-        { id: 1, producto: { nombre: 'Laptop Dell XPS', descripcion: 'Laptop de alto rendimiento' }, cantidad: 5, precioUnitario: 2500.00, total: 12500.00 },
-        { id: 2, producto: { nombre: 'Monitor 27"', descripcion: 'Monitor para diseño' }, cantidad: 3, precioUnitario: 450.00, total: 1350.00 }
-      ],
-      total: 13850.00,
-      estado: 'Pendiente',
-      observaciones: 'Entrega urgente para nuevo proyecto'
-    },
-    {
-      id: 'OC-2025-002',
-      proveedor: { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' },
-      fechaEntrega: '2025-02-10',
-      fechaCreacion: '2025-01-25',
-      detalles: [
-        { id: 3, producto: { nombre: 'Teclado Mecánico', descripcion: 'Teclado retroiluminado RGB' }, cantidad: 10, precioUnitario: 120.00, total: 1200.00 },
-        { id: 4, producto: { nombre: 'Mouse Gaming', descripcion: 'Mouse óptico de alta precisión' }, cantidad: 10, precioUnitario: 80.00, total: 800.00 }
-      ],
-      total: 2000.00,
-      estado: 'Aprobada',
-      observaciones: 'Equipos para la nueva sala de trabajo'
-    },
-    {
-      id: 'OC-2025-003',
-      proveedor: { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
-      fechaEntrega: '2025-02-05',
-      fechaCreacion: '2025-01-20',
-      detalles: [
-        { id: 5, producto: { nombre: 'Servidor Dell PowerEdge', descripcion: 'Servidor para aplicaciones críticas' }, cantidad: 1, precioUnitario: 8500.00, total: 8500.00 }
-      ],
-      total: 8500.00,
-      estado: 'Completada',
-      observaciones: 'Servidor principal para datacenter'
-    },
-    {
-      id: 'OC-2025-004',
-      proveedor: { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' },
-      fechaEntrega: '2025-01-30',
-      fechaCreacion: '2025-01-15',
-      detalles: [
-        { id: 6, producto: { nombre: 'Papel Bond A4', descripcion: 'Papel para impresora 75g' }, cantidad: 50, precioUnitario: 8.50, total: 425.00 },
-        { id: 7, producto: { nombre: 'Tinta para Impresora', descripcion: 'Cartuchos originales HP' }, cantidad: 20, precioUnitario: 45.00, total: 900.00 }
-      ],
-      total: 1325.00,
-      estado: 'Cancelada',
-      observaciones: 'Cancelada por cambio de proveedor'
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Cargar datos cuando cambie la pestaña activa
+  useEffect(() => {
+    if (activeTab === 'ver-ordenes') {
+      loadOrdenesCompra();
+      loadEstadisticas();
     }
-  ]);
+  }, [activeTab]);
 
-  // Datos simulados (mantenemos los existentes)
-  const [proveedores, setProveedores] = useState([
-    { id: 1, nombre: 'Tech Solutions S.A.', contacto: 'Juan Pérez', correo: 'juan@techsolutions.com' },
-    { id: 2, nombre: 'Office Supplies Inc.', contacto: 'María García', correo: 'maria@officesupplies.com' }
-  ]);
+  const loadInitialData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadProveedores(),
+        loadProductos()
+      ]);
+    } catch (error) {
+      console.error('Error al cargar datos iniciales:', error);
+      setError('Error al cargar los datos iniciales');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const [productos, setProductos] = useState([
-    { id: 1, nombre: 'Laptop Dell XPS', descripcion: 'Laptop de alto rendimiento', stock: 10, stockMinimo: 2, stockMaximo: 50 },
-    { id: 2, nombre: 'Monitor 27"', descripcion: 'Monitor para diseño', stock: 15, stockMinimo: 3, stockMaximo: 30 }
-  ]);
+  const loadProveedores = async () => {
+    try {
+      const data = await getProveedores();
+      setProveedores(data);
+    } catch (error) {
+      console.error('Error al cargar proveedores:', error);
+      showError('Error al cargar proveedores');
+    }
+  };
 
-  // Funciones de utilidad para órdenes
+  const loadProductos = async () => {
+    try {
+      const data = await getProductos();
+      setProductos(data);
+    } catch (error) {
+      console.error('Error al cargar productos:', error);
+      showError('Error al cargar productos');
+    }
+  };
+
+  const loadOrdenesCompra = async () => {
+    try {
+      const data = await getOrdenesCompra();
+      setOrdenesCompra(data);
+    } catch (error) {
+      console.error('Error al cargar órdenes de compra:', error);
+      showError('Error al cargar órdenes de compra');
+    }
+  };
+
+  const loadEstadisticas = async () => {
+    try {
+      const data = await getEstadisticasProduccion();
+      setEstadisticas(data);
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error);
+    }
+  };
+
+  // Funciones de utilidad
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setError('');
+    setTimeout(() => setShowSuccessMessage(false), 3000);
+  };
+
+  const showError = (message) => {
+    setError(message);
+    setShowSuccessMessage(false);
+    setTimeout(() => setError(''), 5000);
+  };
+
   const getStatusDisplay = (estado) => {
     switch (estado) {
       case 'Completada':
@@ -175,10 +216,171 @@ const Produccion = () => {
     }
   };
 
+  // Manejadores de formularios
+  const handleProveedorSubmit = async (e) => {
+    e.preventDefault();
+    if (proveedorForm.nombre && proveedorForm.contacto && proveedorForm.correo_electronico) {
+      setIsLoading(true);
+      try {
+        await crearProveedor(proveedorForm);
+        setProveedorForm({ nombre: '', contacto: '', correo_electronico: '' });
+        await loadProveedores();
+        showSuccess('¡Proveedor creado exitosamente!');
+      } catch (error) {
+        showError(error.message || 'Error al crear proveedor');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleOrdenCompraSubmit = async (e) => {
+  e.preventDefault();
+  if (ordenCompraForm.id_proveedor && ordenCompraForm.fecha_entrega && ordenCompraForm.detalles.length > 0) {
+    setIsLoading(true);
+    try {
+      // Preparar datos para enviar al backend - SOLO las propiedades necesarias
+      const ordenParaEnviar = {
+        id_proveedor: parseInt(ordenCompraForm.id_proveedor),
+        fecha_entrega: ordenCompraForm.fecha_entrega,
+        detalles: ordenCompraForm.detalles.map(detalle => ({
+          id_producto: detalle.id_producto,
+          cantidad: detalle.cantidad,
+          precio_unitario: detalle.precio_unitario
+        }))
+      };
+
+      console.log('Datos a enviar:', ordenParaEnviar);
+
+      const response = await crearOrdenCompra(ordenParaEnviar); // ✅ CORREGIDO
+      setOrdenCompraForm({ id_proveedor: '', fecha_entrega: '', detalles: [] });
+      await loadOrdenesCompra();
+      showSuccess(`¡Orden de compra creada exitosamente!`);
+    } catch (error) {
+      console.error('Error completo:', error);
+      showError(error.message || 'Error al crear orden de compra');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+};
+  const agregarDetalle = () => {
+    if (detalleTemp.id_producto && detalleTemp.cantidad > 0 && detalleTemp.precio_unitario > 0) {
+      const producto = productos.find(p => p.id == detalleTemp.id_producto);
+      const nuevoDetalle = {
+        id: Date.now(),
+        id_producto: detalleTemp.id_producto,
+        producto: producto,
+        cantidad: detalleTemp.cantidad,
+        precio_unitario: detalleTemp.precio_unitario,
+        total: detalleTemp.cantidad * detalleTemp.precio_unitario
+      };
+      setOrdenCompraForm({
+        ...ordenCompraForm,
+        detalles: [...ordenCompraForm.detalles, nuevoDetalle]
+      });
+      setDetalleTemp({ id_producto: '', cantidad: 1, precio_unitario: 0 });
+    }
+  };
+
+
+  const eliminarDetalle = (id) => {
+    setOrdenCompraForm({
+      ...ordenCompraForm,
+      detalles: ordenCompraForm.detalles.filter(d => d.id !== id)
+    });
+  };
+
+  const cambiarEstadoOrden = async (ordenId, nuevoEstado) => {
+    setIsLoading(true);
+    try {
+      await actualizarEstadoOrden(ordenId, nuevoEstado);
+      await loadOrdenesCompra();
+      await loadEstadisticas();
+      showSuccess(`Estado de la orden ${ordenId} cambiado a ${nuevoEstado}`);
+    } catch (error) {
+      showError(error.message || 'Error al cambiar estado de la orden');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const eliminarProveedorHandler = async (id) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar este proveedor?')) {
+      setIsLoading(true);
+      try {
+        await eliminarProveedor(id);
+        await loadProveedores();
+        showSuccess('Proveedor eliminado exitosamente');
+      } catch (error) {
+        showError(error.message || 'Error al eliminar proveedor');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+
+  const handleProductoSubmit = async (e) => {
+    e.preventDefault();
+    if (productoForm.nombre && productoForm.descripcion) {
+      setIsLoading(true);
+      try {
+        await crearProducto(productoForm);
+        setProductoForm({ 
+          nombre: '', 
+          descripcion: '', 
+          stock_actual: 0, 
+          stock_minimo: 1, 
+          stock_maximo: 100 
+        });
+        await loadProductos();
+        showSuccess('¡Producto creado exitosamente!');
+      } catch (error) {
+        showError(error.message || 'Error al crear producto');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+
+
+  const eliminarProductoHandler = async (id) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar este producto?')) {
+      setIsLoading(true);
+      try {
+        await eliminarProducto(id);
+        await loadProductos();
+        showSuccess('Producto eliminado exitosamente');
+      } catch (error) {
+        showError(error.message || 'Error al eliminar producto');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const eliminarOrdenHandler = async (id) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar esta orden de compra?')) {
+      setIsLoading(true);
+      try {
+        await eliminarOrdenCompra(id);
+        await loadOrdenesCompra();
+        await loadEstadisticas();
+        showSuccess('Orden de compra eliminada exitosamente');
+      } catch (error) {
+        showError(error.message || 'Error al eliminar orden de compra');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   // Funciones de filtrado y ordenamiento
   const filteredOrdenes = ordenesCompra.filter(orden => {
-    const matchesSearch = orden.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         orden.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = orden.id.toString().includes(searchTerm) ||
+                         orden.proveedor?.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || orden.estado === filterStatus;
     return matchesSearch && matchesFilter;
   });
@@ -192,28 +394,28 @@ const Produccion = () => {
         bValue = b.id;
         break;
       case 'proveedor':
-        aValue = a.proveedor.nombre;
-        bValue = b.proveedor.nombre;
+        aValue = a.proveedor?.nombre || '';
+        bValue = b.proveedor?.nombre || '';
         break;
-      case 'fechaCreacion':
-        aValue = new Date(a.fechaCreacion);
-        bValue = new Date(b.fechaCreacion);
+      case 'fecha_orden':
+        aValue = new Date(a.fecha_orden);
+        bValue = new Date(b.fecha_orden);
         break;
-      case 'fechaEntrega':
-        aValue = new Date(a.fechaEntrega);
-        bValue = new Date(b.fechaEntrega);
+      case 'fecha_entrega':
+        aValue = new Date(a.fecha_entrega);
+        bValue = new Date(b.fecha_entrega);
         break;
       case 'total':
-        aValue = a.total;
-        bValue = b.total;
+        aValue = parseFloat(a.total) || 0;
+        bValue = parseFloat(b.total) || 0;
         break;
       case 'estado':
         aValue = a.estado;
         bValue = b.estado;
         break;
       default:
-        aValue = a.fechaCreacion;
-        bValue = b.fechaCreacion;
+        aValue = a.fecha_orden;
+        bValue = b.fecha_orden;
     }
 
     if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
@@ -240,98 +442,23 @@ const Produccion = () => {
     setShowDetalleModal(true);
   };
 
-  const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
-    setOrdenesCompra(ordenesCompra.map(orden => 
-      orden.id === ordenId ? { ...orden, estado: nuevoEstado } : orden
-    ));
-    showSuccess(`Estado de la orden ${ordenId} cambiado a ${nuevoEstado}`);
-  };
-
-  // Manejadores de formularios (mantienen la funcionalidad existente)
-  const handleProveedorSubmit = (e) => {
-    e.preventDefault();
-    if (proveedorForm.nombre && proveedorForm.contacto && proveedorForm.correo) {
-      const nuevoProveedor = {
-        id: proveedores.length + 1,
-        ...proveedorForm
-      };
-      setProveedores([...proveedores, nuevoProveedor]);
-      setProveedorForm({ nombre: '', contacto: '', correo: '' });
-      showSuccess('¡Proveedor creado exitosamente!');
-    }
-  };
-
-  const handleProductoSubmit = (e) => {
-    e.preventDefault();
-    if (productoForm.nombre && productoForm.descripcion) {
-      const nuevoProducto = {
-        id: productos.length + 1,
-        ...productoForm
-      };
-      setProductos([...productos, nuevoProducto]);
-      setProductoForm({ nombre: '', descripcion: '', stock: 0, stockMinimo: 1, stockMaximo: 100 });
-      showSuccess('¡Producto creado exitosamente!');
-    }
-  };
-
-  const handleOrdenCompraSubmit = (e) => {
-    e.preventDefault();
-    if (ordenCompraForm.proveedor && ordenCompraForm.fechaEntrega && ordenCompraForm.detalles.length > 0) {
-      const proveedorSeleccionado = proveedores.find(p => p.id == ordenCompraForm.proveedor);
-      const nuevaOrden = {
-        id: `OC-2025-${String(ordenesCompra.length + 5).padStart(3, '0')}`,
-        proveedor: proveedorSeleccionado,
-        fechaEntrega: ordenCompraForm.fechaEntrega,
-        fechaCreacion: new Date().toISOString().split('T')[0],
-        detalles: ordenCompraForm.detalles,
-        total: ordenCompraForm.detalles.reduce((sum, detalle) => sum + detalle.total, 0),
-        estado: 'Pendiente',
-        observaciones: ''
-      };
-      
-      setOrdenesCompra([nuevaOrden, ...ordenesCompra]);
-      setOrdenCompraForm({ proveedor: '', fechaEntrega: '', detalles: [] });
-      showSuccess(`¡Orden de compra ${nuevaOrden.id} creada exitosamente para ${proveedorSeleccionado.nombre}!`);
-    }
-  };
-
-  const agregarDetalle = () => {
-    if (detalleTemp.producto && detalleTemp.cantidad > 0 && detalleTemp.precioUnitario > 0) {
-      const producto = productos.find(p => p.id == detalleTemp.producto);
-      const nuevoDetalle = {
-        id: Date.now(),
-        producto: producto,
-        cantidad: detalleTemp.cantidad,
-        precioUnitario: detalleTemp.precioUnitario,
-        total: detalleTemp.cantidad * detalleTemp.precioUnitario
-      };
-      setOrdenCompraForm({
-        ...ordenCompraForm,
-        detalles: [...ordenCompraForm.detalles, nuevoDetalle]
-      });
-      setDetalleTemp({ producto: '', cantidad: 1, precioUnitario: 0 });
-    }
-  };
-
-  const eliminarDetalle = (id) => {
-    setOrdenCompraForm({
-      ...ordenCompraForm,
-      detalles: ordenCompraForm.detalles.filter(d => d.id !== id)
-    });
-  };
-
-  const showSuccess = (message) => {
-    setSuccessMessage(message);
-    setShowSuccessMessage(true);
-    setTimeout(() => setShowSuccessMessage(false), 3000);
-  };
-
   const tabs = [
     { id: 'crear-proveedor', name: 'Crear Proveedor', icon: FaUserTie, color: 'blue' },
     { id: 'crear-producto', name: 'Crear Producto', icon: FaBoxOpen, color: 'green' },
     { id: 'crear-orden', name: 'Crear Orden de Compra', icon: FaShoppingCart, color: 'purple' },
     { id: 'ver-ordenes', name: 'Ver Órdenes de Compra', icon: FaEye, color: 'indigo' }
   ];
+
+  if (isLoading && proveedores.length === 0 && productos.length === 0) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -354,11 +481,18 @@ const Produccion = () => {
         <p className="text-blue-100">Gestiona proveedores, productos y órdenes de compra</p>
       </div>
 
-      {/* Mensaje de éxito */}
+      {/* Mensajes de éxito y error */}
       {showSuccessMessage && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex items-center animate-fade-in">
           <FaCheck className="mr-2" />
           {successMessage}
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex items-center animate-fade-in">
+          <FaExclamationTriangle className="mr-2" />
+          {error}
         </div>
       )}
 
@@ -388,6 +522,463 @@ const Produccion = () => {
 
         {/* Contenido de las pestañas */}
         <div className="p-6">
+          {/* Crear Proveedor */}
+          {activeTab === 'crear-proveedor' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Proveedor</h2>
+                <FaUserTie className="text-2xl text-blue-600" />
+              </div>
+              
+              <form onSubmit={handleProveedorSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Proveedor *
+                  </label>
+                  <input
+                    type="text"
+                    value={proveedorForm.nombre}
+                    onChange={(e) => setProveedorForm({...proveedorForm, nombre: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: Tech Solutions S.A."
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Persona de Contacto *
+                  </label>
+                  <input
+                    type="text"
+                    value={proveedorForm.contacto}
+                    onChange={(e) => setProveedorForm({...proveedorForm, contacto: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: Juan Pérez"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Correo Electrónico *
+                  </label>
+                  <input
+                    type="email"
+                    value={proveedorForm.correo_electronico}
+                    onChange={(e) => setProveedorForm({...proveedorForm, correo_electronico: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: contacto@proveedor.com"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaSave className="mr-2" />}
+                    {isLoading ? 'Creando...' : 'Crear Proveedor'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Lista de proveedores */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Proveedores Registrados ({proveedores.length})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Contacto</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Correo</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {proveedores.map((proveedor) => (
+                        <tr key={proveedor.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{proveedor.nombre}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{proveedor.contacto}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{proveedor.correo_electronico}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex space-x-2">
+                              <button 
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100"
+                                title="Ver detalles"
+                              >
+                                <FaEye />
+                              </button>
+                              <button 
+                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-100"
+                                title="Editar"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button 
+                                onClick={() => eliminarProveedorHandler(proveedor.id)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
+                                title="Eliminar"
+                                disabled={isLoading}
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Crear Producto */}
+          {activeTab === 'crear-producto' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Producto</h2>
+                <FaBoxOpen className="text-2xl text-green-600" />
+              </div>
+              
+              <form onSubmit={handleProductoSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Producto *
+                  </label>
+                  <input
+                    type="text"
+                    value={productoForm.nombre}
+                    onChange={(e) => setProductoForm({...productoForm, nombre: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Ej: Laptop Dell XPS"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stock Actual
+                  </label>
+                  <input
+                    type="number"
+                    value={productoForm.stock_actual}
+                    onChange={(e) => setProductoForm({...productoForm, stock_actual: parseInt(e.target.value) || 0})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="0"
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Descripción *
+                  </label>
+                  <textarea
+                    value={productoForm.descripcion}
+                    onChange={(e) => setProductoForm({...productoForm, descripcion: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    rows="3"
+                    placeholder="Descripción detallada del producto..."
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stock Mínimo *
+                  </label>
+                  <input
+                    type="number"
+                    value={productoForm.stock_minimo}
+                    onChange={(e) => setProductoForm({...productoForm, stock_minimo: parseInt(e.target.value) || 1})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stock Máximo *
+                  </label>
+                  <input
+                    type="number"
+                    value={productoForm.stock_maximo}
+                    onChange={(e) => setProductoForm({...productoForm, stock_maximo: parseInt(e.target.value) || 100})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaSave className="mr-2" />}
+                    {isLoading ? 'Creando...' : 'Crear Producto'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Lista de productos */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Productos Registrados ({productos.length})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Stock</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Min/Max</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {productos.map((producto) => (
+                        <tr key={producto.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{producto.nombre}</div>
+                              <div className="text-sm text-gray-500">{producto.descripcion}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{producto.stock_actual}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{producto.stock_minimo} / {producto.stock_maximo}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              producto.stock_actual <= producto.stock_minimo 
+                                ? 'bg-red-100 text-red-800' 
+                                : producto.stock_actual >= producto.stock_maximo
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {producto.stock_actual <= producto.stock_minimo ? 'Bajo' : 
+                               producto.stock_actual >= producto.stock_maximo ? 'Alto' : 'Normal'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex space-x-2">
+                              <button 
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100"
+                                title="Ver detalles"
+                              >
+                                <FaEye />
+                              </button>
+                              <button 
+                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-100"
+                                title="Editar"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button 
+                                onClick={() => eliminarProductoHandler(producto.id)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
+                                title="Eliminar"
+                                disabled={isLoading}
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Crear Orden de Compra */}
+          {activeTab === 'crear-orden' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Crear Orden de Compra</h2>
+                <FaShoppingCart className="text-2xl text-purple-600" />
+              </div>
+              
+              <form onSubmit={handleOrdenCompraSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Proveedor *
+                    </label>
+                    <select
+                      value={ordenCompraForm.id_proveedor}
+                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, id_proveedor: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
+                      disabled={isLoading}
+                    >
+                      <option value="">Seleccionar proveedor...</option>
+                      {proveedores.map((proveedor) => (
+                        <option key={proveedor.id} value={proveedor.id}>
+                          {proveedor.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de Entrega *
+                    </label>
+                    <input
+                      type="date"
+                      value={ordenCompraForm.fecha_entrega}
+                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, fecha_entrega: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Agregar detalles */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Agregar Detalles de Compra</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Producto</label>
+                      <select
+                        value={detalleTemp.id_producto}
+                        onChange={(e) => setDetalleTemp({...detalleTemp, id_producto: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        disabled={isLoading}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {productos.map((producto) => (
+                          <option key={producto.id} value={producto.id}>
+                            {producto.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad</label>
+                      <input
+                        type="number"
+                        value={detalleTemp.cantidad}
+                        onChange={(e) => setDetalleTemp({...detalleTemp, cantidad: parseInt(e.target.value) || 1})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        min="1"
+                        placeholder="Cantidad"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Precio Unit.</label>
+                      <input
+                        type="number"
+                        value={detalleTemp.precio_unitario}
+                        onChange={(e) => setDetalleTemp({...detalleTemp, precio_unitario: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={agregarDetalle}
+                        disabled={isLoading}
+                        className="w-full px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
+                      >
+                        <FaPlus className="mr-2" />
+                        Agregar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista de detalles */}
+                {ordenCompraForm.detalles.length > 0 && (
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-800 mb-3">Detalles de la Orden</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Producto</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Cantidad</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Precio Unit.</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Total</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {ordenCompraForm.detalles.map((detalle) => (
+                            <tr key={detalle.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto.nombre}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">${detalle.precio_unitario.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">${detalle.total.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => eliminarDetalle(detalle.id)}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
+                                  disabled={isLoading}
+                                >
+                                  <FaTrash />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="mt-4 text-right">
+                      <span className="text-lg font-bold text-gray-900">
+                        Total: ${ordenCompraForm.detalles.reduce((sum, detalle) => sum + detalle.total, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={ordenCompraForm.detalles.length === 0 || isLoading}
+                    className={`px-6 py-3 font-medium rounded-lg transition-colors duration-200 flex items-center ${
+                      ordenCompraForm.detalles.length === 0 || isLoading
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {isLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaSave className="mr-2" />}
+                    {isLoading ? 'Creando...' : 'Crear Orden'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {/* Ver Órdenes de Compra */}
           {activeTab === 'ver-ordenes' && (
             <div className="space-y-6">
@@ -402,7 +993,7 @@ const Produccion = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Total Órdenes</p>
-                      <p className="text-2xl font-bold text-gray-800">{ordenesCompra.length}</p>
+                      <p className="text-2xl font-bold text-gray-800">{estadisticas.total || ordenesCompra.length}</p>
                     </div>
                     <div className="bg-blue-100 p-3 rounded-full">
                       <FaShoppingCart className="text-blue-600" />
@@ -414,7 +1005,7 @@ const Produccion = () => {
                     <div>
                       <p className="text-sm text-gray-600">Completadas</p>
                       <p className="text-2xl font-bold text-green-600">
-                        {ordenesCompra.filter(o => o.estado === 'Completada').length}
+                        {estadisticas.completadas || ordenesCompra.filter(o => o.estado === 'Completada').length}
                       </p>
                     </div>
                     <div className="bg-green-100 p-3 rounded-full">
@@ -427,7 +1018,7 @@ const Produccion = () => {
                     <div>
                       <p className="text-sm text-gray-600">Pendientes</p>
                       <p className="text-2xl font-bold text-yellow-600">
-                        {ordenesCompra.filter(o => o.estado === 'Pendiente').length}
+                        {estadisticas.pendientes || ordenesCompra.filter(o => o.estado === 'Pendiente').length}
                       </p>
                     </div>
                     <div className="bg-yellow-100 p-3 rounded-full">
@@ -440,7 +1031,7 @@ const Produccion = () => {
                     <div>
                       <p className="text-sm text-gray-600">Valor Total</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        ${ordenesCompra.reduce((total, orden) => total + orden.total, 0).toLocaleString()}
+                        ${(estadisticas.valorTotal || ordenesCompra.reduce((total, orden) => total + parseFloat(orden.total || 0), 0)).toLocaleString()}
                       </p>
                     </div>
                     <div className="bg-purple-100 p-3 rounded-full">
@@ -508,20 +1099,20 @@ const Produccion = () => {
                         </th>
                         <th 
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                          onClick={() => handleSort('fechaCreacion')}
+                          onClick={() => handleSort('fecha_orden')}
                         >
                           <div className="flex items-center">
                             F. Creación
-                            {getSortIcon('fechaCreacion')}
+                            {getSortIcon('fecha_orden')}
                           </div>
                         </th>
                         <th 
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                          onClick={() => handleSort('fechaEntrega')}
+                          onClick={() => handleSort('fecha_entrega')}
                         >
                           <div className="flex items-center">
                             F. Entrega
-                            {getSortIcon('fechaEntrega')}
+                            {getSortIcon('fecha_entrega')}
                           </div>
                         </th>
                         <th 
@@ -553,23 +1144,27 @@ const Produccion = () => {
                         return (
                           <tr key={index} className="hover:bg-gray-50 transition-colors duration-200">
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{orden.id}</div>
+                              <div className="text-sm font-medium text-gray-900">OC-{orden.id}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div>
-                                <div className="text-sm font-medium text-gray-900">{orden.proveedor.nombre}</div>
-                                <div className="text-sm text-gray-500">{orden.proveedor.contacto}</div>
+                                <div className="text-sm font-medium text-gray-900">{orden.proveedor?.nombre}</div>
+                                <div className="text-sm text-gray-500">{orden.proveedor?.contacto}</div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{orden.fechaCreacion}</div>
+                              <div className="text-sm text-gray-900">
+                                {new Date(orden.fecha_orden).toLocaleDateString()}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{orden.fechaEntrega}</div>
+                              <div className="text-sm text-gray-900">
+                                {new Date(orden.fecha_entrega).toLocaleDateString()}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">
-                                ${orden.total.toLocaleString()}
+                                ${parseFloat(orden.total || 0).toLocaleString()}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -592,14 +1187,23 @@ const Produccion = () => {
                                     onClick={() => cambiarEstadoOrden(orden.id, 'Aprobada')}
                                     className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-100 transition-colors duration-200"
                                     title="Aprobar"
+                                    disabled={isLoading}
                                   >
                                     <FaCheck className="text-sm" />
                                   </button>
                                 )}
-                                <button className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100 transition-colors duration-200">
+                                <button 
+                                  className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100 transition-colors duration-200"
+                                  title="Imprimir"
+                                >
                                   <FaPrint className="text-sm" />
                                 </button>
-                                <button className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100 transition-colors duration-200">
+                                <button 
+                                  onClick={() => eliminarOrdenHandler(orden.id)}
+                                  className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100 transition-colors duration-200"
+                                  title="Eliminar"
+                                  disabled={isLoading}
+                                >
                                   <FaTrash className="text-sm" />
                                 </button>
                               </div>
@@ -619,457 +1223,6 @@ const Produccion = () => {
                   </div>
                 )}
               </div>
-
-              {/* Paginación */}
-              {sortedOrdenes.length > 0 && (
-                <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg shadow">
-                  <div className="flex-1 flex justify-between sm:hidden">
-                    <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                      Anterior
-                    </button>
-                    <button className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                      Siguiente
-                    </button>
-                  </div>
-                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm text-gray-700">
-                        Mostrando <span className="font-medium">1</span> a <span className="font-medium">{sortedOrdenes.length}</span> de{' '}
-                        <span className="font-medium">{sortedOrdenes.length}</span> resultados
-                      </p>
-                    </div>
-                    <div>
-                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                        <button className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                          Anterior
-                        </button>
-                        <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
-                          1
-                        </button>
-                        <button className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                          Siguiente
-                        </button>
-                      </nav>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Las otras pestañas mantienen su funcionalidad existente */}
-          {/* Crear Proveedor */}
-          {activeTab === 'crear-proveedor' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Proveedor</h2>
-                <FaUserTie className="text-2xl text-blue-600" />
-              </div>
-              
-              <form onSubmit={handleProveedorSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre del Proveedor *
-                  </label>
-                  <input
-                    type="text"
-                    value={proveedorForm.nombre}
-                    onChange={(e) => setProveedorForm({...proveedorForm, nombre: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ej: Tech Solutions S.A."
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Persona de Contacto *
-                  </label>
-                  <input
-                    type="text"
-                    value={proveedorForm.contacto}
-                    onChange={(e) => setProveedorForm({...proveedorForm, contacto: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ej: Juan Pérez"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Correo Electrónico *
-                  </label>
-                  <input
-                    type="email"
-                    value={proveedorForm.correo}
-                    onChange={(e) => setProveedorForm({...proveedorForm, correo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ej: contacto@proveedor.com"
-                    required
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <button
-                    type="submit"
-                    className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center"
-                  >
-                    <FaSave className="mr-2" />
-                    Crear Proveedor
-                  </button>
-                </div>
-              </form>
-
-              {/* Lista de proveedores */}
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Proveedores Registrados</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Contacto</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Correo</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {proveedores.map((proveedor) => (
-                        <tr key={proveedor.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{proveedor.nombre}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{proveedor.contacto}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{proveedor.correo}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <div className="flex space-x-2">
-                              <button className="text-blue-600 hover:text-blue-800">
-                                <FaEye />
-                              </button>
-                              <button className="text-green-600 hover:text-green-800">
-                                <FaEdit />
-                              </button>
-                              <button className="text-red-600 hover:text-red-800">
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Crear Producto */}
-          {activeTab === 'crear-producto' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Producto</h2>
-                <FaBoxOpen className="text-2xl text-green-600" />
-              </div>
-              
-              <form onSubmit={handleProductoSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre del Producto *
-                  </label>
-                  <input
-                    type="text"
-                    value={productoForm.nombre}
-                    onChange={(e) => setProductoForm({...productoForm, nombre: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Ej: Laptop Dell XPS"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Actual
-                  </label>
-                  <input
-                    type="number"
-                    value={productoForm.stock}
-                    onChange={(e) => setProductoForm({...productoForm, stock: parseInt(e.target.value) || 0})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    min="0"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción *
-                  </label>
-                  <textarea
-                    value={productoForm.descripcion}
-                    onChange={(e) => setProductoForm({...productoForm, descripcion: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    rows="3"
-                    placeholder="Descripción detallada del producto..."
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Mínimo *
-                  </label>
-                  <input
-                    type="number"
-                    value={productoForm.stockMinimo}
-                    onChange={(e) => setProductoForm({...productoForm, stockMinimo: parseInt(e.target.value) || 1})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    min="1"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Máximo *
-                  </label>
-                  <input
-                    type="number"
-                    value={productoForm.stockMaximo}
-                    onChange={(e) => setProductoForm({...productoForm, stockMaximo: parseInt(e.target.value) || 100})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    min="1"
-                    required
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <button
-                    type="submit"
-                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center"
-                  >
-                    <FaSave className="mr-2" />
-                    Crear Producto
-                  </button>
-                </div>
-              </form>
-
-              {/* Lista de productos */}
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Productos Registrados</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Stock</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Min/Max</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {productos.map((producto) => (
-                        <tr key={producto.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">{producto.nombre}</div>
-                              <div className="text-sm text-gray-500">{producto.descripcion}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{producto.stock}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{producto.stockMinimo} / {producto.stockMaximo}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              producto.stock <= producto.stockMinimo 
-                                ? 'bg-red-100 text-red-800' 
-                                : producto.stock >= producto.stockMaximo
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {producto.stock <= producto.stockMinimo ? 'Bajo' : 
-                               producto.stock >= producto.stockMaximo ? 'Alto' : 'Normal'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <div className="flex space-x-2">
-                              <button className="text-blue-600 hover:text-blue-800">
-                                <FaEye />
-                              </button>
-                              <button className="text-green-600 hover:text-green-800">
-                                <FaEdit />
-                              </button>
-                              <button className="text-red-600 hover:text-red-800">
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Crear Orden de Compra */}
-          {activeTab === 'crear-orden' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-800">Crear Orden de Compra</h2>
-                <FaShoppingCart className="text-2xl text-purple-600" />
-              </div>
-              
-              <form onSubmit={handleOrdenCompraSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Proveedor *
-                    </label>
-                    <select
-                      value={ordenCompraForm.proveedor}
-                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, proveedor: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      required
-                    >
-                      <option value="">Seleccionar proveedor...</option>
-                      {proveedores.map((proveedor) => (
-                        <option key={proveedor.id} value={proveedor.id}>
-                          {proveedor.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Fecha de Entrega *
-                    </label>
-                    <input
-                      type="date"
-                      value={ordenCompraForm.fechaEntrega}
-                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, fechaEntrega: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Agregar detalles */}
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Agregar Detalles de Compra</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Producto</label>
-                      <select
-                        value={detalleTemp.producto}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, producto: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {productos.map((producto) => (
-                          <option key={producto.id} value={producto.id}>
-                            {producto.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad Solicitada</label>
-                      <input
-                        type="number"
-                        value={detalleTemp.cantidad}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, cantidad: parseInt(e.target.value) || 1})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        min="1"
-                        placeholder="Cantidad"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Precio por Unidad</label>
-                      <input
-                        type="number"
-                        value={detalleTemp.precioUnitario}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, precioUnitario: parseFloat(e.target.value) || 0})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={agregarDetalle}
-                        className="w-full px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center justify-center"
-                      >
-                        <FaPlus className="mr-2" />
-                        Agregar Detalle
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lista de detalles */}
-                {ordenCompraForm.detalles.length > 0 && (
-                  <div>
-                    <h4 className="text-md font-semibold text-gray-800 mb-3">Detalles de la Orden de Compra</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Producto</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Cantidad</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Precio Unit.</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Total</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {ordenCompraForm.detalles.map((detalle) => (
-                            <tr key={detalle.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto.nombre}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700">{detalle.cantidad}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700">${detalle.precioUnitario.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">${detalle.total.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm">
-                                <button
-                                  type="button"
-                                  onClick={() => eliminarDetalle(detalle.id)}
-                                  className="text-red-600 hover:text-red-800"
-                                >
-                                  <FaTrash />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <div className="mt-4 text-right">
-                      <span className="text-lg font-bold text-gray-900">
-                        Total de la Orden: ${ordenCompraForm.detalles.reduce((sum, detalle) => sum + detalle.total, 0).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={ordenCompraForm.detalles.length === 0}
-                    className={`px-6 py-3 font-medium rounded-lg transition-colors duration-200 flex items-center ${
-                      ordenCompraForm.detalles.length === 0
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    <FaSave className="mr-2" />
-                    Crear Orden de Compra
-                  </button>
-                </div>
-              </form>
             </div>
           )}
         </div>
@@ -1083,7 +1236,7 @@ const Produccion = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-800">Detalle de Orden de Compra</h3>
-                  <p className="text-gray-600">{selectedOrden.id}</p>
+                  <p className="text-gray-600">OC-{selectedOrden.id}</p>
                 </div>
                 <button
                   onClick={() => setShowDetalleModal(false)}
@@ -1102,15 +1255,15 @@ const Produccion = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">ID de Orden:</span>
-                      <span className="font-medium">{selectedOrden.id}</span>
+                      <span className="font-medium">OC-{selectedOrden.id}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Fecha de Creación:</span>
-                      <span className="font-medium">{selectedOrden.fechaCreacion}</span>
+                      <span className="font-medium">{new Date(selectedOrden.fecha_orden).toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Fecha de Entrega:</span>
-                      <span className="font-medium">{selectedOrden.fechaEntrega}</span>
+                      <span className="font-medium">{new Date(selectedOrden.fecha_entrega).toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Estado:</span>
@@ -1126,15 +1279,15 @@ const Produccion = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Empresa:</span>
-                      <span className="font-medium">{selectedOrden.proveedor.nombre}</span>
+                      <span className="font-medium">{selectedOrden.proveedor?.nombre}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Contacto:</span>
-                      <span className="font-medium">{selectedOrden.proveedor.contacto}</span>
+                      <span className="font-medium">{selectedOrden.proveedor?.contacto}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Correo:</span>
-                      <span className="font-medium">{selectedOrden.proveedor.correo}</span>
+                      <span className="font-medium">{selectedOrden.proveedor?.correo_electronico}</span>
                     </div>
                   </div>
                 </div>
@@ -1155,13 +1308,13 @@ const Produccion = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {selectedOrden.detalles.map((detalle) => (
+                      {selectedOrden.detalles?.map((detalle) => (
                         <tr key={detalle.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto.nombre}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{detalle.producto.descripcion}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto?.nombre}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{detalle.producto?.descripcion}</td>
                           <td className="px-4 py-3 text-sm text-gray-700 text-center">{detalle.cantidad}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">${detalle.precioUnitario.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">${detalle.total.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">${parseFloat(detalle.precio_unitario).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">${(detalle.cantidad * detalle.precio_unitario).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1172,10 +1325,10 @@ const Produccion = () => {
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="text-right">
                       <div className="text-lg font-bold text-gray-900">
-                        Total de la Orden: ${selectedOrden.total.toLocaleString()}
+                        Total de la Orden: ${parseFloat(selectedOrden.total || 0).toLocaleString()}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {selectedOrden.detalles.length} producto{selectedOrden.detalles.length !== 1 ? 's' : ''}
+                        {selectedOrden.detalles?.length} producto{selectedOrden.detalles?.length !== 1 ? 's' : ''}
                       </div>
                     </div>
                   </div>
@@ -1202,7 +1355,8 @@ const Produccion = () => {
                           cambiarEstadoOrden(selectedOrden.id, 'Aprobada');
                           setShowDetalleModal(false);
                         }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
+                        disabled={isLoading}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center disabled:opacity-50"
                       >
                         <FaCheck className="mr-2" />
                         Aprobar Orden
@@ -1212,7 +1366,8 @@ const Produccion = () => {
                           cambiarEstadoOrden(selectedOrden.id, 'Cancelada');
                           setShowDetalleModal(false);
                         }}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center"
+                        disabled={isLoading}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center disabled:opacity-50"
                       >
                         <FaTimes className="mr-2" />
                         Cancelar Orden
@@ -1225,7 +1380,8 @@ const Produccion = () => {
                         cambiarEstadoOrden(selectedOrden.id, 'Completada');
                         setShowDetalleModal(false);
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center"
+                      disabled={isLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center disabled:opacity-50"
                     >
                       <FaCheckCircle className="mr-2" />
                       Marcar como Completada
@@ -1256,3 +1412,4 @@ const Produccion = () => {
 };
 
 export default Produccion;
+                              
