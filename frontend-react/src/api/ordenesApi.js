@@ -2,7 +2,7 @@
 
 // Ajusta esta URL para que apunte a donde tu backend NestJS está realmente corriendo
 // Según tu error, NestJS está en 3001 y React en 3000.
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // --- Funciones existentes para órdenes de compra ---hola
 
