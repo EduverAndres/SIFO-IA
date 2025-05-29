@@ -1,3 +1,4 @@
+// backend-nestjs/src/proveedores/proveedor.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { OrdenCompra } from '../ordenes-compra/orden-compra.entity';
 

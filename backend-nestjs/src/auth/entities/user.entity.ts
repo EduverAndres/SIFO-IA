@@ -1,7 +1,7 @@
 // backend-nestjs/src/auth/entities/user.entity.ts
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
 
-@Entity('usuarios') // El nombre de la tabla en tu base de datos MySQL será 'usuarios'
+@Entity('usuarios')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
@@ -12,12 +12,12 @@ export class User {
   @Column({ unique: true, length: 100 })
   email: string;
 
-  @Column({ select: false }) // Importante: no selecciona la contraseña por defecto en las consultas
+  @Column({ select: false })
   password: string;
 
-  @Column({ default: 'usuario', length: 20 }) // Rol por defecto para nuevos usuarios
-  rol: string; // 'admin', 'usuario', 'manager', etc.
+  @Column({ default: 'usuario', length: 20 })
+  rol: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_creacion: Date;
 }

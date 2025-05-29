@@ -105,7 +105,7 @@ export class OrdenesCompraController {
         ],
       }),
     )
-    file: Express.Multer.File,
+    file: any,
   ) {
     try {
       if (!file) {
