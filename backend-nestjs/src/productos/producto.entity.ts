@@ -1,3 +1,4 @@
+// backend-nestjs/src/productos/producto.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { DetalleOrden } from '../ordenes-compra/detalle-orden.entity';
 
@@ -12,13 +13,13 @@ export class Producto {
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
-  @Column({ default: 0, nullable: false })
+  @Column({ type: 'integer', default: 0, nullable: false })
   stock_actual: number;
 
-  @Column({ default: 0, nullable: false })
+  @Column({ type: 'integer', default: 0, nullable: false })
   stock_minimo: number;
 
-  @Column({ default: 0, nullable: false })
+  @Column({ type: 'integer', default: 100, nullable: false })
   stock_maximo: number;
 
   @OneToMany(() => DetalleOrden, (detalle) => detalle.producto)

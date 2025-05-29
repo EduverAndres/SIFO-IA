@@ -2,7 +2,13 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn } from 'typeorm';
 import { Proveedor } from '../proveedores/proveedor.entity';
 import { DetalleOrden } from './detalle-orden.entity';
-import { EstadoOrden } from './dto/update-estado-orden.dto';
+
+export enum EstadoOrden {
+  PENDIENTE = 'Pendiente',
+  APROBADA = 'Aprobada',
+  COMPLETADA = 'Completada',
+  CANCELADA = 'Cancelada'
+}
 
 @Entity('ordenes_compra')
 export class OrdenCompra {
@@ -13,10 +19,10 @@ export class OrdenCompra {
   @JoinColumn({ name: 'id_proveedor' })
   proveedor: Proveedor;
 
-  @CreateDateColumn({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_orden: Date;
 
-  @Column({ type: 'datetime', nullable: false })
+  @Column({ type: 'timestamp', nullable: false })
   fecha_entrega: Date;
 
   @Column({ length: 255, nullable: true })
