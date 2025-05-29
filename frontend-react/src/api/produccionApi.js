@@ -1,6 +1,6 @@
 // frontend-react/src/api/produccionApi.js
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = 'https://sifo-ia.onrender.com';
 
 // Función helper para manejar errores de respuesta
 const handleResponse = async (response) => {
