@@ -9,14 +9,15 @@ async function bootstrap() {
 
   // CORS para desarrollo y producción
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://sifo-ia.netlify.app', // Tu futuro dominio de Netlify
-      /^https:\/\/.*\.netlify\.app$/, // Cualquier subdominio de Netlify
-    ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-  });
+  origin: [
+    'http://localhost:3000',
+    'https://sifo-ia.netlify.app',
+    /^https:\/\/.*\.netlify\.app$/,
+    'https://sifo-ia.onrender.com', // Tu propio backend
+  ],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  credentials: true,
+});
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
