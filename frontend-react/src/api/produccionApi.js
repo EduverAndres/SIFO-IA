@@ -5,8 +5,26 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 // Función helper para manejar errores de respuesta
 const handleResponse = async (response) => {
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      // Si no se puede parsear la respuesta como JSON
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    // Crear un mensaje de error más detallado
+    let errorMessage = errorData.message || `Error ${response.status}: ${response.statusText}`;
+    
+    // Si hay errores de validación específicos, incluirlos
+    if (errorData.errors && Array.isArray(errorData.errors)) {
+      errorMessage += '\n\nDetalles:\n' + errorData.errors.join('\n');
+    } else if (errorData.detalles && Array.isArray(errorData.detalles)) {
+      errorMessage += '\n\nDetalles:\n' + errorData.detalles.join('\n');
+    }
+    
+    console.error('Error detallado de la API:', errorData);
+    throw new Error(errorMessage);
   }
   return response.json();
 };
@@ -211,11 +229,44 @@ export const getOrdenCompra = async (id) => {
 
 export const crearOrdenCompra = async (ordenData) => {
   try {
+    console.log('Enviando orden de compra:', JSON.stringify(ordenData, null, 2));
+    
+    // Validaciones del lado del cliente
+    if (!ordenData.id_proveedor) {
+      throw new Error('Debe seleccionar un proveedor');
+    }
+    
+    if (!ordenData.fecha_entrega) {
+      throw new Error('Debe especificar una fecha de entrega');
+    }
+    
+    if (!ordenData.detalles || ordenData.detalles.length === 0) {
+      throw new Error('Debe agregar al menos un producto a la orden');
+    }
+    
+    // Validar cada detalle
+    for (let i = 0; i < ordenData.detalles.length; i++) {
+      const detalle = ordenData.detalles[i];
+      
+      if (!detalle.id_producto) {
+        throw new Error(`Detalle ${i + 1}: Debe seleccionar un producto`);
+      }
+      
+      if (!detalle.cantidad || detalle.cantidad <= 0) {
+        throw new Error(`Detalle ${i + 1}: La cantidad debe ser mayor a 0`);
+      }
+      
+      if (!detalle.precio_unitario || detalle.precio_unitario <= 0) {
+        throw new Error(`Detalle ${i + 1}: El precio unitario debe ser mayor a 0`);
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}/ordenes-compra`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(ordenData)
     });
+    
     return await handleResponse(response);
   } catch (error) {
     console.error('Error al crear orden de compra:', error);
@@ -341,6 +392,15 @@ export const validarDatosOrden = (ordenData) => {
     errores.push('Debe especificar una fecha de entrega');
   }
 
+  // Validar que la fecha de entrega no sea en el pasado
+  const fechaEntrega = new Date(ordenData.fecha_entrega);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0); // Resetear la hora para comparar solo fechas
+  
+  if (fechaEntrega < hoy) {
+    errores.push('La fecha de entrega no puede ser anterior a hoy');
+  }
+
   if (!ordenData.detalles || ordenData.detalles.length === 0) {
     errores.push('Debe agregar al menos un producto');
   }
@@ -351,11 +411,15 @@ export const validarDatosOrden = (ordenData) => {
       if (!detalle.id_producto) {
         errores.push(`Detalle ${index + 1}: Debe seleccionar un producto`);
       }
-      if (!detalle.cantidad || detalle.cantidad <= 0) {
-        errores.push(`Detalle ${index + 1}: La cantidad debe ser mayor a 0`);
+      
+      const cantidad = parseInt(detalle.cantidad);
+      if (!cantidad || cantidad <= 0 || isNaN(cantidad)) {
+        errores.push(`Detalle ${index + 1}: La cantidad debe ser un número entero mayor a 0`);
       }
-      if (!detalle.precio_unitario || detalle.precio_unitario <= 0) {
-        errores.push(`Detalle ${index + 1}: El precio unitario debe ser mayor a 0`);
+      
+      const precio = parseFloat(detalle.precio_unitario);
+      if (!precio || precio <= 0 || isNaN(precio)) {
+        errores.push(`Detalle ${index + 1}: El precio unitario debe ser un número mayor a 0`);
       }
     });
   }

@@ -234,54 +234,92 @@ const Produccion = () => {
     }
   };
 
-  const handleOrdenCompraSubmit = async (e) => {
+  // En frontend-react/src/pages/dashboard/Produccion.jsx
+// Corregir la función handleOrdenCompraSubmit
+
+const handleOrdenCompraSubmit = async (e) => {
   e.preventDefault();
   if (ordenCompraForm.id_proveedor && ordenCompraForm.fecha_entrega && ordenCompraForm.detalles.length > 0) {
     setIsLoading(true);
     try {
-      // Preparar datos para enviar al backend - SOLO las propiedades necesarias
+      // Preparar datos para enviar al backend - CORREGIDO
       const ordenParaEnviar = {
         id_proveedor: parseInt(ordenCompraForm.id_proveedor),
         fecha_entrega: ordenCompraForm.fecha_entrega,
         detalles: ordenCompraForm.detalles.map(detalle => ({
-          id_producto: detalle.id_producto,
-          cantidad: detalle.cantidad,
-          precio_unitario: detalle.precio_unitario
+          id_producto: parseInt(detalle.id_producto), // ✅ ASEGURAR QUE SEA NÚMERO
+          cantidad: parseInt(detalle.cantidad), // ✅ ASEGURAR QUE SEA NÚMERO
+          precio_unitario: parseFloat(detalle.precio_unitario) // ✅ ASEGURAR QUE SEA NÚMERO
         }))
       };
 
-      console.log('Datos a enviar:', ordenParaEnviar);
+      console.log('Datos a enviar:', JSON.stringify(ordenParaEnviar, null, 2));
 
-      const response = await crearOrdenCompra(ordenParaEnviar); // ✅ CORREGIDO
+      const response = await crearOrdenCompra(ordenParaEnviar);
       setOrdenCompraForm({ id_proveedor: '', fecha_entrega: '', detalles: [] });
       await loadOrdenesCompra();
-      showSuccess(`¡Orden de compra creada exitosamente!`);
+      showSuccess(`¡Orden de compra creada exitosamente! ID: ${response.orden?.id || 'N/A'}`);
     } catch (error) {
       console.error('Error completo:', error);
-      showError(error.message || 'Error al crear orden de compra');
+      
+      // Mejorar el manejo de errores para mostrar más detalles
+      let errorMessage = 'Error al crear orden de compra';
+      
+      if (error.message) {
+        try {
+          // Si el error contiene detalles de validación, mostrarlos
+          if (error.message.includes('Errores de validación')) {
+            errorMessage = 'Error de validación. Verifica que:\n' +
+                          '• Todos los productos estén seleccionados\n' +
+                          '• Las cantidades sean números válidos mayores a 0\n' +
+                          '• Los precios sean números válidos mayores a 0';
+          } else {
+            errorMessage = error.message;
+          }
+        } catch (e) {
+          errorMessage = 'Error al crear orden de compra: ' + error.message;
+        }
+      }
+      
+      showError(errorMessage);
     } finally {
       setIsLoading(false);
     }
+  } else {
+    showError('Por favor complete todos los campos requeridos y agregue al menos un detalle.');
   }
 };
-  const agregarDetalle = () => {
-    if (detalleTemp.id_producto && detalleTemp.cantidad > 0 && detalleTemp.precio_unitario > 0) {
-      const producto = productos.find(p => p.id == detalleTemp.id_producto);
-      const nuevoDetalle = {
-        id: Date.now(),
-        id_producto: detalleTemp.id_producto,
-        producto: producto,
-        cantidad: detalleTemp.cantidad,
-        precio_unitario: detalleTemp.precio_unitario,
-        total: detalleTemp.cantidad * detalleTemp.precio_unitario
-      };
-      setOrdenCompraForm({
-        ...ordenCompraForm,
-        detalles: [...ordenCompraForm.detalles, nuevoDetalle]
-      });
-      setDetalleTemp({ id_producto: '', cantidad: 1, precio_unitario: 0 });
+
+// También corregir la función agregarDetalle
+const agregarDetalle = () => {
+  if (detalleTemp.id_producto && detalleTemp.cantidad > 0 && detalleTemp.precio_unitario > 0) {
+    const producto = productos.find(p => p.id == detalleTemp.id_producto);
+    
+    if (!producto) {
+      showError('Producto no encontrado. Por favor seleccione un producto válido.');
+      return;
     }
-  };
+    
+    const nuevoDetalle = {
+      id: Date.now(), // ID temporal para la UI
+      id_producto: parseInt(detalleTemp.id_producto), // ✅ CONVERTIR A NÚMERO
+      producto: producto,
+      cantidad: parseInt(detalleTemp.cantidad), // ✅ CONVERTIR A NÚMERO
+      precio_unitario: parseFloat(detalleTemp.precio_unitario), // ✅ CONVERTIR A NÚMERO
+      total: parseInt(detalleTemp.cantidad) * parseFloat(detalleTemp.precio_unitario)
+    };
+    
+    console.log('Agregando detalle:', nuevoDetalle); // Debug
+    
+    setOrdenCompraForm({
+      ...ordenCompraForm,
+      detalles: [...ordenCompraForm.detalles, nuevoDetalle]
+    });
+    setDetalleTemp({ id_producto: '', cantidad: 1, precio_unitario: 0 });
+  } else {
+    showError('Por favor complete todos los campos del detalle con valores válidos.');
+  }
+};
 
 
   const eliminarDetalle = (id) => {
