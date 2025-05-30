@@ -45,7 +45,7 @@ const storage = diskStorage({
 
 @Controller('ordenes-compra')
 export class OrdenesCompraController {
-  constructor(private readonly ordenesCompraService: OrdenesCompraService) {}
+  constructor(private readonly ordenesCompraService: OrdenesCompraService) { }
 
   @Get()
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -133,14 +133,14 @@ export class OrdenesCompraController {
   }
 
   @Post()
-  @UsePipes(new ValidationPipe({ 
-    whitelist: true, 
+  @UsePipes(new ValidationPipe({
+    whitelist: true,
     forbidNonWhitelisted: true,
-    transform: true 
+    transform: true
   }))
-  async create(@Body() createOrdenDto: CreateOrdenCompraDto): Promise<{ 
-    mensaje: string; 
-    orden: OrdenCompra 
+  async create(@Body() createOrdenDto: CreateOrdenCompraDto): Promise<{
+    mensaje: string;
+    orden: OrdenCompra
   }> {
     try {
       const orden = await this.ordenesCompraService.createOrdenCompra(createOrdenDto);
@@ -161,30 +161,23 @@ export class OrdenesCompraController {
   }
 
   @Patch(':id/estado')
-  @UsePipes(new ValidationPipe({ 
-    whitelist: true, 
+  @UsePipes(new ValidationPipe({
+    whitelist: true,
     forbidNonWhitelisted: true,
-    transform: true 
+    transform: true
   }))
   async updateEstado(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateEstadoDto: UpdateEstadoOrdenDto
   ): Promise<{ mensaje: string; orden: OrdenCompra }> {
     try {
-      const orden = await this.ordenesCompraService.updateEstado(id, updateEstadoDto.estado);
+      const orden = await this.ordenesCompraService.updateEstado(id, updateEstadoDto.estado, updateEstadoDto.observaciones);
       if (!orden) {
         throw new HttpException(
           `Orden de compra con ID ${id} no encontrada`,
           HttpStatus.NOT_FOUND
         );
       }
-
-      // Si se proporcionaron observaciones, actualizarlas
-      if (updateEstadoDto.observaciones) {
-        orden.observaciones = updateEstadoDto.observaciones;
-        // Aquí podrías guardar las observaciones si es necesario
-      }
-
       return {
         mensaje: `Estado de la orden ${id} actualizado a ${updateEstadoDto.estado}`,
         orden: orden

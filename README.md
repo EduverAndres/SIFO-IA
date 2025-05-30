@@ -93,3 +93,128 @@ npm run build
 ## 👥 Autores
 
 - **EduverAndres** - *Desarrollo inicial* - [EduverAndres](https://github.com/EduverAndres)
+```
+SIFO-IA
+├─ backend-nestjs
+│  ├─ .prettierrc
+│  ├─ eslint.config.mjs
+│  ├─ nest-cli.json
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ app.controller.spec.ts
+│  │  ├─ app.controller.ts
+│  │  ├─ app.module.ts
+│  │  ├─ app.service.ts
+│  │  ├─ auth
+│  │  │  ├─ auth.controller.ts
+│  │  │  ├─ auth.module.ts
+│  │  │  ├─ auth.service.ts
+│  │  │  ├─ dto
+│  │  │  │  ├─ login-user.dto.ts
+│  │  │  │  └─ register-user.dto.ts
+│  │  │  └─ entities
+│  │  │     └─ user.entity.ts
+│  │  ├─ config
+│  │  │  └─ supabase.config.ts
+│  │  ├─ ia-service
+│  │  │  └─ ia-service.controller.ts
+│  │  ├─ main.ts
+│  │  ├─ ordenes-compra
+│  │  │  ├─ detalle-orden.entity.ts
+│  │  │  ├─ dto
+│  │  │  │  ├─ create-detalle-orden.dto.ts
+│  │  │  │  ├─ create-orden-compra.dto.ts
+│  │  │  │  ├─ filtros-orden.dto.ts
+│  │  │  │  ├─ update-estado-orden.dto.ts
+│  │  │  │  └─ update-orden-compra.dto.ts
+│  │  │  ├─ orden-compra.entity.ts
+│  │  │  ├─ ordenes-compra.controller.ts
+│  │  │  ├─ ordenes-compra.module.ts
+│  │  │  └─ ordenes-compra.service.ts
+│  │  ├─ productos
+│  │  │  ├─ dto
+│  │  │  │  ├─ create-producto.dto.ts
+│  │  │  │  └─ update-producto.dto.ts
+│  │  │  ├─ producto.entity.ts
+│  │  │  ├─ productos.controller.ts
+│  │  │  ├─ productos.module.ts
+│  │  │  └─ productos.service.ts
+│  │  └─ proveedores
+│  │     ├─ dto
+│  │     │  ├─ create-proveedor.dto.ts
+│  │     │  └─ update-proveedor.dto.ts
+│  │     ├─ proveedor.entity.ts
+│  │     ├─ proveedores.controller.ts
+│  │     ├─ proveedores.module.ts
+│  │     └─ proveedores.service.ts
+│  ├─ test
+│  │  ├─ app.e2e-spec.ts
+│  │  └─ jest-e2e.json
+│  ├─ tsconfig.build.json
+│  ├─ tsconfig.json
+│  └─ uploads
+├─ database
+│  └─ schema.sql
+├─ frontend-react
+│  ├─ netlify.toml
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ postcss.config.js
+│  ├─ public
+│  │  ├─ favicon.ico
+│  │  ├─ index.html
+│  │  ├─ manifest.json
+│  │  └─ robots.txt
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ api
+│  │  │  ├─ ordenesApi.js
+│  │  │  └─ produccionApi.js
+│  │  ├─ App.js
+│  │  ├─ App.test.js
+│  │  ├─ assets
+│  │  │  └─ hero-illustration.svg
+│  │  ├─ components
+│  │  │  ├─ Button.jsx
+│  │  │  ├─ CrearProveedorModal.jsx
+│  │  │  ├─ Dashboard.jsx
+│  │  │  ├─ DashboardLayout.jsx
+│  │  │  ├─ DatePicker.jsx
+│  │  │  ├─ ErrorBoundary.jsx
+│  │  │  ├─ FileInput.jsx
+│  │  │  ├─ InputField.jsx
+│  │  │  ├─ Login.jsx
+│  │  │  ├─ Modal.jsx
+│  │  │  ├─ OrdenesDeCompraMenuModal.jsx
+│  │  │  ├─ ProtectedRoute.jsx
+│  │  │  ├─ Register.jsx
+│  │  │  ├─ SelectField.jsx
+│  │  │  └─ wi.sql
+│  │  ├─ hooks
+│  │  │  └─ useSafeRender.js
+│  │  ├─ index.css
+│  │  ├─ index.js
+│  │  ├─ pages
+│  │  │  ├─ AboutSIFO.jsx
+│  │  │  ├─ AboutUs.jsx
+│  │  │  ├─ dashboard
+│  │  │  │  ├─ DashboardOverview.jsx
+│  │  │  │  ├─ MenuFinanciero.jsx
+│  │  │  │  ├─ OrdenesCompra.jsx
+│  │  │  │  ├─ PlaceholderPage.jsx
+│  │  │  │  ├─ Presupuesto.jsx
+│  │  │  │  └─ Produccion.jsx
+│  │  │  ├─ HomePage.jsx
+│  │  │  ├─ LoginPage.jsx
+│  │  │  ├─ ProjectVision.jsx
+│  │  │  └─ RegisterPage.jsx
+│  │  ├─ reportWebVitals.js
+│  │  ├─ setupTests.js
+│  │  └─ utils
+│  │     └─ domPatch.js
+│  └─ tailwind.config.js
+└─ README.md
+
+```

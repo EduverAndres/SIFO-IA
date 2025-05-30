@@ -9,12 +9,14 @@ import { Producto } from './productos/producto.entity';
 import { OrdenCompra } from './ordenes-compra/orden-compra.entity';
 import { DetalleOrden } from './ordenes-compra/detalle-orden.entity';
 import { User } from './auth/entities/user.entity';
+// import { CuentaPuc } from './puc/entities/cuenta-puc.entity';
 
 // Módulos
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { ProductosModule } from './productos/productos.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
+// import { PucModule } from './puc/puc.module';
 
 @Module({
   imports: [
@@ -38,6 +40,7 @@ import { AuthModule } from './auth/auth.module';
             OrdenCompra,
             DetalleOrden,
             User,
+            // CuentaPuc,
           ],
           synchronize: false, // ⚠️ NUNCA true en producción
           logging: configService.get('NODE_ENV') === 'development',
@@ -60,6 +63,7 @@ import { AuthModule } from './auth/auth.module';
     ProductosModule,
     OrdenesCompraModule,
     AuthModule,
+    // PucModule,
   ],
   controllers: [],
   providers: [],
