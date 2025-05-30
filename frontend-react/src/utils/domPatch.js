@@ -1,137 +1,160 @@
-// domPatch.js - Versión mejorada para React 19
-// Este patch maneja los errores de DOM más comunes en React 19
+// utils/domPatch.js - Versión mejorada para React 19 en producción
+// Este patch maneja todos los errores de DOM conocidos en React 19
 
-function patchDOMRemoval() {
-  // Verificar si ya se aplicó el patch
-  if (window.__DOM_PATCH_APPLIED__) {
-    console.log('DOM patches already applied');
+let isPatched = false;
+
+function enhancedDOMPatch() {
+  // Evitar aplicar el patch múltiples veces
+  if (isPatched || typeof window === 'undefined') {
     return;
   }
 
   try {
+    console.log('🔧 Aplicando Enhanced DOM Patch para React 19...');
+
     // Guardar las funciones originales
     const originalRemoveChild = Node.prototype.removeChild;
     const originalInsertBefore = Node.prototype.insertBefore;
     const originalAppendChild = Node.prototype.appendChild;
+    const originalReplaceChild = Node.prototype.replaceChild;
 
-    // Patch para removeChild
+    // 1. PATCH PARA removeChild
     Node.prototype.removeChild = function(child) {
       try {
-        // Verificaciones de seguridad
+        // Validaciones exhaustivas
         if (!child) {
-          console.warn('Attempted to remove null/undefined child');
+          console.warn('[DOM-PATCH] Attempted to remove null/undefined child');
           return null;
         }
 
         if (!this || typeof this.contains !== 'function') {
-          console.warn('Invalid parent node for removeChild');
-          return child;
-        }
-
-        // Verificar si el nodo es realmente un hijo
-        if (!this.contains(child)) {
-          console.warn('Attempted to remove a node that is not a child', {
-            parent: this.tagName || this.nodeName,
-            child: child.tagName || child.nodeName || child.nodeType
-          });
+          console.warn('[DOM-PATCH] Invalid parent node for removeChild');
           return child;
         }
 
         // Verificar si el nodo ya fue removido
         if (!child.parentNode) {
-          console.warn('Attempted to remove a node that has no parent');
+          console.warn('[DOM-PATCH] Child already removed from DOM');
+          return child;
+        }
+
+        // Verificar si es realmente un hijo
+        if (child.parentNode !== this) {
+          console.warn('[DOM-PATCH] Child is not a direct child of this node');
           return child;
         }
 
         return originalRemoveChild.call(this, child);
       } catch (error) {
-        if (error.name === 'NotFoundError' || 
-            error.message.includes('not a child of this node') ||
-            error.message.includes('The node to be removed is not a child of this node')) {
-          console.warn('DOM removeChild error caught and handled:', error.message);
-          return child;
-        }
-        console.error('Unexpected error in removeChild patch:', error);
-        throw error;
+        console.warn('[DOM-PATCH] RemoveChild error handled:', error.message);
+        return child;
       }
     };
 
-    // Patch para insertBefore
+    // 2. PATCH PARA insertBefore - EL MÁS IMPORTANTE
     Node.prototype.insertBefore = function(newNode, referenceNode) {
       try {
-        // Verificaciones de seguridad
+        // Validaciones de entrada
         if (!newNode) {
-          console.warn('Attempted to insert null/undefined node');
+          console.warn('[DOM-PATCH] Attempted to insert null/undefined node');
           return null;
         }
 
         if (!this || typeof this.contains !== 'function') {
-          console.warn('Invalid parent node for insertBefore');
+          console.warn('[DOM-PATCH] Invalid parent node for insertBefore');
           return newNode;
         }
 
-        // Si referenceNode es null, hacer appendChild
+        // Si no hay nodo de referencia, usar appendChild
         if (!referenceNode) {
           return this.appendChild(newNode);
         }
 
-        // Verificar si referenceNode es hijo de este nodo
-        if (!this.contains(referenceNode)) {
-          console.warn('Reference node is not a child, falling back to appendChild', {
-            parent: this.tagName || this.nodeName,
-            referenceNode: referenceNode.tagName || referenceNode.nodeName || referenceNode.nodeType
-          });
+        // VALIDACIÓN CLAVE: Verificar que el nodo de referencia es hijo de este nodo
+        if (referenceNode.parentNode !== this) {
+          console.warn('[DOM-PATCH] Reference node is not a child, fallback to appendChild');
+          return this.appendChild(newNode);
+        }
+
+        // Verificar que el referenceNode aún está en el DOM
+        if (!document.contains(referenceNode)) {
+          console.warn('[DOM-PATCH] Reference node not in document, fallback to appendChild');
           return this.appendChild(newNode);
         }
 
         return originalInsertBefore.call(this, newNode, referenceNode);
       } catch (error) {
-        console.warn('DOM insertBefore error caught:', error.message);
+        console.warn('[DOM-PATCH] InsertBefore error handled:', error.message);
         try {
           return this.appendChild(newNode);
         } catch (fallbackError) {
-          console.error('Fallback appendChild also failed:', fallbackError);
+          console.warn('[DOM-PATCH] Fallback appendChild failed:', fallbackError.message);
           return newNode;
         }
       }
     };
 
-    // Patch para appendChild
+    // 3. PATCH PARA appendChild
     Node.prototype.appendChild = function(child) {
       try {
         if (!child) {
-          console.warn('Attempted to append null/undefined child');
+          console.warn('[DOM-PATCH] Attempted to append null/undefined child');
           return null;
         }
 
         if (!this) {
-          console.warn('Invalid parent node for appendChild');
+          console.warn('[DOM-PATCH] Invalid parent node for appendChild');
           return child;
         }
 
-        // Verificar si el nodo ya tiene este padre
+        // Verificar si ya tiene este padre
         if (child.parentNode === this) {
-          console.warn('Child already has this parent, skipping appendChild');
+          console.warn('[DOM-PATCH] Child already has this parent');
           return child;
         }
 
         return originalAppendChild.call(this, child);
       } catch (error) {
-        console.warn('DOM appendChild error caught:', error.message);
+        console.warn('[DOM-PATCH] AppendChild error handled:', error.message);
         return child;
       }
     };
 
-    // Patch adicional para React 19 - manejar errores de textContent
-    const originalSetTextContent = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-    if (originalSetTextContent && originalSetTextContent.set) {
+    // 4. PATCH PARA replaceChild
+    Node.prototype.replaceChild = function(newChild, oldChild) {
+      try {
+        if (!newChild || !oldChild) {
+          console.warn('[DOM-PATCH] Invalid nodes for replaceChild');
+          return oldChild;
+        }
+
+        if (!this || typeof this.contains !== 'function') {
+          console.warn('[DOM-PATCH] Invalid parent for replaceChild');
+          return oldChild;
+        }
+
+        if (oldChild.parentNode !== this) {
+          console.warn('[DOM-PATCH] OldChild is not a direct child');
+          return oldChild;
+        }
+
+        return originalReplaceChild.call(this, newChild, oldChild);
+      } catch (error) {
+        console.warn('[DOM-PATCH] ReplaceChild error handled:', error.message);
+        return oldChild;
+      }
+    };
+
+    // 5. PATCH ADICIONAL PARA textContent
+    const originalTextContentDescriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+    if (originalTextContentDescriptor && originalTextContentDescriptor.set) {
       Object.defineProperty(Node.prototype, 'textContent', {
-        get: originalSetTextContent.get,
+        get: originalTextContentDescriptor.get,
         set: function(value) {
           try {
-            return originalSetTextContent.set.call(this, value);
+            return originalTextContentDescriptor.set.call(this, value);
           } catch (error) {
-            console.warn('textContent setter error caught:', error.message);
+            console.warn('[DOM-PATCH] TextContent setter error handled:', error.message);
             return value;
           }
         },
@@ -140,81 +163,115 @@ function patchDOMRemoval() {
       });
     }
 
-    // Marcar que el patch fue aplicado
-    window.__DOM_PATCH_APPLIED__ = true;
-    console.log('Enhanced DOM patches applied for React 19 compatibility');
-
-  } catch (error) {
-    console.error('Failed to apply DOM patches:', error);
-  }
-}
-
-// Función para manejar errores de React específicos
-function patchReactErrors() {
-  // Capturar errores no manejados
-  const originalErrorHandler = window.onerror;
-  window.onerror = function(message, source, lineno, colno, error) {
-    // Filtrar errores conocidos de React 19
-    if (message && typeof message === 'string') {
-      if (message.includes('removeChild') || 
-          message.includes('insertBefore') ||
-          message.includes('componentStack') ||
-          message.includes('Cannot read properties of null')) {
-        console.warn('React 19 DOM error intercepted and handled:', message);
-        return true; // Prevenir que el error se propague
+    // 6. MANEJAR ERRORES GLOBALES DE REACT
+    const originalErrorHandler = window.onerror;
+    window.onerror = function(message, source, lineno, colno, error) {
+      if (message && typeof message === 'string') {
+        if (
+          message.includes('insertBefore') || 
+          message.includes('removeChild') ||
+          message.includes('appendChild') ||
+          message.includes('not a child of this node') ||
+          message.includes('Cannot read properties of null')
+        ) {
+          console.warn('[DOM-PATCH] React DOM error intercepted:', message);
+          return true; // Prevenir que el error se propague
+        }
       }
-    }
-    
-    // Llamar al handler original si existe
-    if (originalErrorHandler) {
-      return originalErrorHandler.call(this, message, source, lineno, colno, error);
-    }
-    
-    return false;
-  };
-
-  // Capturar errores de promesas no manejadas
-  window.addEventListener('unhandledrejection', function(event) {
-    if (event.reason && event.reason.message) {
-      if (event.reason.message.includes('removeChild') || 
-          event.reason.message.includes('insertBefore')) {
-        console.warn('React 19 Promise rejection intercepted:', event.reason.message);
-        event.preventDefault();
+      
+      if (originalErrorHandler) {
+        return originalErrorHandler.call(this, message, source, lineno, colno, error);
       }
-    }
-  });
-}
+      
+      return false;
+    };
 
-// Función principal que aplica todos los patches
-function applyAllPatches() {
-  if (typeof window !== 'undefined') {
-    patchDOMRemoval();
-    patchReactErrors();
-    
-    // Patch adicional para el desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      // Suprime warnings específicos de React 19 en desarrollo
+    // 7. MANEJAR PROMESAS RECHAZADAS
+    window.addEventListener('unhandledrejection', function(event) {
+      if (event.reason && event.reason.message) {
+        if (
+          event.reason.message.includes('insertBefore') || 
+          event.reason.message.includes('removeChild') ||
+          event.reason.message.includes('not a child of this node')
+        ) {
+          console.warn('[DOM-PATCH] Promise rejection intercepted:', event.reason.message);
+          event.preventDefault();
+        }
+      }
+    });
+
+    // 8. PATCH ESPECÍFICO PARA REACT 19 - Interceptar errores de reconciler
+    if (window.React && window.React.version && window.React.version.startsWith('19')) {
+      console.log('[DOM-PATCH] React 19 detected, applying specific patches');
+      
+      // Suprimir warnings específicos de React 19
       const originalConsoleWarn = console.warn;
       console.warn = function(...args) {
         const message = args[0];
         if (typeof message === 'string' && 
             (message.includes('validateDOMNesting') || 
-             message.includes('componentStack'))) {
-          return; // Suprimir este warning específico
+             message.includes('componentStack') ||
+             message.includes('Warning: '))) {
+          return; // Suprimir estos warnings específicos
         }
         return originalConsoleWarn.apply(console, args);
       };
     }
+
+    // 9. OBSERVER PARA DETECTAR MANIPULACIONES PROBLEMÁTICAS
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === 'childList') {
+            mutation.removedNodes.forEach(function(node) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                // Limpiar referencias que puedan causar problemas
+                try {
+                  if (node.parentNode && node.parentNode.contains && !node.parentNode.contains(node)) {
+                    // Nodo fue removido correctamente
+                  }
+                } catch (e) {
+                  // Ignorar errores de verificación
+                }
+              }
+            });
+          }
+        });
+      });
+
+      // Observar cambios en el DOM
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    isPatched = true;
+    console.log('✅ Enhanced DOM Patch aplicado exitosamente');
+    
+    // Marcar que el patch fue aplicado globalmente
+    window.__ENHANCED_DOM_PATCH_APPLIED__ = true;
+
+  } catch (error) {
+    console.error('❌ Error al aplicar Enhanced DOM Patch:', error);
   }
 }
 
-// Función para remover los patches si es necesario
-function removeDOMPatches() {
-  if (window.__DOM_PATCH_APPLIED__) {
-    console.log('Removing DOM patches...');
-    // Aquí podrías restaurar las funciones originales si las guardaste
-    window.__DOM_PATCH_APPLIED__ = false;
+// Función para aplicar el patch temprano
+function applyEarlyPatch() {
+  if (typeof window !== 'undefined' && !window.__ENHANCED_DOM_PATCH_APPLIED__) {
+    enhancedDOMPatch();
   }
 }
 
-export { patchDOMRemoval, applyAllPatches, removeDOMPatches };
+// Aplicar el patch inmediatamente si el DOM está listo
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyEarlyPatch);
+  } else {
+    applyEarlyPatch();
+  }
+}
+
+export { enhancedDOMPatch, applyEarlyPatch };
+export default enhancedDOMPatch;

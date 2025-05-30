@@ -1,4 +1,4 @@
-// src/App.js - Estructura mejorada con rutas separadas
+// src/App.js - Versión corregida con Enhanced ErrorBoundary y patches de seguridad
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
@@ -20,21 +20,52 @@ import Produccion from './pages/dashboard/Produccion';
 import Presupuesto from './pages/dashboard/Presupuesto';
 import PlaceholderPage from './pages/dashboard/PlaceholderPage';
 
-// Componentes de utilidad
-import ErrorBoundary from './components/ErrorBoundary';
-import { patchDOMRemoval } from './utils/domPatch';
+// Componentes de utilidad - CAMBIO AQUÍ
+import EnhancedErrorBoundary from './components/ErrorBoundary'; // Usar el Enhanced ErrorBoundary
+import { enhancedDOMPatch } from './utils/domPatch';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   useEffect(() => {
-    // Aplicar el patch del DOM cuando la app se monta
+    // Aplicar el patch del DOM cuando la app se monta (redundante pero seguro)
     if (process.env.NODE_ENV === 'development') {
-      patchDOMRemoval();
+      enhancedDOMPatch();
     }
+
+    // Verificar que el patch esté aplicado en producción también
+    if (!window.__ENHANCED_DOM_PATCH_APPLIED__) {
+      console.warn('🔧 Aplicando DOM patch tardío...');
+      enhancedDOMPatch();
+    }
+
+    // Función de limpieza para errores no manejados específicos de React 19
+    const handleUnhandledErrors = (event) => {
+      const error = event.error || event.reason;
+      if (error && error.message) {
+        if (error.message.includes('insertBefore') || 
+            error.message.includes('removeChild') ||
+            error.message.includes('not a child of this node')) {
+          console.warn('🛡️ Error de DOM interceptado globalmente:', error.message);
+          event.preventDefault();
+          event.stopPropagation();
+          return true;
+        }
+      }
+    };
+
+    // Agregar listeners para errores no manejados
+    window.addEventListener('error', handleUnhandledErrors);
+    window.addEventListener('unhandledrejection', handleUnhandledErrors);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('error', handleUnhandledErrors);
+      window.removeEventListener('unhandledrejection', handleUnhandledErrors);
+    };
   }, []);
 
   return (
-    <ErrorBoundary>
+    <EnhancedErrorBoundary>
       <Router>
         <div className="min-h-screen bg-gray-100 font-sans antialiased">
           <Routes>
@@ -49,128 +80,215 @@ function App() {
             {/* Rutas del Dashboard - Todas protegidas */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <EnhancedErrorBoundary>
+                  <DashboardLayout />
+                </EnhancedErrorBoundary>
               </ProtectedRoute>
             }>
-              {/* Rutas anidadas del dashboard */}
-              <Route index element={<DashboardOverview />} />
-              <Route path="menu-financiero" element={<MenuFinanciero />} />
-              <Route path="produccion" element={<Produccion />} />
-              <Route path="ordenes-compra" element={<Produccion />} />
-              <Route path="presupuesto" element={<Presupuesto />} />
+              {/* Rutas anidadas del dashboard - Cada una protegida por su propio ErrorBoundary */}
+              <Route index element={
+                <EnhancedErrorBoundary>
+                  <DashboardOverview />
+                </EnhancedErrorBoundary>
+              } />
+              
+              <Route path="menu-financiero" element={
+                <EnhancedErrorBoundary>
+                  <MenuFinanciero />
+                </EnhancedErrorBoundary>
+              } />
+              
+              <Route path="produccion" element={
+                <EnhancedErrorBoundary>
+                  <Produccion />
+                </EnhancedErrorBoundary>
+              } />
+              
+              <Route path="ordenes-compra" element={
+                <EnhancedErrorBoundary>
+                  <Produccion />
+                </EnhancedErrorBoundary>
+              } />
+              
+              <Route path="presupuesto" element={
+                <EnhancedErrorBoundary>
+                  <Presupuesto />
+                </EnhancedErrorBoundary>
+              } />
+              
               <Route path="reportes" element={
-                <PlaceholderPage 
-                  title="Reportes Financieros" 
-                  icon="📊" 
-                  description="Genera reportes detallados sobre el estado financiero de tu empresa con gráficos interactivos y análisis profundos."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Reportes Financieros" 
+                    icon="📊" 
+                    description="Genera reportes detallados sobre el estado financiero de tu empresa con gráficos interactivos y análisis profundos."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="cuentas-pagar" element={
-                <PlaceholderPage 
-                  title="Cuentas por Pagar/Cobrar" 
-                  icon="💰" 
-                  description="Gestiona eficientemente todas las cuentas por pagar y cobrar, con recordatorios automáticos y seguimiento de vencimientos."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Cuentas por Pagar/Cobrar" 
+                    icon="💰" 
+                    description="Gestiona eficientemente todas las cuentas por pagar y cobrar, con recordatorios automáticos y seguimiento de vencimientos."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="tesoreria" element={
-                <PlaceholderPage 
-                  title="Tesorería" 
-                  icon="🏦" 
-                  description="Administra la liquidez de tu empresa, planifica flujos de caja y optimiza la gestión financiera diaria."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Tesorería" 
+                    icon="🏦" 
+                    description="Administra la liquidez de tu empresa, planifica flujos de caja y optimiza la gestión financiera diaria."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="conciliacion" element={
-                <PlaceholderPage 
-                  title="Conciliación Bancaria" 
-                  icon="⚖️" 
-                  description="Automatiza el proceso de conciliación bancaria y mantén tus registros contables siempre actualizados."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Conciliación Bancaria" 
+                    icon="⚖️" 
+                    description="Automatiza el proceso de conciliación bancaria y mantén tus registros contables siempre actualizados."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="procesos-ia" element={
-                <PlaceholderPage 
-                  title="Procesos IA" 
-                  icon="🤖" 
-                  description="Aprovecha la inteligencia artificial para automatizar procesos financieros y obtener insights predictivos."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Procesos IA" 
+                    icon="🤖" 
+                    description="Aprovecha la inteligencia artificial para automatizar procesos financieros y obtener insights predictivos."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="proyectos" element={
-                <PlaceholderPage 
-                  title="Proyectos Financieros" 
-                  icon="📈" 
-                  description="Gestiona proyectos con componente financiero, realiza seguimiento de presupuestos y analiza rentabilidad."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Proyectos Financieros" 
+                    icon="📈" 
+                    description="Gestiona proyectos con componente financiero, realiza seguimiento de presupuestos y analiza rentabilidad."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="caja-bancos" element={
-                <PlaceholderPage 
-                  title="Caja y Bancos" 
-                  icon="💳" 
-                  description="Controla todos los movimientos de efectivo y cuentas bancarias en tiempo real con reconciliación automática."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Caja y Bancos" 
+                    icon="💳" 
+                    description="Controla todos los movimientos de efectivo y cuentas bancarias en tiempo real con reconciliación automática."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="contabilidad" element={
-                <PlaceholderPage 
-                  title="Contabilidad NIIF" 
-                  icon="📋" 
-                  description="Mantén tu contabilidad bajo estándares NIIF con asientos automáticos y reportes de cumplimiento."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Contabilidad NIIF" 
+                    icon="📋" 
+                    description="Mantén tu contabilidad bajo estándares NIIF con asientos automáticos y reportes de cumplimiento."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="nomina" element={
-                <PlaceholderPage 
-                  title="Nómina" 
-                  icon="👥" 
-                  description="Gestiona la nómina de empleados, cálculos automáticos de prestaciones y cumplimiento legal laboral."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Nómina" 
+                    icon="👥" 
+                    description="Gestiona la nómina de empleados, cálculos automáticos de prestaciones y cumplimiento legal laboral."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="facturacion" element={
-                <PlaceholderPage 
-                  title="Facturación Electrónica" 
-                  icon="🧾" 
-                  description="Genera facturas electrónicas cumpliendo con la normativa DIAN, con envío automático y seguimiento."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Facturación Electrónica" 
+                    icon="🧾" 
+                    description="Genera facturas electrónicas cumpliendo con la normativa DIAN, con envío automático y seguimiento."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="migracion" element={
-                <PlaceholderPage 
-                  title="Migración de Datos" 
-                  icon="📁" 
-                  description="Importa datos desde otros sistemas de manera segura y confiable, con validación automática."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Migración de Datos" 
+                    icon="📁" 
+                    description="Importa datos desde otros sistemas de manera segura y confiable, con validación automática."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="crm" element={
-                <PlaceholderPage 
-                  title="Integración CRM" 
-                  icon="🔗" 
-                  description="Conecta tu sistema financiero con CRM para una visión 360° de clientes y oportunidades comerciales."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Integración CRM" 
+                    icon="🔗" 
+                    description="Conecta tu sistema financiero con CRM para una visión 360° de clientes y oportunidades comerciales."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="plan-cuentas" element={
-                <PlaceholderPage 
-                  title="Plan de Cuentas" 
-                  icon="📝" 
-                  description="Define y gestiona tu plan de cuentas contable con estructura jerárquica y clasificaciones personalizadas."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Plan de Cuentas" 
+                    icon="📝" 
+                    description="Define y gestiona tu plan de cuentas contable con estructura jerárquica y clasificaciones personalizadas."
+                  />
+                </EnhancedErrorBoundary>
               } />
+              
               <Route path="configuracion" element={
-                <PlaceholderPage 
-                  title="Configuración" 
-                  icon="⚙️" 
-                  description="Personaliza el sistema según las necesidades de tu empresa, usuarios, permisos y preferencias."
-                />
+                <EnhancedErrorBoundary>
+                  <PlaceholderPage 
+                    title="Configuración" 
+                    icon="⚙️" 
+                    description="Personaliza el sistema según las necesidades de tu empresa, usuarios, permisos y preferencias."
+                  />
+                </EnhancedErrorBoundary>
               } />
             </Route>
 
             {/* Ruta de fallback */}
             <Route path="*" element={
-              <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                  <h1 className="text-4xl font-bold text-gray-700 mb-4">404</h1>
-                  <p className="text-gray-500">Página no encontrada</p>
+              <EnhancedErrorBoundary>
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+                  <div className="text-center bg-white p-8 rounded-2xl shadow-xl max-w-md mx-auto">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <h1 className="text-4xl font-bold text-gray-700 mb-4">404</h1>
+                    <p className="text-gray-500 mb-6">
+                      La página que buscas no existe o ha sido movida.
+                    </p>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => window.history.back()}
+                        className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                      >
+                        ← Volver Atrás
+                      </button>
+                      <button
+                        onClick={() => window.location.href = '/'}
+                        className="w-full px-6 py-3 border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors duration-200"
+                      >
+                        🏠 Ir al Inicio
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </EnhancedErrorBoundary>
             } />
           </Routes>
         </div>
       </Router>
-    </ErrorBoundary>
+    </EnhancedErrorBoundary>
   );
 }
 
