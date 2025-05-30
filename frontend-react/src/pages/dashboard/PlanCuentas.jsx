@@ -674,6 +674,493 @@ const PlanCuentas = () => {
       )}
 
       {/* Modal de creación/edición - Continuará en la siguiente parte */}
+      // Agregar estos modales al final del componente PlanCuentas.jsx, antes del cierre del div principal
+
+      {/* Modal de creación */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false);
+          resetForm();
+        }}
+        title="Crear Nueva Cuenta PUC"
+        size="lg"
+      >
+        <form onSubmit={handleCreateCuenta} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.codigo}
+                onChange={(e) => setFormData(prev => ({ ...prev, codigo: e.target.value }))}
+                pattern="[0-9]+"
+                title="Solo números"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej: 1105"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Solo números. La longitud determina el tipo: 1(Clase), 2(Grupo), 4(Cuenta), 6(Subcuenta), 7+(Auxiliar)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código Padre
+              </label>
+              <input
+                type="text"
+                value={formData.codigo_padre}
+                onChange={(e) => setFormData(prev => ({ ...prev, codigo_padre: e.target.value }))}
+                pattern="[0-9]*"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Opcional"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Código de la cuenta padre en la jerarquía
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.nombre}
+                onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nombre de la cuenta"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Descripción
+              </label>
+              <textarea
+                value={formData.descripcion}
+                onChange={(e) => setFormData(prev => ({ ...prev, descripcion: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Descripción detallada de la cuenta"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Cuenta <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.tipo_cuenta}
+                onChange={(e) => setFormData(prev => ({ ...prev, tipo_cuenta: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="CLASE">Clase</option>
+                <option value="GRUPO">Grupo</option>
+                <option value="CUENTA">Cuenta</option>
+                <option value="SUBCUENTA">Subcuenta</option>
+                <option value="AUXILIAR">Auxiliar</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Naturaleza <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.naturaleza}
+                onChange={(e) => setFormData(prev => ({ ...prev, naturaleza: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="DEBITO">Débito</option>
+                <option value="CREDITO">Crédito</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Débito: Activos, Gastos, Costos | Crédito: Pasivos, Patrimonio, Ingresos
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Estado
+              </label>
+              <select
+                value={formData.estado}
+                onChange={(e) => setFormData(prev => ({ ...prev, estado: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="ACTIVA">Activa</option>
+                <option value="INACTIVA">Inactiva</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Opciones
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.acepta_movimientos}
+                    onChange={(e) => setFormData(prev => ({ ...prev, acepta_movimientos: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Acepta movimientos</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiere_tercero}
+                    onChange={(e) => setFormData(prev => ({ ...prev, requiere_tercero: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Requiere tercero</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiere_centro_costo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, requiere_centro_costo: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Requiere centro de costo</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.es_cuenta_niif}
+                    onChange={(e) => setFormData(prev => ({ ...prev, es_cuenta_niif: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Es cuenta NIIF</span>
+                </label>
+              </div>
+            </div>
+
+            {formData.es_cuenta_niif && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Código NIIF
+                </label>
+                <input
+                  type="text"
+                  value={formData.codigo_niif}
+                  onChange={(e) => setFormData(prev => ({ ...prev, codigo_niif: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Código equivalente en NIIF"
+                />
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dinámica Contable
+              </label>
+              <textarea
+                value={formData.dinamica}
+                onChange={(e) => setFormData(prev => ({ ...prev, dinamica: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Descripción de cuándo se debita y cuándo se acredita esta cuenta"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4 pt-4 border-t">
+            <Button
+              type="button"
+              onClick={() => {
+                setShowCreateModal(false);
+                resetForm();
+              }}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              icon={FaPlus}
+            >
+              Crear Cuenta
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de edición */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedCuenta(null);
+          resetForm();
+        }}
+        title={`Editar Cuenta: ${selectedCuenta?.codigo} - ${selectedCuenta?.nombre}`}
+        size="lg"
+      >
+        <form onSubmit={handleEditCuenta} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.codigo}
+                onChange={(e) => setFormData(prev => ({ ...prev, codigo: e.target.value }))}
+                pattern="[0-9]+"
+                title="Solo números"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej: 1105"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código Padre
+              </label>
+              <input
+                type="text"
+                value={formData.codigo_padre}
+                onChange={(e) => setFormData(prev => ({ ...prev, codigo_padre: e.target.value }))}
+                pattern="[0-9]*"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Opcional"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.nombre}
+                onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nombre de la cuenta"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Descripción
+              </label>
+              <textarea
+                value={formData.descripcion}
+                onChange={(e) => setFormData(prev => ({ ...prev, descripcion: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Descripción detallada de la cuenta"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Cuenta <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.tipo_cuenta}
+                onChange={(e) => setFormData(prev => ({ ...prev, tipo_cuenta: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="CLASE">Clase</option>
+                <option value="GRUPO">Grupo</option>
+                <option value="CUENTA">Cuenta</option>
+                <option value="SUBCUENTA">Subcuenta</option>
+                <option value="AUXILIAR">Auxiliar</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Naturaleza <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.naturaleza}
+                onChange={(e) => setFormData(prev => ({ ...prev, naturaleza: e.target.value }))}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="DEBITO">Débito</option>
+                <option value="CREDITO">Crédito</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Estado
+              </label>
+              <select
+                value={formData.estado}
+                onChange={(e) => setFormData(prev => ({ ...prev, estado: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="ACTIVA">Activa</option>
+                <option value="INACTIVA">Inactiva</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Opciones
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.acepta_movimientos}
+                    onChange={(e) => setFormData(prev => ({ ...prev, acepta_movimientos: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Acepta movimientos</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiere_tercero}
+                    onChange={(e) => setFormData(prev => ({ ...prev, requiere_tercero: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Requiere tercero</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiere_centro_costo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, requiere_centro_costo: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Requiere centro de costo</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.es_cuenta_niif}
+                    onChange={(e) => setFormData(prev => ({ ...prev, es_cuenta_niif: e.target.checked }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Es cuenta NIIF</span>
+                </label>
+              </div>
+            </div>
+
+            {formData.es_cuenta_niif && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Código NIIF
+                </label>
+                <input
+                  type="text"
+                  value={formData.codigo_niif}
+                  onChange={(e) => setFormData(prev => ({ ...prev, codigo_niif: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Código equivalente en NIIF"
+                />
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dinámica Contable
+              </label>
+              <textarea
+                value={formData.dinamica}
+                onChange={(e) => setFormData(prev => ({ ...prev, dinamica: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Descripción de cuándo se debita y cuándo se acredita esta cuenta"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4 pt-4 border-t">
+            <Button
+              type="button"
+              onClick={() => {
+                setShowEditModal(false);
+                setSelectedCuenta(null);
+                resetForm();
+              }}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              icon={FaEdit}
+            >
+              Actualizar Cuenta
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de importación */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Importar Plan Único de Cuentas"
+        size="md"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <FaFileImport className="mx-auto h-12 w-12 text-blue-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Importar PUC Estándar de Colombia
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Esta acción importará la estructura básica del Plan Único de Cuentas estándar 
+              establecido por la normativa colombiana. Incluye las clases, grupos y cuentas principales.
+            </p>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <FaInfoCircle className="text-yellow-400 mt-0.5 mr-3" />
+              <div>
+                <h4 className="text-sm font-medium text-yellow-800">Información importante:</h4>
+                <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside space-y-1">
+                  <li>Se importarán aproximadamente 25 cuentas básicas</li>
+                  <li>No se sobrescribirán cuentas existentes</li>
+                  <li>Podrás personalizar las cuentas después de la importación</li>
+                  <li>Es recomendable hacer esto en un PUC vacío</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <Button
+              onClick={() => setShowImportModal(false)}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleImportPucEstandar}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              icon={FaFileImport}
+              disabled={loading}
+            >
+              {loading ? 'Importando...' : 'Importar PUC Estándar'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

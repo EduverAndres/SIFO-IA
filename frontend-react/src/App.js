@@ -25,6 +25,8 @@ import EnhancedErrorBoundary from './components/ErrorBoundary'; // Usar el Enhan
 import { enhancedDOMPatch } from './utils/domPatch';
 import ProtectedRoute from './components/ProtectedRoute';
 
+import PlanCuentas from './pages/dashboard/PlanCuentas';
+
 function App() {
   useEffect(() => {
     // Aplicar el patch del DOM cuando la app se monta (redundante pero seguro)
@@ -238,11 +240,7 @@ function App() {
               
               <Route path="plan-cuentas" element={
                 <EnhancedErrorBoundary>
-                  <PlaceholderPage 
-                    title="Plan de Cuentas" 
-                    icon="📝" 
-                    description="Define y gestiona tu plan de cuentas contable con estructura jerárquica y clasificaciones personalizadas."
-                  />
+                  <PlanCuentas />
                 </EnhancedErrorBoundary>
               } />
               
