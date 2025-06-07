@@ -29,7 +29,8 @@ import { PucModule } from './puc/puc.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
-        console.log('🔗 Conectando a Supabase Transaction Pooler...');
+        console.log('🔗 Conectando a Supabase Session Pooler...');
+        console.log('DATABASE_URL configurada:', databaseUrl ? '✓' : '✗');
         
         return {
           type: 'postgres',
@@ -51,10 +52,17 @@ import { PucModule } from './puc/puc.module';
             ssl: {
               rejectUnauthorized: false,
             },
-            // Configuración específica para Transaction Pooler
-            max: 10, // Máximo 10 conexiones simultáneas
-            connectionTimeoutMillis: 30000, // 30 segundos timeout
-            idleTimeoutMillis: 30000, // 30 segundos idle
+            // Configuración optimizada para Session Pooler
+            max: 5, // Máximo 5 conexiones simultáneas
+            connectionTimeoutMillis: 60000, // 60 segundos
+            idleTimeoutMillis: 10000, // 10 segundos idle
+            acquireTimeoutMillis: 60000, // 60 segundos para obtener conexión
+            query_timeout: 30000, // 30 segundos para queries
+            statement_timeout: 30000, // 30 segundos para statements
+            application_name: 'sifo-backend-render',
+            // Configuración específica para evitar errores SCRAM
+            keepConnectionAlive: true,
+            dropSchema: false,
           },
         };
       },
@@ -63,7 +71,6 @@ import { PucModule } from './puc/puc.module';
     ProductosModule,
     OrdenesCompraModule,
     AuthModule,
-    PucModule,
   ],
   controllers: [],
   providers: [],
