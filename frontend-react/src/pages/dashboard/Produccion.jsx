@@ -535,27 +535,75 @@ const agregarDetalle = () => {
       )}
 
       {/* Pestañas de navegación */}
+      {/* Pestañas de navegación - VERSIÓN RESPONSIVE CORREGIDA */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-0">
-            {tabs.map((tab) => {
-              const IconComponent = tab.icon;
-              return (
+          {/* Contenedor con scroll horizontal en móvil */}
+          <div className="overflow-x-auto scrollbar-hide lg:overflow-x-visible">
+            <nav className="flex min-w-max lg:min-w-full lg:w-full space-x-0">
+              {tabs.map((tab) => {
+                const IconComponent = tab.icon;
+                const isActive = activeTab === tab.id;
+                
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      flex-shrink-0 lg:flex-1 
+                      flex items-center justify-center 
+                      px-3 sm:px-4 lg:px-6 py-3 lg:py-4 
+                      text-xs sm:text-sm lg:text-sm 
+                      font-medium 
+                      transition-all duration-200 
+                      whitespace-nowrap 
+                      min-w-[100px] sm:min-w-[130px] lg:min-w-0
+                      ${isActive
+                        ? `text-${tab.color}-600 border-b-2 border-${tab.color}-600 bg-${tab.color}-50`
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    <IconComponent className="mr-1 sm:mr-2 text-base sm:text-lg flex-shrink-0" />
+                    <span className="hidden sm:inline text-xs sm:text-sm">
+                      {tab.name}
+                    </span>
+                    <span className="sm:hidden text-[10px] leading-tight text-center">
+                      {tab.name.includes('Orden') 
+                        ? 'Orden'
+                        : tab.name.split(' ')[1] || tab.name.split(' ')[0]
+                      }
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+          
+          {/* Indicador de pestañas activas para móvil */}
+          <div className="lg:hidden flex justify-center py-2 bg-gray-50 border-t border-gray-100">
+            <div className="flex space-x-1">
+              {tabs.map((tab) => (
                 <button
-                  key={tab.id}
+                  key={`indicator-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 flex items-center justify-center px-6 py-4 text-sm font-medium transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? `text-${tab.color}-600 border-b-2 border-${tab.color}-600 bg-${tab.color}-50`
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                    activeTab === tab.id 
+                      ? `bg-${tab.color}-500 w-6` 
+                      : 'bg-gray-300 hover:bg-gray-400'
                   }`}
-                >
-                  <IconComponent className="mr-2" />
-                  {tab.name}
-                </button>
-              );
-            })}
-          </nav>
+                  aria-label={`Ir a ${tab.name}`}
+                />
+              ))}
+            </div>
+          </div>
+          
+          {/* Mensaje informativo para pantallas muy pequeñas */}
+          <div className="sm:hidden px-4 py-1 bg-blue-50 text-center">
+            <p className="text-xs text-blue-600">
+              💡 Desliza las pestañas horizontalmente
+            </p>
+          </div>
         </div>
 
         {/* Contenido de las pestañas */}

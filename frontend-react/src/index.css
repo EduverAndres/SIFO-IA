@@ -579,3 +579,34 @@ html {
     transform: none !important;
   }
 }
+/* ===== ESTILOS PARA PESTAÑAS RESPONSIVE ===== */
+
+/* Ocultar scrollbar manteniendo funcionalidad de scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Scroll suave y táctil para móviles */
+.overflow-x-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Asegurar que las pestañas no se rompan */
+@media (max-width: 1024px) {
+  .tabs-responsive-container {
+    padding: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .tab-responsive-text {
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+}
