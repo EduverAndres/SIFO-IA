@@ -1,4 +1,4 @@
-// src/App.js - Versión corregida con Enhanced ErrorBoundary y patches de seguridad
+// src/App.js - Versión con nueva ruta PUC agregada
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
@@ -20,12 +20,14 @@ import Produccion from './pages/dashboard/Produccion';
 import Presupuesto from './pages/dashboard/Presupuesto';
 import PlaceholderPage from './pages/dashboard/PlaceholderPage';
 
-// Componentes de utilidad - CAMBIO AQUÍ
-import EnhancedErrorBoundary from './components/ErrorBoundary'; // Usar el Enhanced ErrorBoundary
+// Componentes de utilidad
+import EnhancedErrorBoundary from './components/ErrorBoundary';
 import { enhancedDOMPatch } from './utils/domPatch';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Módulos específicos
 import PlanCuentas from './pages/dashboard/PlanCuentas';
+import PucPage from './pages/PucPage'; // ← NUEVO IMPORT
 
 function App() {
   useEffect(() => {
@@ -87,7 +89,7 @@ function App() {
                 </EnhancedErrorBoundary>
               </ProtectedRoute>
             }>
-              {/* Rutas anidadas del dashboard - Cada una protegida por su propio ErrorBoundary */}
+              {/* Rutas anidadas del dashboard */}
               <Route index element={
                 <EnhancedErrorBoundary>
                   <DashboardOverview />
@@ -238,9 +240,17 @@ function App() {
                 </EnhancedErrorBoundary>
               } />
               
+              {/* ← RUTA ORIGINAL DEL PLAN DE CUENTAS */}
               <Route path="plan-cuentas" element={
                 <EnhancedErrorBoundary>
                   <PlanCuentas />
+                </EnhancedErrorBoundary>
+              } />
+              
+              {/* ← NUEVA RUTA PUC */}
+              <Route path="puc" element={
+                <EnhancedErrorBoundary>
+                  <PucPage />
                 </EnhancedErrorBoundary>
               } />
               

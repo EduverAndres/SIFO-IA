@@ -1,8 +1,8 @@
-// src/api/pucApi.js
+// src/api/pucApi.js - VERSIÓN ACTUALIZADA
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 class PucApiService {
-  // Obtener todas las cuentas con filtros
+  // ✅ Obtener todas las cuentas con filtros
   static async getCuentas(filtros = {}) {
     try {
       const params = new URLSearchParams();
@@ -13,7 +13,7 @@ class PucApiService {
         }
       });
 
-      const response = await fetch(`${API_BASE}/api/puc?${params.toString()}`);
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -26,10 +26,10 @@ class PucApiService {
     }
   }
 
-  // Obtener árbol completo de cuentas
+  // ✅ Obtener árbol completo de cuentas
   static async getArbolCuentas() {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/arbol`);
+      const response = await fetch(`${API_BASE}/api/v1/puc/arbol`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -42,10 +42,10 @@ class PucApiService {
     }
   }
 
-  // Obtener cuenta por ID
+  // ✅ Obtener cuenta por ID
   static async getCuentaById(id) {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/${id}`);
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -58,10 +58,10 @@ class PucApiService {
     }
   }
 
-  // Obtener cuenta por código
+  // ✅ Obtener cuenta por código
   static async getCuentaByCodigo(codigo) {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/codigo/${codigo}`);
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/codigo/${codigo}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -74,10 +74,10 @@ class PucApiService {
     }
   }
 
-  // Crear nueva cuenta
+  // ✅ Crear nueva cuenta
   static async createCuenta(cuentaData) {
     try {
-      const response = await fetch(`${API_BASE}/api/puc`, {
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,11 +97,11 @@ class PucApiService {
     }
   }
 
-  // Actualizar cuenta
+  // ✅ Actualizar cuenta
   static async updateCuenta(id, cuentaData) {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/${id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -120,10 +120,10 @@ class PucApiService {
     }
   }
 
-  // Eliminar cuenta
+  // ✅ Eliminar cuenta
   static async deleteCuenta(id) {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/${id}`, {
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`, {
         method: 'DELETE',
       });
 
@@ -139,10 +139,26 @@ class PucApiService {
     }
   }
 
-  // Importar PUC estándar de Colombia
+  // ✅ Obtener subcuentas de una cuenta específica
+  static async getSubcuentas(codigoPadre) {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${codigoPadre}/subcuentas`);
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error al obtener subcuentas:', error);
+      throw error;
+    }
+  }
+
+  // ✅ Importar PUC estándar de Colombia
   static async importPucEstandarColombia() {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/importar/estandar-colombia`, {
+      const response = await fetch(`${API_BASE}/api/v1/puc/importar/estandar`, {
         method: 'POST',
       });
 
@@ -158,10 +174,10 @@ class PucApiService {
     }
   }
 
-  // Obtener PUC estándar (sin importar)
-  static async getPucEstandarColombia() {
+  // ✅ Obtener estadísticas del PUC
+  static async getEstadisticasPuc() {
     try {
-      const response = await fetch(`${API_BASE}/api/puc/estandar-colombia`);
+      const response = await fetch(`${API_BASE}/api/v1/puc/estadisticas`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -169,41 +185,42 @@ class PucApiService {
       
       return await response.json();
     } catch (error) {
-      console.error('Error al obtener PUC estándar:', error);
+      console.error('Error al obtener estadísticas:', error);
       throw error;
     }
   }
 
-  // Importar PUC personalizado
-  static async importPucPersonalizado(cuentas, opciones = {}) {
+  // ✅ Validar código PUC
+  static async validarCodigo(codigo) {
     try {
-      const importData = {
-        cuentas,
-        sobrescribir_existentes: opciones.sobrescribir || false,
-        validar_jerarquia: opciones.validarJerarquia || true,
-      };
-
-      const response = await fetch(`${API_BASE}/api/puc/importar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(importData),
-      });
-
+      const response = await fetch(`${API_BASE}/api/v1/puc/validar/${codigo}`);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
-
+      
       return await response.json();
     } catch (error) {
-      console.error('Error al importar PUC personalizado:', error);
+      console.error('Error al validar código:', error);
       throw error;
     }
   }
 
-  // Validar código PUC
+  // ✅ Buscar cuentas por término
+  static async buscarCuentas(termino, filtros = {}) {
+    const filtrosConBusqueda = {
+      ...filtros,
+      busqueda: termino
+    };
+
+    return await this.getCuentas(filtrosConBusqueda);
+  }
+
+  // ===============================
+  // MÉTODOS AUXILIARES LOCALES
+  // ===============================
+
+  // Validar código PUC (validación local)
   static validateCodigoPuc(codigo, codigoPadre = null) {
     const longitud = codigo.length;
     
@@ -305,54 +322,6 @@ class PucApiService {
     }
   }
 
-  // Obtener estadísticas del PUC
-  static async getEstadisticasPuc() {
-    try {
-      const cuentasResponse = await this.getCuentas();
-      const cuentas = cuentasResponse.data || [];
-
-      const estadisticas = {
-        total: cuentas.length,
-        por_tipo: {},
-        por_naturaleza: {},
-        por_estado: {},
-        activas_con_movimientos: 0,
-        clases_disponibles: new Set(),
-      };
-
-      cuentas.forEach(cuenta => {
-        // Por tipo
-        estadisticas.por_tipo[cuenta.tipo_cuenta] = 
-          (estadisticas.por_tipo[cuenta.tipo_cuenta] || 0) + 1;
-
-        // Por naturaleza
-        estadisticas.por_naturaleza[cuenta.naturaleza] = 
-          (estadisticas.por_naturaleza[cuenta.naturaleza] || 0) + 1;
-
-        // Por estado
-        estadisticas.por_estado[cuenta.estado] = 
-          (estadisticas.por_estado[cuenta.estado] || 0) + 1;
-
-        // Activas con movimientos
-        if (cuenta.estado === 'ACTIVA' && cuenta.acepta_movimientos) {
-          estadisticas.activas_con_movimientos++;
-        }
-
-        // Clases disponibles
-        if (cuenta.tipo_cuenta === 'CLASE') {
-          estadisticas.clases_disponibles.add(cuenta.codigo);
-        }
-      });
-
-      estadisticas.clases_disponibles = Array.from(estadisticas.clases_disponibles);
-
-      return estadisticas;
-    } catch (error) {
-      console.error('Error al obtener estadísticas:', error);
-      throw error;
-    }
-  }
-
   // Exportar PUC a formato CSV
   static exportToCsv(cuentas) {
     const headers = [
@@ -363,7 +332,7 @@ class PucApiService {
       'Naturaleza',
       'Estado',
       'Código Padre',
-      'Acepta Movimientos',
+      'Permite Movimientos',
       'Requiere Tercero',
       'Requiere Centro Costo',
       'Es Cuenta NIIF',
@@ -377,11 +346,11 @@ class PucApiService {
         cuenta.codigo,
         `"${cuenta.nombre}"`,
         `"${cuenta.descripcion || ''}"`,
-        cuenta.tipo_cuenta,
+        cuenta.tipo,
         cuenta.naturaleza,
         cuenta.estado,
         cuenta.codigo_padre || '',
-        cuenta.acepta_movimientos ? 'SI' : 'NO',
+        cuenta.permite_movimiento ? 'SI' : 'NO',
         cuenta.requiere_tercero ? 'SI' : 'NO',
         cuenta.requiere_centro_costo ? 'SI' : 'NO',
         cuenta.es_cuenta_niif ? 'SI' : 'NO',
@@ -408,26 +377,6 @@ class PucApiService {
       link.click();
       document.body.removeChild(link);
     }
-  }
-
-  // Buscar cuentas por término
-  static async buscarCuentas(termino, filtros = {}) {
-    const filtrosConBusqueda = {
-      ...filtros,
-      busqueda: termino
-    };
-
-    return await this.getCuentas(filtrosConBusqueda);
-  }
-
-  // Obtener subcuentas de una cuenta específica
-  static async getSubcuentas(codigoPadre) {
-    const filtros = {
-      codigo_padre: codigoPadre,
-      incluir_subcuentas: true
-    };
-
-    return await this.getCuentas(filtros);
   }
 }
 

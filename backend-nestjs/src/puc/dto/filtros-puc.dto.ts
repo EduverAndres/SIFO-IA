@@ -1,48 +1,49 @@
-// backend-nestjs/src/puc/dto/filtros-puc.dto.ts
-import { IsOptional, IsString, IsEnum, IsBoolean } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
-import { TipoCuenta, NaturalezaCuenta, EstadoCuenta } from '../entities/cuenta-puc.entity';
+// src/puc/dto/filtros-puc.dto.ts
+import { IsOptional, IsString, IsBoolean, IsNumberString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FiltrosPucDto {
+  @ApiPropertyOptional({ description: 'Buscar por código o nombre' })
   @IsOptional()
   @IsString()
   busqueda?: string;
 
+  @ApiPropertyOptional({ description: 'Filtrar por tipo' })
   @IsOptional()
-  @IsEnum(TipoCuenta)
-  tipo_cuenta?: TipoCuenta;
+  @IsString()
+  tipo?: string;
 
+  @ApiPropertyOptional({ description: 'Filtrar por naturaleza' })
   @IsOptional()
-  @IsEnum(NaturalezaCuenta)
-  naturaleza?: NaturalezaCuenta;
+  @IsString()
+  naturaleza?: string;
 
+  @ApiPropertyOptional({ description: 'Filtrar por estado' })
   @IsOptional()
-  @IsEnum(EstadoCuenta)
-  estado?: EstadoCuenta;
+  @IsString()
+  estado?: string;
 
+  @ApiPropertyOptional({ description: 'Código padre' })
   @IsOptional()
   @IsString()
   codigo_padre?: string;
 
+  @ApiPropertyOptional({ description: 'Solo cuentas de movimiento' })
   @IsOptional()
-  @Type(() => Number)
-  nivel?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => value === 'true')
   @IsBoolean()
-  solo_cuentas_movimiento?: boolean;
+  @Type(() => Boolean)
+  solo_movimiento?: boolean;
 
+  @ApiPropertyOptional({ description: 'Página', example: 1 })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
-  @IsBoolean()
-  incluir_subcuentas?: boolean = true;
+  @IsNumberString()
+  pagina?: string = '1';
 
+  @ApiPropertyOptional({ description: 'Elementos por página', example: 10000 })
   @IsOptional()
-  @Type(() => Number)
-  page?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  limit?: number = 50;
+  @IsNumberString()
+  limite?: string = '10000';
 }
+
+// Dentro de handleExportPuc

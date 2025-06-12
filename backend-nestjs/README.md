@@ -1,98 +1,176 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# backend-nestjs/README.md
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+# 🏛️ Sistema PUC - Backend NestJS
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Backend completo desarrollado en **NestJS** para la gestión del **Plan Único de Cuentas (PUC)** según la normativa colombiana.
 
-## Description
+## ✨ Características Principales
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- ✅ **CRUD Completo** - Crear, leer, actualizar, eliminar cuentas contables
+- ✅ **Validaciones Automáticas** - Jerarquía, códigos, reglas de negocio PUC
+- ✅ **PUC Estándar Colombiano** - Importación automática del PUC oficial
+- ✅ **API REST Completa** - Endpoints documentados con Swagger
+- ✅ **Base de Datos PostgreSQL** - Optimizada para Supabase
+- ✅ **TypeScript** - Tipado completo y validaciones en tiempo de compilación
+- ✅ **Tests Incluidos** - Unitarios, integración y E2E
+- ✅ **Documentación Swagger** - Interfaz interactiva para probar la API
 
-## Project setup
+## 🏗️ Arquitectura
 
-```bash
-$ npm install
+```
+backend-nestjs/
+├── 📁 src/
+│   ├── 📁 puc/                    # Módulo principal PUC
+│   │   ├── 📁 entities/           # Entidades TypeORM
+│   │   ├── 📁 dto/               # Data Transfer Objects
+│   │   ├── 📁 interfaces/        # Interfaces TypeScript
+│   │   ├── 📄 puc.controller.ts  # Controlador REST
+│   │   ├── 📄 puc.service.ts     # Lógica de negocio
+│   │   └── 📄 puc.module.ts      # Módulo NestJS
+│   ├── 📁 common/                # Utilidades compartidas
+│   ├── 📄 app.module.ts          # Módulo principal
+│   └── 📄 main.ts                # Punto de entrada
+├── 📁 scripts/                   # Scripts de base de datos
+├── 📄 package.json              # Dependencias Node.js
+└── 📄 README.md                 # Este archivo
 ```
 
-## Compile and run the project
+## 🚀 Instalación Rápida
 
+### 1. Clonar e instalar dependencias
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cd backend-nestjs
+npm install
 ```
 
-## Run tests
-
+### 2. Configurar variables de entorno
 ```bash
-# unit tests
-$ npm run test
+# Copiar el archivo de ejemplo
+cp .env.example .env
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Editar .env con tus credenciales de Supabase
+nano .env
 ```
 
-## Deployment
+**Configuración de `.env`:**
+```env
+# Base de datos Supabase
+DB_HOST=db.tuproyecto.supabase.co
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=tu_password_supabase
+DB_DATABASE=postgres
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+# Servidor
+NODE_ENV=development
+PORT=3001
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Opcional
+JWT_SECRET=tu_jwt_secret_muy_seguro
+SWAGGER_ENABLED=true
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 3. Configurar base de datos en Supabase
 
-## Resources
+1. Ve a [Supabase](https://app.supabase.io)
+2. Abre tu proyecto > **SQL Editor**
+3. Ejecuta el script completo de `scripts/database-setup.sql`
 
-Check out a few resources that may come in handy when working with NestJS:
+### 4. Iniciar el servidor
+```bash
+# Desarrollo con hot reload
+npm run start:dev
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Producción
+npm run build
+npm run start:prod
+```
 
-## Support
+### 5. Importar PUC estándar
+```bash
+curl -X POST http://localhost:3001/api/v1/puc/importar-estandar
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 📖 Documentación API
 
-## Stay in touch
+Una vez iniciado el servidor:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- **🌐 API Base:** `http://localhost:3001/api/v1`
+- **📚 Swagger UI:** `http://localhost:3001/api/docs`
+- **🏛️ PUC Endpoints:** `http://localhost:3001/api/v1/puc`
+- **🏥 Health Check:** `http://localhost:3001/api/v1/puc/salud/verificar`
 
-## License
+## 📊 Endpoints Principales
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/puc` | 📋 Listar cuentas con filtros |
+| `POST` | `/puc` | ➕ Crear nueva cuenta |
+| `GET` | `/puc/:id` | 🔍 Obtener cuenta por ID |
+| `GET` | `/puc/codigo/:codigo` | 🔢 Obtener cuenta por código |
+| `PATCH` | `/puc/:id` | ✏️ Actualizar cuenta |
+| `DELETE` | `/puc/:id` | 🗑️ Eliminar cuenta |
+| `GET` | `/puc/estadisticas` | 📊 Métricas del PUC |
+| `GET` | `/puc/arbol` | 🌳 Estructura jerárquica |
+| `POST` | `/puc/importar-estandar` | 📥 Importar PUC estándar |
+| `GET` | `/puc/validar/:codigo` | ✅ Validar código |
+
+## 🎯 Ejemplos de Uso
+
+### Crear una cuenta
+```bash
+curl -X POST http://localhost:3001/api/v1/puc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codigo": "1105",
+    "nombre": "CAJA",
+    "descripcion": "Dinero en efectivo"
+  }'
+```
+
+### Listar cuentas con filtros
+```bash
+# Buscar cuentas que contengan "CAJA"
+curl "http://localhost:3001/api/v1/puc?busqueda=CAJA"
+
+# Filtrar por tipo y naturaleza
+curl "http://localhost:3001/api/v1/puc?tipo=CUENTA&naturaleza=DEBITO"
+
+# Paginación
+curl "http://localhost:3001/api/v1/puc?pagina=1&limite=20"
+```
+
+### Obtener estadísticas
+```bash
+curl http://localhost:3001/api/v1/puc/estadisticas
+```
+
+## 🧪 Testing
+
+```bash
+# Tests unitarios
+npm run test
+
+# Tests con coverage
+npm run test:cov
+
+# Tests E2E
+npm run test:e2e
+
+# Tests en modo watch
+npm run test:watch
+```
+
+## 🏛️ Estructura del PUC Colombiano
+
+### Niveles Jerárquicos
+- **Nivel 1 (1 dígito):** Clase - `1` = ACTIVOS
+- **Nivel 2 (2 dígitos):** Grupo - `11` = DISPONIBLE  
+- **Nivel 3 (4 dígitos):** Cuenta - `1105` = CAJA
+- **Nivel 4 (6 dígitos):** Subcuenta - `110505` = CAJA GENERAL
+- **Nivel 5+ (7+ dígitos):** Auxiliar - `11050501` = CAJA SUCURSAL 1
+
+### Clases Contables
+| Código | Nombre | Naturaleza | Descripción |
+|--------|--------|------------|-------------|
+|

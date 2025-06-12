@@ -1,5 +1,9 @@
-// backend-nestjs/src/puc/entities/cuenta-puc.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+
+export enum NaturalezaCuenta {
+  DEBITO = 'DEBITO',
+  CREDITO = 'CREDITO'
+}
 
 export enum TipoCuenta {
   CLASE = 'CLASE',
@@ -9,62 +13,42 @@ export enum TipoCuenta {
   AUXILIAR = 'AUXILIAR'
 }
 
-export enum NaturalezaCuenta {
-  DEBITO = 'DEBITO',
-  CREDITO = 'CREDITO'
-}
-
 export enum EstadoCuenta {
   ACTIVA = 'ACTIVA',
   INACTIVA = 'INACTIVA'
 }
 
 @Entity('cuentas_puc')
-@Index(['codigo'])
-@Index(['codigo_padre'])
-@Index(['estado'])
-@Index(['tipo_cuenta'])
 export class CuentaPuc {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 20, unique: true })
+  @Column({ type: 'varchar', length: 20, unique: true })
   codigo: string;
 
-  @Column({ length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   nombre: string;
 
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
-  @Column({
-    type: 'enum',
-    enum: TipoCuenta,
-    default: TipoCuenta.AUXILIAR
-  })
-  tipo_cuenta: TipoCuenta;
+  @Column({ type: 'varchar', length: 20, default: 'AUXILIAR' })
+  tipo: string;
 
-  @Column({
-    type: 'enum',
-    enum: NaturalezaCuenta
-  })
-  naturaleza: NaturalezaCuenta;
+  @Column({ type: 'varchar', length: 20, default: 'DEBITO' })
+  naturaleza: string;
 
-  @Column({
-    type: 'enum',
-    enum: EstadoCuenta,
-    default: EstadoCuenta.ACTIVA
-  })
-  estado: EstadoCuenta;
+  @Column({ type: 'varchar', length: 20, default: 'ACTIVA' })
+  estado: string;
 
-  @Column({ type: 'integer', default: 1 })
+  @Column({ type: 'int', default: 1 })
   nivel: number;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   codigo_padre: string;
 
   @Column({ type: 'boolean', default: true })
-  acepta_movimientos: boolean;
+  permite_movimiento: boolean;
 
   @Column({ type: 'boolean', default: false })
   requiere_tercero: boolean;
@@ -72,14 +56,20 @@ export class CuentaPuc {
   @Column({ type: 'boolean', default: false })
   requiere_centro_costo: boolean;
 
-  @Column({ type: 'text', nullable: true })
-  dinamica: string;
+  @Column({ type: 'boolean', default: false })
+  requiere_documento: boolean;
 
   @Column({ type: 'boolean', default: false })
-  es_cuenta_niif: boolean;
+  maneja_base_retencion: boolean;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: 'boolean', default: true })
+  aplica_niif: boolean;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
   codigo_niif: string;
+
+  @Column({ type: 'text', nullable: true })
+  observaciones: string;
 
   @CreateDateColumn()
   created_at: Date;
@@ -88,38 +78,61 @@ export class CuentaPuc {
   updated_at: Date;
 
   // Relaciones
-  @ManyToOne(() => CuentaPuc, cuenta => cuenta.subcuentas, { 
-    nullable: true,
-    onDelete: 'CASCADE'
-  })
+  @ManyToOne(() => CuentaPuc, cuenta => cuenta.subcuentas, { nullable: true })
   @JoinColumn({ name: 'codigo_padre', referencedColumnName: 'codigo' })
   cuenta_padre: CuentaPuc;
 
   @OneToMany(() => CuentaPuc, cuenta => cuenta.cuenta_padre)
   subcuentas: CuentaPuc[];
+}
 
-  // Métodos de utilidad
-  getNombreCompleto(): string {
-    return `${this.codigo} - ${this.nombre}`;
-  }
+// =====================================================
+// 3. DTOs (src/puc/dto/)
+// =====================================================
 
-  esHoja(): boolean {
-    return !this.subcuentas || this.subcuentas.length === 0;
-  }
+// src/puc/dto/create-cuenta-puc.dto.ts
+import { IsString, IsOptional, IsBoolean, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-  getClase(): string {
-    return this.codigo.charAt(0);
-  }
+export class CreateCuentaPucDto {
+  @ApiProperty({ description: 'Código único de la cuenta', example: '1105' })
+  @IsString()
+  @Length(1, 20)
+  @Matches(/^\d+$/, { message: 'El código debe contener solo números' })
+  codigo: string;
 
-  getGrupo(): string {
-    return this.codigo.substring(0, 2);
-  }
+  @ApiProperty({ description: 'Nombre de la cuenta', example: 'CAJA' })
+  @IsString()
+  @Length(1, 255)
+  nombre: string;
 
-  getCuenta(): string {
-    return this.codigo.substring(0, 4);
-  }
+  @ApiPropertyOptional({ description: 'Descripción de la cuenta' })
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
 
-  getSubcuenta(): string {
-    return this.codigo.substring(0, 6);
-  }
+  @ApiPropertyOptional({ description: 'Código de la cuenta padre' })
+  @IsOptional()
+  @IsString()
+  codigo_padre?: string;
+
+  @ApiPropertyOptional({ description: 'Permite movimientos contables' })
+  @IsOptional()
+  @IsBoolean()
+  permite_movimiento?: boolean;
+
+  @ApiPropertyOptional({ description: 'Requiere tercero' })
+  @IsOptional()
+  @IsBoolean()
+  requiere_tercero?: boolean;
+
+  @ApiPropertyOptional({ description: 'Requiere centro de costo' })
+  @IsOptional()
+  @IsBoolean()
+  requiere_centro_costo?: boolean;
+
+  @ApiPropertyOptional({ description: 'Observaciones adicionales' })
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
 }

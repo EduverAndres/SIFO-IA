@@ -1,4 +1,3 @@
-// backend-nestjs/src/auth/auth.service.ts
 import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -16,96 +15,101 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(registerUserDto: RegisterUserDto): Promise<User> {
+  async register(registerUserDto: RegisterUserDto) {
     const { username, email, password } = registerUserDto;
-    console.log(`[DEBUG - Register] Intentando registrar usuario: ${username}, email: ${email}`); // DEBUG
+    
+    console.log(`🔥 [REGISTER] Intentando registrar: ${username} - ${email}`);
 
-    const existingUserByUsername = await this.usersRepository.findOne({ where: { username } });
-    if (existingUserByUsername) {
-      console.log(`[DEBUG - Register] Username ${username} ya existe.`); // DEBUG
-      throw new ConflictException('El nombre de usuario ya está en uso. Por favor, elige otro.');
+    // Verificar si username ya existe
+    const existingUser = await this.usersRepository.findOne({ 
+      where: { username } 
+    });
+    
+    if (existingUser) {
+      console.log(`❌ [REGISTER] Username ${username} ya existe`);
+      throw new ConflictException('El nombre de usuario ya está en uso');
     }
 
-    const existingUserByEmail = await this.usersRepository.findOne({ where: { email } });
-    if (existingUserByEmail) {
-      console.log(`[DEBUG - Register] Email ${email} ya registrado.`); // DEBUG
-      throw new ConflictException('El correo electrónico ya está registrado. Intenta iniciar sesión.');
+    // Verificar si email ya existe
+    const existingEmail = await this.usersRepository.findOne({ 
+      where: { email } 
+    });
+    
+    if (existingEmail) {
+      console.log(`❌ [REGISTER] Email ${email} ya existe`);
+      throw new ConflictException('El email ya está registrado');
     }
 
+    // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log(`[DEBUG - Register] Contraseña hasheada para ${username}: ${hashedPassword}`); // DEBUG
+    console.log(`🔐 [REGISTER] Password hasheada para ${username}`);
 
+    // Crear usuario
     const newUser = this.usersRepository.create({
       username,
       email,
       password: hashedPassword,
-      rol: 'usuario', // Asegúrate de que el rol por defecto se establezca aquí o en la entidad
+      rol: 'usuario'
     });
 
     try {
-      await this.usersRepository.save(newUser);
-      console.log(`[DEBUG - Register] Usuario ${username} guardado exitosamente. ID: ${newUser.id}`); // DEBUG
-      return newUser;
-    } catch (error) {
-      console.error('[DEBUG - Register] Error al guardar el nuevo usuario:', error); // DEBUG
-      // Error más general si falla la BD por otras razones
-      throw new BadRequestException('Error al registrar el usuario. Por favor, inténtalo de nuevo.');
-    }
-  }
-
-  async validateUser(email: string, pass: string): Promise<any> {
-    console.log(`[DEBUG - Validate] Inicio de validateUser para email: "${email}"`); // DEBUG
-    
-    // Es crucial seleccionar explícitamente la columna 'password' ya que en la entidad está con select: false
-    const user = await this.usersRepository
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('user.email = :email', { email }) // Buscar por email
-      .getOne();
-
-    if (!user) {
-      console.log(`[DEBUG - Validate] Usuario con email "${email}" NO encontrado en la base de datos.`); // DEBUG
-      return null;
-    }
-    
-    console.log(`[DEBUG - Validate] Usuario "${user.username}" encontrado por email.`); // DEBUG
-    console.log(`[DEBUG - Validate] Contraseña recibida (del input/Postman): "${pass}"`); // DEBUG
-    console.log(`[DEBUG - Validate] Contraseña hasheada en BD (de user.password): "${user.password}"`); // DEBUG
-
-    // Compara la contraseña proporcionada con la hasheada en la base de datos
-    const isMatch = await bcrypt.compare(pass, user.password);
-
-    console.log(`[DEBUG - Validate] Resultado de bcrypt.compare: ${isMatch}`); // DEBUG
-
-    if (isMatch) {
-      // Si la contraseña coincide, devuelve el objeto de usuario (sin la contraseña hasheada)
-      const { password, ...result } = user;
+      const savedUser = await this.usersRepository.save(newUser);
+      console.log(`✅ [REGISTER] Usuario creado con ID: ${savedUser.id}`);
+      
+      // Retornar sin password
+      const { password: _, ...result } = savedUser;
       return result;
+    } catch (error) {
+      console.error(`💥 [REGISTER] Error al guardar:`, error);
+      throw new BadRequestException('Error al crear el usuario');
     }
-    return null; // Contraseña incorrecta
   }
 
   async login(loginUserDto: LoginUserDto) {
-    console.log(`[DEBUG - Login Controller] Recibida solicitud de login para email: ${loginUserDto.email}`); // DEBUG
-    const user = await this.validateUser(loginUserDto.email, loginUserDto.password);
+    const { email, password } = loginUserDto;
+    
+    console.log(`🔥 [LOGIN] Intento de login: ${email}`);
+
+    // Buscar usuario con password
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email })
+      .getOne();
 
     if (!user) {
-      console.log(`[DEBUG - Login Controller] Falló la validación del usuario para: ${loginUserDto.email}`); // DEBUG
-      throw new UnauthorizedException('Credenciales inválidas: Correo electrónico o contraseña incorrectos.');
+      console.log(`❌ [LOGIN] Usuario ${email} no encontrado`);
+      throw new UnauthorizedException('Credenciales inválidas');
     }
-    console.log(`[DEBUG - Login Controller] Usuario validado y listo para generar JWT: ${user.username}`); // DEBUG
 
-    const payload = { username: user.username, sub: user.id, rol: user.rol };
-    console.log(`[DEBUG - Login Controller] Payload para JWT:`, payload); // DEBUG
+    console.log(`👤 [LOGIN] Usuario encontrado: ${user.username}`);
+
+    // Verificar password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log(`🔐 [LOGIN] Password válida: ${isValidPassword}`);
+
+    if (!isValidPassword) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    // Generar JWT
+    const payload = { 
+      sub: user.id, 
+      username: user.username, 
+      rol: user.rol 
+    };
+    
+    const token = this.jwtService.sign(payload);
+    console.log(`🎫 [LOGIN] JWT generado para ${user.username}`);
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: token,
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
-        rol: user.rol,
-      },
+        rol: user.rol
+      }
     };
   }
 }

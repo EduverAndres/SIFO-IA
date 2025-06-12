@@ -1,61 +1,45 @@
-// backend-nestjs/src/puc/dto/create-cuenta-puc.dto.ts
-import { IsString, IsOptional, IsEnum, IsBoolean, Length, Matches, IsNotEmpty, ValidateIf } from 'class-validator';
-import { TipoCuenta, NaturalezaCuenta, EstadoCuenta } from '../entities/cuenta-puc.entity';
+import { IsString, IsOptional, IsBoolean, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCuentaPucDto {
-  @IsString({ message: 'El código debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'El código es obligatorio' })
-  @Length(1, 20, { message: 'El código debe tener entre 1 y 20 caracteres' })
-  @Matches(/^[0-9]+$/, { message: 'El código debe contener solo números' })
+  @ApiProperty({ description: 'Código único de la cuenta', example: '1105' })
+  @IsString()
+  @Length(1, 20)
+  @Matches(/^\d+$/, { message: 'El código debe contener solo números' })
   codigo: string;
 
-  @IsString({ message: 'El nombre debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'El nombre es obligatorio' })
-  @Length(1, 255, { message: 'El nombre debe tener entre 1 y 255 caracteres' })
+  @ApiProperty({ description: 'Nombre de la cuenta', example: 'CAJA' })
+  @IsString()
+  @Length(1, 255)
   nombre: string;
 
+  @ApiPropertyOptional({ description: 'Descripción de la cuenta' })
   @IsOptional()
-  @IsString({ message: 'La descripción debe ser una cadena de texto' })
+  @IsString()
   descripcion?: string;
 
-  @IsEnum(TipoCuenta, { message: 'Tipo de cuenta inválido' })
-  tipo_cuenta: TipoCuenta;
-
-  @IsEnum(NaturalezaCuenta, { message: 'Naturaleza de cuenta inválida' })
-  naturaleza: NaturalezaCuenta;
-
+  @ApiPropertyOptional({ description: 'Código de la cuenta padre' })
   @IsOptional()
-  @IsEnum(EstadoCuenta, { message: 'Estado de cuenta inválido' })
-  estado?: EstadoCuenta = EstadoCuenta.ACTIVA;
-
-  @IsOptional()
-  @IsString({ message: 'El código padre debe ser una cadena de texto' })
-  @ValidateIf((o) => o.codigo_padre !== null && o.codigo_padre !== '')
-  @Matches(/^[0-9]+$/, { message: 'El código padre debe contener solo números' })
+  @IsString()
   codigo_padre?: string;
 
+  @ApiPropertyOptional({ description: 'Permite movimientos contables' })
   @IsOptional()
-  @IsBoolean({ message: 'Acepta movimientos debe ser verdadero o falso' })
-  acepta_movimientos?: boolean = true;
+  @IsBoolean()
+  permite_movimiento?: boolean;
 
+  @ApiPropertyOptional({ description: 'Requiere tercero' })
   @IsOptional()
-  @IsBoolean({ message: 'Requiere tercero debe ser verdadero o falso' })
-  requiere_tercero?: boolean = false;
+  @IsBoolean()
+  requiere_tercero?: boolean;
 
+  @ApiPropertyOptional({ description: 'Requiere centro de costo' })
   @IsOptional()
-  @IsBoolean({ message: 'Requiere centro costo debe ser verdadero o falso' })
-  requiere_centro_costo?: boolean = false;
+  @IsBoolean()
+  requiere_centro_costo?: boolean;
 
+  @ApiPropertyOptional({ description: 'Observaciones adicionales' })
   @IsOptional()
-  @IsString({ message: 'La dinámica debe ser una cadena de texto' })
-  dinamica?: string;
-
-  @IsOptional()
-  @IsBoolean({ message: 'Es cuenta NIIF debe ser verdadero o falso' })
-  es_cuenta_niif?: boolean = false;
-
-  @IsOptional()
-  @IsString({ message: 'El código NIIF debe ser una cadena de texto' })
-  @ValidateIf((o) => o.es_cuenta_niif === true)
-  codigo_niif?: string;
+  @IsString()
+  observaciones?: string;
 }
