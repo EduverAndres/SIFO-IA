@@ -1,30 +1,52 @@
 // frontend-react/src/api/ordenesApi.js
 
-// ✅ DEBUGGING: Verificar configuración
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
 
-// 🐛 DEBUG: Log para verificar la URL
-console.log('🔧 [DEBUG] API_BASE_URL configurada:', API_BASE_URL);
-console.log('🔧 [DEBUG] process.env.REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+// --- Funciones existentes para órdenes de compra ---
 
-// 🐛 DEBUG: Función para verificar la URL final
-const logFinalUrl = (endpoint, method = 'GET') => {
-  const finalUrl = `${API_BASE_URL}${endpoint}`;
-  console.log(`🔧 [DEBUG] ${method} ${finalUrl}`);
-  return finalUrl;
+export const getProveedores = async () => {
+  const response = await fetch(`${API_BASE_URL}/proveedores`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Error al cargar proveedores');
+  }
+  return response.json();
 };
 
-// --- FUNCIONES DE AUTENTICACIÓN CON DEBUG ---
+export const getProductos = async () => {
+  const response = await fetch(`${API_BASE_URL}/productos`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Error al cargar productos');
+  }
+  return response.json();
+};
+
+export const crearOrdenCompra = async (ordenData) => {
+  const response = await fetch(`${API_BASE_URL}/ordenes-compra`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(ordenData),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Error al crear la orden de compra');
+  }
+  return data;
+};
+
+// --- FUNCIONES DE AUTENTICACIÓN ---
 
 export const loginUser = async (credentials) => {
   try {
-    const endpoint = '/auth/login';
-    const finalUrl = logFinalUrl(endpoint, 'POST');
-    
-    console.log('🔥 [API] Enviando login a:', finalUrl);
+    console.log('🔥 [API] Enviando login a:', `${API_BASE_URL}/auth/login`);
     console.log('📄 [API] Credentials:', credentials);
 
-    const response = await fetch(finalUrl, {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,7 +56,6 @@ export const loginUser = async (credentials) => {
     });
 
     console.log('📡 [API] Response status:', response.status);
-    console.log('📡 [API] Response headers:', Object.fromEntries(response.headers.entries()));
 
     const data = await response.json();
     console.log('📦 [API] Response data:', data);
@@ -52,20 +73,16 @@ export const loginUser = async (credentials) => {
     return data;
   } catch (error) {
     console.error('💥 [API] Error en loginUser:', error);
-    console.error('💥 [API] Error stack:', error.stack);
     throw error;
   }
 };
 
 export const registerUser = async (userData) => {
   try {
-    const endpoint = '/auth/register';
-    const finalUrl = logFinalUrl(endpoint, 'POST');
-    
-    console.log('🔥 [API] Enviando registro a:', finalUrl);
+    console.log('🔥 [API] Enviando registro a:', `${API_BASE_URL}/auth/register`);
     console.log('📄 [API] UserData:', userData);
 
-    const response = await fetch(finalUrl, {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -91,82 +108,7 @@ export const registerUser = async (userData) => {
   }
 };
 
-// --- FUNCIÓN DE PRUEBA PARA VERIFICAR CONECTIVIDAD ---
-
-export const testBackendConnection = async () => {
-  try {
-    console.log('🧪 [TEST] Probando conectividad del backend...');
-    
-    // Probar health check
-    const healthUrl = 'https://sifo-ia-main.onrender.com/';
-    console.log('🧪 [TEST] Probando health check:', healthUrl);
-    
-    const healthResponse = await fetch(healthUrl);
-    const healthData = await healthResponse.json();
-    
-    console.log('🧪 [TEST] Health check result:', healthData);
-    
-    // Probar endpoint de PUC test
-    const pucTestUrl = `${API_BASE_URL}/puc/test`;
-    console.log('🧪 [TEST] Probando PUC test:', pucTestUrl);
-    
-    const pucResponse = await fetch(pucTestUrl);
-    const pucData = await pucResponse.json();
-    
-    console.log('🧪 [TEST] PUC test result:', pucData);
-    
-    return {
-      health: healthData,
-      pucTest: pucData,
-      apiBaseUrl: API_BASE_URL
-    };
-  } catch (error) {
-    console.error('🧪 [TEST] Error en prueba de conectividad:', error);
-    throw error;
-  }
-};
-
-// --- FUNCIONES EXISTENTES (sin cambios) ---
-
-export const getProveedores = async () => {
-  const finalUrl = logFinalUrl('/proveedores', 'GET');
-  const response = await fetch(finalUrl);
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Error al cargar proveedores');
-  }
-  return response.json();
-};
-
-export const getProductos = async () => {
-  const finalUrl = logFinalUrl('/productos', 'GET');
-  const response = await fetch(finalUrl);
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Error al cargar productos');
-  }
-  return response.json();
-};
-
-export const crearOrdenCompra = async (ordenData) => {
-  const finalUrl = logFinalUrl('/ordenes-compra', 'POST');
-  const response = await fetch(finalUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(ordenData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Error al crear la orden de compra');
-  }
-  return data;
-};
-
-// --- FUNCIONES DEL PUC ---
+// --- FUNCIONES DEL PUC (PLAN ÚNICO DE CUENTAS) ---
 
 export const getPucCuentas = async (filtros = {}) => {
   try {
@@ -181,10 +123,11 @@ export const getPucCuentas = async (filtros = {}) => {
     if (filtros.pagina) queryParams.append('pagina', filtros.pagina);
     if (filtros.limite) queryParams.append('limite', filtros.limite);
 
-    const endpoint = `/puc/cuentas${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-    const finalUrl = logFinalUrl(endpoint, 'GET');
+    const url = `${API_BASE_URL}/puc/cuentas${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     
-    const response = await fetch(finalUrl, {
+    console.log('🏛️ [PUC] Obteniendo cuentas:', url);
+
+    const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       },
@@ -206,13 +149,13 @@ export const getPucCuentas = async (filtros = {}) => {
 
 export const getPucArbol = async (codigoPadre = null) => {
   try {
-    const endpoint = codigoPadre 
-      ? `/puc/arbol?codigo_padre=${codigoPadre}`
-      : `/puc/arbol`;
+    const url = codigoPadre 
+      ? `${API_BASE_URL}/puc/arbol?codigo_padre=${codigoPadre}`
+      : `${API_BASE_URL}/puc/arbol`;
     
-    const finalUrl = logFinalUrl(endpoint, 'GET');
+    console.log('🌳 [PUC] Obteniendo árbol:', url);
 
-    const response = await fetch(finalUrl, {
+    const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       },
@@ -234,10 +177,11 @@ export const getPucArbol = async (codigoPadre = null) => {
 
 export const getPucEstadisticas = async () => {
   try {
-    const endpoint = `/puc/estadisticas`;
-    const finalUrl = logFinalUrl(endpoint, 'GET');
+    const url = `${API_BASE_URL}/puc/estadisticas`;
+    
+    console.log('📊 [PUC] Obteniendo estadísticas:', url);
 
-    const response = await fetch(finalUrl, {
+    const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       },
@@ -257,7 +201,86 @@ export const getPucEstadisticas = async () => {
   }
 };
 
-// --- FUNCIONES AUXILIARES ---
+export const getPucCuentaPorCodigo = async (codigo) => {
+  try {
+    const url = `${API_BASE_URL}/puc/cuentas/codigo/${codigo}`;
+    
+    console.log('🔍 [PUC] Buscando cuenta por código:', url);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al buscar la cuenta PUC');
+    }
+
+    console.log('✅ [PUC] Cuenta encontrada:', data);
+    return data;
+  } catch (error) {
+    console.error('💥 [PUC] Error al buscar cuenta:', error);
+    throw error;
+  }
+};
+
+export const crearCuentaPuc = async (cuentaData) => {
+  try {
+    console.log('🆕 [PUC] Creando cuenta:', cuentaData);
+
+    const response = await fetch(`${API_BASE_URL}/puc/cuentas`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(cuentaData),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al crear la cuenta PUC');
+    }
+
+    console.log('✅ [PUC] Cuenta creada:', data);
+    return data;
+  } catch (error) {
+    console.error('💥 [PUC] Error al crear cuenta:', error);
+    throw error;
+  }
+};
+
+export const validarCodigoPuc = async (codigo) => {
+  try {
+    const url = `${API_BASE_URL}/puc/validar/${codigo}`;
+    
+    console.log('✔️ [PUC] Validando código:', url);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al validar código PUC');
+    }
+
+    console.log('✅ [PUC] Código validado:', data);
+    return data;
+  } catch (error) {
+    console.error('💥 [PUC] Error al validar código:', error);
+    throw error;
+  }
+};
+
+// --- FUNCIONES AUXILIARES DE AUTENTICACIÓN ---
 
 export const logoutUser = () => {
   localStorage.removeItem('token');
@@ -279,5 +302,74 @@ export const isAuthenticated = () => {
   return !!token;
 };
 
-// Exportar función de prueba
-window.testBackendConnection = testBackendConnection;
+// ✅ ELIMINAR CUENTA PUC - FUNCIÓN CORREGIDA
+export const eliminarCuentaPuc = async (id) => {
+  try {
+    console.log('🗑️ [PUC] Eliminando cuenta ID:', id);
+
+    const response = await authenticatedFetch(`/puc/cuentas/${id}`, {
+      method: 'DELETE'
+    });
+
+    if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      let data = null;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      }
+      
+      console.log('✅ [PUC] Cuenta eliminada:', data);
+      return {
+        success: true,
+        message: 'Cuenta eliminada exitosamente',
+        data: data
+      };
+    } else {
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (parseError) {
+        console.log('No se pudo parsear error response como JSON');
+      }
+      
+      throw new Error(errorMessage);
+    }
+  } catch (error) {
+    console.error('💥 [PUC] Error al eliminar cuenta:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+};
+
+// --- FUNCIÓN PARA REQUESTS AUTENTICADOS ---
+
+export const authenticatedFetch = async (url, options = {}) => {
+  const token = getStoredToken();
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    logoutUser();
+    throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+  }
+
+  return response;
+};
