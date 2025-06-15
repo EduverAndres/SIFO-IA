@@ -1,5 +1,5 @@
-// src/api/pucApi.js - VERSIÓN ACTUALIZADA
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// src/api/pucApi.js - VERSIÓN ACTUALIZADA PARA PRODUCCIÓN
+const API_BASE = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com';
 
 class PucApiService {
   // ✅ Obtener todas las cuentas con filtros

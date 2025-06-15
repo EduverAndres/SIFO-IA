@@ -1,6 +1,6 @@
 // frontend-react/src/api/produccionApi.js
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com';
 
 // Función helper para manejar errores de respuesta
 const handleResponse = async (response) => {
@@ -42,7 +42,7 @@ const getAuthHeaders = () => {
 
 export const getProveedores = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/proveedores`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/proveedores`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -55,7 +55,7 @@ export const getProveedores = async () => {
 
 export const getProveedor = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/proveedores/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/proveedores/${id}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -68,7 +68,7 @@ export const getProveedor = async (id) => {
 
 export const crearProveedor = async (proveedorData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/proveedores`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/proveedores`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(proveedorData)
@@ -82,7 +82,7 @@ export const crearProveedor = async (proveedorData) => {
 
 export const actualizarProveedor = async (id, proveedorData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/proveedores/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/proveedores/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(proveedorData)
@@ -96,7 +96,7 @@ export const actualizarProveedor = async (id, proveedorData) => {
 
 export const eliminarProveedor = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/proveedores/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/proveedores/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -111,7 +111,7 @@ export const eliminarProveedor = async (id) => {
 
 export const getProductos = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -124,7 +124,7 @@ export const getProductos = async () => {
 
 export const getProducto = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos/${id}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -137,7 +137,7 @@ export const getProducto = async (id) => {
 
 export const crearProducto = async (productoData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(productoData)
@@ -151,7 +151,7 @@ export const crearProducto = async (productoData) => {
 
 export const actualizarProducto = async (id, productoData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(productoData)
@@ -165,7 +165,7 @@ export const actualizarProducto = async (id, productoData) => {
 
 export const eliminarProducto = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -178,7 +178,7 @@ export const eliminarProducto = async (id) => {
 
 export const getAlertasStock = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos/stock/alertas`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos/stock/alertas`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -201,7 +201,7 @@ export const getOrdenesCompra = async (filtros = {}) => {
     if (filtros.fecha_desde) queryParams.append('fecha_desde', filtros.fecha_desde);
     if (filtros.fecha_hasta) queryParams.append('fecha_hasta', filtros.fecha_hasta);
 
-    const url = `${API_BASE_URL}/ordenes-compra${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/api/v1/ordenes-compra${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     
     const response = await fetch(url, {
       method: 'GET',
@@ -216,7 +216,7 @@ export const getOrdenesCompra = async (filtros = {}) => {
 
 export const getOrdenCompra = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra/${id}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -261,7 +261,7 @@ export const crearOrdenCompra = async (ordenData) => {
       }
     }
 
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(ordenData)
@@ -276,7 +276,7 @@ export const crearOrdenCompra = async (ordenData) => {
 
 export const actualizarEstadoOrden = async (id, nuevoEstado, observaciones = '') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra/${id}/estado`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra/${id}/estado`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify({ 
@@ -293,7 +293,7 @@ export const actualizarEstadoOrden = async (id, nuevoEstado, observaciones = '')
 
 export const eliminarOrdenCompra = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -312,7 +312,7 @@ export const subirArchivo = async (archivo) => {
     formData.append('archivo_adjunto', archivo);
 
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra/upload`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra/upload`, {
       method: 'POST',
       headers: {
         ...(token && { 'Authorization': `Bearer ${token}` })
@@ -332,7 +332,7 @@ export const subirArchivo = async (archivo) => {
 
 export const getEstadisticasProduccion = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/ordenes-compra/estadisticas`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra/estadisticas`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -345,7 +345,7 @@ export const getEstadisticasProduccion = async () => {
 
 export const getEstadisticasProductos = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/productos/estadisticas`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/productos/estadisticas`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -356,9 +356,7 @@ export const getEstadisticasProductos = async () => {
   }
 };
 
-// ==================== FUNCIONES DE UTILIDAD ====================
-
-// Función para formatear fechas
+// Resto del código permanece igual...
 export const formatearFecha = (fecha) => {
   if (!fecha) return '';
   const date = new Date(fecha);
@@ -369,7 +367,6 @@ export const formatearFecha = (fecha) => {
   });
 };
 
-// Función para formatear moneda
 export const formatearMoneda = (cantidad) => {
   if (cantidad === null || cantidad === undefined) return '$0';
   return new Intl.NumberFormat('es-CO', {
@@ -380,7 +377,6 @@ export const formatearMoneda = (cantidad) => {
   }).format(cantidad);
 };
 
-// Función para validar datos antes de enviar
 export const validarDatosOrden = (ordenData) => {
   const errores = [];
 
@@ -392,10 +388,9 @@ export const validarDatosOrden = (ordenData) => {
     errores.push('Debe especificar una fecha de entrega');
   }
 
-  // Validar que la fecha de entrega no sea en el pasado
   const fechaEntrega = new Date(ordenData.fecha_entrega);
   const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0); // Resetear la hora para comparar solo fechas
+  hoy.setHours(0, 0, 0, 0);
   
   if (fechaEntrega < hoy) {
     errores.push('La fecha de entrega no puede ser anterior a hoy');
@@ -405,7 +400,6 @@ export const validarDatosOrden = (ordenData) => {
     errores.push('Debe agregar al menos un producto');
   }
 
-  // Validar cada detalle
   if (ordenData.detalles) {
     ordenData.detalles.forEach((detalle, index) => {
       if (!detalle.id_producto) {
@@ -427,7 +421,6 @@ export const validarDatosOrden = (ordenData) => {
   return errores;
 };
 
-// Estados disponibles para órdenes de compra
 export const ESTADOS_ORDEN = {
   PENDIENTE: 'Pendiente',
   APROBADA: 'Aprobada',
@@ -435,7 +428,6 @@ export const ESTADOS_ORDEN = {
   CANCELADA: 'Cancelada'
 };
 
-// Función para obtener el color del estado
 export const obtenerColorEstado = (estado) => {
   switch (estado) {
     case ESTADOS_ORDEN.COMPLETADA:
@@ -451,50 +443,37 @@ export const obtenerColorEstado = (estado) => {
   }
 };
 
-// Función para verificar si se puede cambiar el estado
 export const puedeCombitarEstado = (estadoActual, nuevoEstado) => {
   const transicionesValidas = {
     [ESTADOS_ORDEN.PENDIENTE]: [ESTADOS_ORDEN.APROBADA, ESTADOS_ORDEN.CANCELADA],
     [ESTADOS_ORDEN.APROBADA]: [ESTADOS_ORDEN.COMPLETADA, ESTADOS_ORDEN.CANCELADA],
-    [ESTADOS_ORDEN.COMPLETADA]: [], // No se puede cambiar
-    [ESTADOS_ORDEN.CANCELADA]: []   // No se puede cambiar
+    [ESTADOS_ORDEN.COMPLETADA]: [],
+    [ESTADOS_ORDEN.CANCELADA]: []
   };
 
   return transicionesValidas[estadoActual]?.includes(nuevoEstado) || false;
 };
 
-// Exportar todo como default también para flexibilidad
 export default {
-  // Proveedores
   getProveedores,
   getProveedor,
   crearProveedor,
   actualizarProveedor,
   eliminarProveedor,
-  
-  // Productos
   getProductos,
   getProducto,
   crearProducto,
   actualizarProducto,
   eliminarProducto,
   getAlertasStock,
-  
-  // Órdenes de compra
   getOrdenesCompra,
   getOrdenCompra,
   crearOrdenCompra,
   actualizarEstadoOrden,
   eliminarOrdenCompra,
-  
-  // Archivos
   subirArchivo,
-  
-  // Estadísticas
   getEstadisticasProduccion,
   getEstadisticasProductos,
-  
-  // Utilidades
   formatearFecha,
   formatearMoneda,
   validarDatosOrden,

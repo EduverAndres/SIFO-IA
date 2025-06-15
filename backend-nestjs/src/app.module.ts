@@ -1,10 +1,10 @@
-// backend-nestjs/src/app.module.ts - VERSIÓN FINAL FUNCIONAL
+// backend-nestjs/src/app.module.ts - SIMPLE
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
-// 📦 ENTIDADES
+// ENTIDADES
 import { Proveedor } from './proveedores/proveedor.entity';
 import { Producto } from './productos/producto.entity';
 import { OrdenCompra } from './ordenes-compra/orden-compra.entity';
@@ -12,17 +12,14 @@ import { DetalleOrden } from './ordenes-compra/detalle-orden.entity';
 import { User } from './auth/entities/user.entity';
 import { CuentaPuc } from './puc/entities/cuenta-puc.entity';
 
-// 🏗️ MÓDULOS
+// MÓDULOS
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { ProductosModule } from './productos/productos.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
 import { PucModule } from './puc/puc.module';
 
-// 🎯 SERVICIO PRINCIPAL (sin controlador - manejado manualmente en main.ts)
-import { AppService } from './app.service';
-
-// 🛠️ FILTROS E INTERCEPTORES
+// FILTROS
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -30,26 +27,20 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 
 @Module({
   imports: [
-    // 🔧 CONFIGURACIÓN GLOBAL
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
       cache: true,
     }),
 
-    // 🗄️ CONFIGURACIÓN DE BASE DE DATOS
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
         
-        console.log('🔗 Conectando a Supabase...');
-        console.log('DATABASE_URL configurada:', databaseUrl ? '✅' : '❌');
-        
         if (!databaseUrl) {
-          console.warn('⚠️ DATABASE_URL no configurada');
-          throw new Error('❌ DATABASE_URL requerida');
+          throw new Error('DATABASE_URL requerida');
         }
         
         return {
@@ -64,7 +55,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
             CuentaPuc,
           ],
           synchronize: false,
-          logging: configService.get('NODE_ENV') === 'development',
+          logging: false,
           ssl: {
             rejectUnauthorized: false,
           },
@@ -75,17 +66,11 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
             max: 5,
             connectionTimeoutMillis: 60000,
             idleTimeoutMillis: 10000,
-            acquireTimeoutMillis: 60000,
-            query_timeout: 30000,
-            statement_timeout: 30000,
-            application_name: 'sifo-backend',
-            keepConnectionAlive: true,
           },
         };
       },
     }),
 
-    // 📌 MÓDULOS DE LA APLICACIÓN
     AuthModule,
     PucModule,
     ProveedoresModule,
@@ -93,12 +78,9 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     OrdenesCompraModule,
   ],
   
-  controllers: [], // ✅ SIN CONTROLADORES GLOBALES - Rutas raíz manejadas manualmente
+  controllers: [],
   
   providers: [
-    AppService, // ✅ SERVICIO PRINCIPAL
-    
-    // 🛡️ FILTROS GLOBALES DE EXCEPCIÓN
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
@@ -107,8 +89,6 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
     },
-    
-    // 🔍 INTERCEPTORES GLOBALES
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
@@ -119,10 +99,4 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     },
   ],
 })
-export class AppModule {
-  constructor() {
-    console.log('🏗️ AppModule inicializado correctamente');
-    console.log('🎯 Rutas raíz manejadas manualmente en main.ts');
-    console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
-  }
-}
+export class AppModule {}
