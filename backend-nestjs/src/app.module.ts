@@ -1,12 +1,8 @@
-// backend-nestjs/src/app.module.ts - VERSIÓN DE DIAGNÓSTICO
+// backend-nestjs/src/app.module.ts - VERSIÓN FINAL FUNCIONAL
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-
-// 🎯 CONTROLADOR PRINCIPAL
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 // 📦 ENTIDADES
 import { Proveedor } from './proveedores/proveedor.entity';
@@ -22,6 +18,10 @@ import { ProductosModule } from './productos/productos.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
 import { PucModule } from './puc/puc.module';
+
+// 🎯 CONTROLADOR Y SERVICIO PRINCIPAL
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 // 🛠️ FILTROS E INTERCEPTORES
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -49,24 +49,21 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
         console.log('DATABASE_URL configurada:', databaseUrl ? '✅' : '❌');
         
         if (!databaseUrl) {
-          console.warn('⚠️ DATABASE_URL no configurada, usando configuración mock');
-          return {
-            type: 'postgres',
-            host: 'localhost',
-            port: 5432,
-            username: 'test',
-            password: 'test',
-            database: 'test',
-            entities: [Proveedor, Producto, OrdenCompra, DetalleOrden, User, CuentaPuc],
-            synchronize: false,
-            logging: false,
-          };
+          console.warn('⚠️ DATABASE_URL no configurada');
+          throw new Error('❌ DATABASE_URL requerida');
         }
         
         return {
           type: 'postgres',
           url: databaseUrl,
-          entities: [Proveedor, Producto, OrdenCompra, DetalleOrden, User, CuentaPuc],
+          entities: [
+            Proveedor,
+            Producto,
+            OrdenCompra,
+            DetalleOrden,
+            User,
+            CuentaPuc,
+          ],
           synchronize: false,
           logging: configService.get('NODE_ENV') === 'development',
           ssl: {
@@ -89,20 +86,18 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       },
     }),
 
-    // 📌 MÓDULOS DE LA APLICACIÓN - RESTAURADOS
+    // 📌 MÓDULOS DE LA APLICACIÓN
     AuthModule,
-    PucModule,           // ✅ RESTAURADO
-    ProveedoresModule,   // ✅ RESTAURADO  
-    ProductosModule,     // ✅ RESTAURADO
-    OrdenesCompraModule, // ✅ RESTAURADO
+    PucModule,
+    ProveedoresModule,
+    ProductosModule,
+    OrdenesCompraModule,
   ],
   
-  controllers: [
-    AppController,   // ✅ Maneja ruta raíz (sin prefijo) + métodos HEAD/GET
-  ],
+  controllers: [AppController], // ✅ ÚNICO CONTROLADOR GLOBAL
   
   providers: [
-    AppService,
+    AppService, // ✅ SERVICIO PRINCIPAL
     
     // 🛡️ FILTROS GLOBALES DE EXCEPCIÓN
     {
@@ -128,7 +123,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 export class AppModule {
   constructor() {
     console.log('🏗️ AppModule inicializado correctamente');
-    console.log('🐛 DebugController registrado para manejar ruta raíz (sin prefijo)');
+    console.log('🎯 AppController registrado para ruta raíz');
     console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
   }
 }
