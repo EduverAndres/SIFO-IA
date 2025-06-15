@@ -4,8 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
-// 🎯 CONTROLADORES PRINCIPALES
-import { AppController, ApiController } from './app.controller';
+// 🎯 CONTROLADOR PRINCIPAL
+import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 // 📦 ENTIDADES
@@ -98,8 +98,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
   ],
   
   controllers: [
-    AppController,   // ✅ Maneja ruta raíz (sin prefijo)
-    ApiController,   // ✅ Maneja /api/v1 (con prefijo explícito)
+    AppController,   // ✅ Maneja ruta raíz (sin prefijo) + métodos HEAD/GET
   ],
   
   providers: [
