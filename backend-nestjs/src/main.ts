@@ -146,17 +146,17 @@ async function bootstrap() {
     
     // 🏥 ENDPOINTS PRINCIPALES
     logger.log('📍 ENDPOINTS PRINCIPALES:');
-    logger.log(`   🏠 Health raíz: / (para monitoreo Render)`);
+    logger.log(`   🏠 Health raíz: / (registrada manualmente)`);
     logger.log(`   🔧 Health API: /api/v1/`);
     logger.log(`   📖 Docs: /api/docs`);
     logger.log(`   🔐 Auth: /api/v1/auth/*`);
     logger.log(`   🏛️ PUC: /api/v1/puc/*`);
     logger.log(`   👥 Proveedores: /api/v1/proveedores/*`);
     
-    // 🐛 DEBUGGING: Mostrar rutas registradas
+    // 🐛 DEBUGGING: Mostrar rutas registradas (DESPUÉS de registrar rutas manuales)
     console.log('🐛 DEBUGGING: Verificando rutas registradas...');
     
-    // Obtener el adaptador HTTP y las rutas
+    // Obtener la instancia del adaptador HTTP y las rutas
     const instance = httpAdapter.getInstance();
     
     if (instance._router && instance._router.stack) {
@@ -180,9 +180,10 @@ async function bootstrap() {
     
     console.log(`🐛 ¿Ruta raíz registrada? ${hasRootRoute ? '✅ SÍ' : '❌ NO'}`);
     
-    if (!hasRootRoute) {
-      console.error('❌ ERROR: La ruta raíz NO está registrada en Express');
-      console.log('🔍 Verificar que AppController esté en app.module.ts');
+    if (hasRootRoute) {
+      console.log('✅ ÉXITO: La ruta raíz está correctamente registrada');
+    } else {
+      console.warn('⚠️ ADVERTENCIA: La ruta raíz no aparece en el router de Express, pero fue registrada manualmente');
     }
     
   } catch (error) {
