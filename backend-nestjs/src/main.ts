@@ -55,9 +55,9 @@ async function bootstrap() {
     
     console.log('🐛 DEBUG: ValidationPipe configurado');
 
-    // 🚀 PREFIJO GLOBAL - COMENTADO TEMPORALMENTE PARA DIAGNÓSTICO
-    // app.setGlobalPrefix('api/v1');
-    console.log('🐛 DEBUG: Sin prefijo global para diagnóstico');
+    // 🚀 PREFIJO GLOBAL - RESTAURADO
+    app.setGlobalPrefix('api/v1');
+    console.log('🐛 DEBUG: Prefijo global restaurado: api/v1');
 
     // 📚 SWAGGER DOCUMENTACIÓN (simplificado para diagnóstico)
     if (process.env.NODE_ENV !== 'production') {
@@ -68,9 +68,9 @@ async function bootstrap() {
         .build();
 
       const document = SwaggerModule.createDocument(app, config);
-      SwaggerModule.setup('docs', app, document); // Sin prefijo
+      SwaggerModule.setup('api/docs', app, document); // Con prefijo
       
-      console.log('🐛 DEBUG: Swagger disponible en: /docs');
+      console.log('🐛 DEBUG: Swagger disponible en: /api/docs');
     }
 
     // 🔥 INICIAR SERVIDOR
@@ -85,9 +85,11 @@ async function bootstrap() {
     // 🏥 ENDPOINTS DE DIAGNÓSTICO
     logger.log(`🐛 DEBUG ENDPOINTS:`);
     logger.log(`🐛 Health check raíz: http://localhost:${port}/`);
-    logger.log(`🐛 Test endpoint: http://localhost:${port}/test`);
-    logger.log(`🐛 Documentación: http://localhost:${port}/docs`);
-    logger.log(`🐛 Auth (si funciona): http://localhost:${port}/auth`);
+    logger.log(`🐛 Health check API: http://localhost:${port}/api/v1/`);
+    logger.log(`🐛 Test endpoint: http://localhost:${port}/api/v1/test`);
+    logger.log(`🐛 Documentación: http://localhost:${port}/api/docs`);
+    logger.log(`🐛 Auth: http://localhost:${port}/api/v1/auth`);
+    logger.log(`🐛 PUC: http://localhost:${port}/api/v1/puc/estadisticas`);
     
     // Mostrar todas las rutas registradas
     const server = app.getHttpServer();

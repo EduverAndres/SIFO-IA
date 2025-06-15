@@ -4,8 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
-// 🐛 CONTROLADOR DE DIAGNÓSTICO
-import { DebugController } from './debug.controller';
+// 🎯 CONTROLADORES PRINCIPALES
+import { AppController, ApiController } from './app.controller';
 import { AppService } from './app.service';
 
 // 📦 ENTIDADES
@@ -89,16 +89,17 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       },
     }),
 
-    // 📌 MÓDULOS DE LA APLICACIÓN (TEMPORALMENTE COMENTADOS PARA DIAGNÓSTICO)
+    // 📌 MÓDULOS DE LA APLICACIÓN - RESTAURADOS
     AuthModule,
-    // PucModule,
-    // ProveedoresModule,
-    // ProductosModule,
-    // OrdenesCompraModule,
+    PucModule,           // ✅ RESTAURADO
+    ProveedoresModule,   // ✅ RESTAURADO  
+    ProductosModule,     // ✅ RESTAURADO
+    OrdenesCompraModule, // ✅ RESTAURADO
   ],
   
   controllers: [
-    DebugController, // 🐛 CONTROLADOR DE DIAGNÓSTICO COMO PRINCIPAL
+    AppController,   // ✅ Maneja ruta raíz (sin prefijo)
+    ApiController,   // ✅ Maneja /api/v1 (con prefijo explícito)
   ],
   
   providers: [
@@ -127,8 +128,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 })
 export class AppModule {
   constructor() {
-    console.log('🐛 DEBUG AppModule inicializado');
-    console.log('🐛 DebugController registrado para manejar ruta raíz');
-    console.log('🐛 Módulos activos: Auth solamente (resto comentado)');
+    console.log('🏗️ AppModule inicializado correctamente');
+    console.log('🐛 DebugController registrado para manejar ruta raíz (sin prefijo)');
+    console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
   }
 }
