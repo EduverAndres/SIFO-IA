@@ -314,6 +314,7 @@ export const eliminarCuentaPuc = async (id) => {
   try {
     console.log('🗑️ [PUC] Eliminando cuenta ID:', id);
 
+    // ✅ CORREGIDO: La URL debe incluir "/cuentas/"
     const response = await authenticatedFetch(`/puc/cuentas/${id}`, {
       method: 'DELETE'
     });
@@ -368,7 +369,11 @@ export const authenticatedFetch = async (url, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/v1${url}`, {
+  // ✅ CORREGIDO: Construir la URL correctamente
+  const fullUrl = `${API_BASE_URL}/api/v1${url}`;
+  console.log('🔗 [AUTH] Llamada autenticada a:', fullUrl);
+
+  const response = await fetch(fullUrl, {
     ...options,
     headers,
   });
