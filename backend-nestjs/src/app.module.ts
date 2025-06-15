@@ -18,8 +18,10 @@ import { ProductosModule } from './productos/productos.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
 import { PucModule } from './puc/puc.module';
-import { PucController } from './app.controller'; // o './puc/puc.controller' si lo moviste
 
+// 🎯 CONTROLADORES Y SERVICIOS PRINCIPALES
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 // 🛠️ FILTROS E INTERCEPTORES
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -29,7 +31,6 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 
 @Module({
   imports: [
-    PucModule,
     // 🔧 CONFIGURACIÓN GLOBAL
     ConfigModule.forRoot({
       isGlobal: true,
@@ -55,7 +56,6 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
           type: 'postgres',
           url: databaseUrl,
           entities: [
-            AuthModule,
             Proveedor,
             Producto,
             OrdenCompra,
@@ -94,9 +94,11 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     OrdenesCompraModule,  // ✅ Órdenes de compra
   ],
   
-  controllers: [], // Sin controladores globales
+  controllers: [AppController], // ✅ CONTROLADOR PRINCIPAL AGREGADO
   
   providers: [
+    AppService, // ✅ SERVICIO PRINCIPAL AGREGADO
+    
     // 🛡️ FILTROS GLOBALES DE EXCEPCIÓN
     {
       provide: APP_FILTER,
@@ -122,5 +124,6 @@ export class AppModule {
   constructor() {
     console.log('🏗️ AppModule inicializado correctamente');
     console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
+    console.log('🎯 AppController registrado para manejar ruta raíz');
   }
 }
