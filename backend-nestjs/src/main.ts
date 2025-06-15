@@ -15,6 +15,7 @@ async function bootstrap() {
     // 🌐 CORS - CONFIGURACIÓN COMPLETA
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:3002', // <--- AGREGA TU FRONTEND AQUÍ
       'http://localhost:5173', // Vite
       'https://sifo-ia.netlify.app',
       /^https:\/\/.*\.netlify\.app$/,

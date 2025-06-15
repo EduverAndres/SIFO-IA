@@ -21,6 +21,8 @@ import {
   FaEye,
   FaStar,
   FaArrowLeft,
+  FaTree, // ← NUEVO ICONO PARA PUC
+  FaListAlt // ← NUEVO ICONO PARA PLAN DE CUENTAS
 } from 'react-icons/fa';
 
 const MenuFinanciero = () => {
@@ -40,6 +42,32 @@ const MenuFinanciero = () => {
       color: 'blue',
       gradient: 'from-blue-500 to-blue-600',
       features: ['Crear proveedores', 'Gestionar productos', 'Órdenes de compra']
+    },
+    // ← NUEVO MÓDULO PUC
+    {
+      title: 'Plan Único de Cuentas (PUC)',
+      description: 'Gestiona la estructura contable con el PUC estándar colombiano',
+      icon: FaTree,
+      link: '/dashboard/puc',
+      category: 'contabilidad',
+      status: 'active', // ← ACTIVO
+      priority: 'high',
+      color: 'emerald',
+      gradient: 'from-emerald-500 to-green-600',
+      features: ['PUC estándar', 'Gestión de cuentas', 'Estructura jerárquica']
+    },
+    // ← MÓDULO PLAN DE CUENTAS ORIGINAL
+    {
+      title: 'Plan de Cuentas',
+      description: 'Administra el catálogo general de cuentas contables',
+      icon: FaListAlt,
+      link: '/dashboard/plan-cuentas',
+      category: 'contabilidad',
+      status: 'active',
+      priority: 'high',
+      color: 'indigo',
+      gradient: 'from-indigo-500 to-purple-600',
+      features: ['Catálogo de cuentas', 'Configuración contable', 'Jerarquía personalizada']
     },
     {
       title: 'Presupuesto',
@@ -199,10 +227,11 @@ const MenuFinanciero = () => {
     }
   ];
 
-  // Categorías para filtrado
+  // Categorías para filtrado - ACTUALIZADA CON CONTABILIDAD
   const categories = [
     { id: 'all', name: 'Todos', count: financialModules.length },
     { id: 'compras', name: 'Compras', count: financialModules.filter(m => m.category === 'compras').length },
+    { id: 'contabilidad', name: 'Contabilidad', count: financialModules.filter(m => m.category === 'contabilidad').length }, // ← NUEVA CATEGORÍA
     { id: 'planificacion', name: 'Planificación', count: financialModules.filter(m => m.category === 'planificacion').length },
     { id: 'cuentas', name: 'Cuentas', count: financialModules.filter(m => m.category === 'cuentas').length },
     { id: 'bancos', name: 'Bancos', count: financialModules.filter(m => m.category === 'bancos').length },
