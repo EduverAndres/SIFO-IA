@@ -1,5 +1,5 @@
-// src/api/pucApi.js - VERSIÓN ACTUALIZADA PARA PRODUCCIÓN
-const API_BASE = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com';
+// src/api/pucApi.js - VERSIÓN FINAL CORREGIDA
+const API_BASE = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
 
 class PucApiService {
   // ✅ Obtener todas las cuentas con filtros
@@ -13,7 +13,7 @@ class PucApiService {
         }
       });
 
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas?${params.toString()}`);
+      const response = await fetch(`${API_BASE}/puc/cuentas?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -29,7 +29,7 @@ class PucApiService {
   // ✅ Obtener árbol completo de cuentas
   static async getArbolCuentas() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/arbol`);
+      const response = await fetch(`${API_BASE}/puc/arbol`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -45,7 +45,7 @@ class PucApiService {
   // ✅ Obtener cuenta por ID
   static async getCuentaById(id) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`);
+      const response = await fetch(`${API_BASE}/puc/cuentas/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -61,7 +61,7 @@ class PucApiService {
   // ✅ Obtener cuenta por código
   static async getCuentaByCodigo(codigo) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/codigo/${codigo}`);
+      const response = await fetch(`${API_BASE}/puc/cuentas/codigo/${codigo}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -77,7 +77,7 @@ class PucApiService {
   // ✅ Crear nueva cuenta
   static async createCuenta(cuentaData) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas`, {
+      const response = await fetch(`${API_BASE}/puc/cuentas`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +100,7 @@ class PucApiService {
   // ✅ Actualizar cuenta
   static async updateCuenta(id, cuentaData) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`, {
+      const response = await fetch(`${API_BASE}/puc/cuentas/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ class PucApiService {
   // ✅ Eliminar cuenta
   static async deleteCuenta(id) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${id}`, {
+      const response = await fetch(`${API_BASE}/puc/cuentas/${id}`, {
         method: 'DELETE',
       });
 
@@ -142,7 +142,7 @@ class PucApiService {
   // ✅ Obtener subcuentas de una cuenta específica
   static async getSubcuentas(codigoPadre) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/cuentas/${codigoPadre}/subcuentas`);
+      const response = await fetch(`${API_BASE}/puc/cuentas/${codigoPadre}/subcuentas`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -158,7 +158,7 @@ class PucApiService {
   // ✅ Importar PUC estándar de Colombia
   static async importPucEstandarColombia() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/importar/estandar`, {
+      const response = await fetch(`${API_BASE}/puc/importar/estandar`, {
         method: 'POST',
       });
 
@@ -177,7 +177,7 @@ class PucApiService {
   // ✅ Obtener estadísticas del PUC
   static async getEstadisticasPuc() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/estadisticas`);
+      const response = await fetch(`${API_BASE}/puc/estadisticas`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -193,7 +193,7 @@ class PucApiService {
   // ✅ Validar código PUC
   static async validarCodigo(codigo) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/puc/validar/${codigo}`);
+      const response = await fetch(`${API_BASE}/puc/validar/${codigo}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);

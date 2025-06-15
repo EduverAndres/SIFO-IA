@@ -1,12 +1,12 @@
 // frontend-react/src/api/ordenesApi.js
 
-// ✅ CORREGIDO: Backend NestJS está en Render sin el prefijo en API_BASE_URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com';
+// ✅ CORREGIDO: Incluir el prefijo /api/v1 en la URL base
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
 
 // --- Funciones existentes para órdenes de compra ---
 
 export const getProveedores = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/proveedores`);
+  const response = await fetch(`${API_BASE_URL}/proveedores`);
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || 'Error al cargar proveedores');
@@ -15,7 +15,7 @@ export const getProveedores = async () => {
 };
 
 export const getProductos = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/productos`);
+  const response = await fetch(`${API_BASE_URL}/productos`);
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || 'Error al cargar productos');
@@ -24,7 +24,7 @@ export const getProductos = async () => {
 };
 
 export const crearOrdenCompra = async (ordenData) => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/ordenes-compra`, {
+  const response = await fetch(`${API_BASE_URL}/ordenes-compra`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,10 +44,10 @@ export const crearOrdenCompra = async (ordenData) => {
 
 export const loginUser = async (credentials) => {
   try {
-    console.log('🔥 [API] Enviando login a:', `${API_BASE_URL}/api/v1/auth/login`);
+    console.log('🔥 [API] Enviando login a:', `${API_BASE_URL}/auth/login`);
     console.log('📄 [API] Credentials:', credentials);
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,10 +80,10 @@ export const loginUser = async (credentials) => {
 
 export const registerUser = async (userData) => {
   try {
-    console.log('🔥 [API] Enviando registro a:', `${API_BASE_URL}/api/v1/auth/register`);
+    console.log('🔥 [API] Enviando registro a:', `${API_BASE_URL}/auth/register`);
     console.log('📄 [API] UserData:', userData);
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export const getPucCuentas = async (filtros = {}) => {
     if (filtros.pagina) queryParams.append('pagina', filtros.pagina);
     if (filtros.limite) queryParams.append('limite', filtros.limite);
 
-    const url = `${API_BASE_URL}/api/v1/puc/cuentas${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `${API_BASE_URL}/puc/cuentas${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     
     console.log('🏛️ [PUC] Obteniendo cuentas:', url);
 
@@ -152,8 +152,8 @@ export const getPucCuentas = async (filtros = {}) => {
 export const getPucArbol = async (codigoPadre = null) => {
   try {
     const url = codigoPadre 
-      ? `${API_BASE_URL}/api/v1/puc/arbol?codigo_padre=${codigoPadre}`
-      : `${API_BASE_URL}/api/v1/puc/arbol`;
+      ? `${API_BASE_URL}/puc/arbol?codigo_padre=${codigoPadre}`
+      : `${API_BASE_URL}/puc/arbol`;
     
     console.log('🌳 [PUC] Obteniendo árbol:', url);
 
@@ -179,7 +179,7 @@ export const getPucArbol = async (codigoPadre = null) => {
 
 export const getPucEstadisticas = async () => {
   try {
-    const url = `${API_BASE_URL}/api/v1/puc/estadisticas`;
+    const url = `${API_BASE_URL}/puc/estadisticas`;
     
     console.log('📊 [PUC] Obteniendo estadísticas:', url);
 
@@ -205,7 +205,7 @@ export const getPucEstadisticas = async () => {
 
 export const getPucCuentaPorCodigo = async (codigo) => {
   try {
-    const url = `${API_BASE_URL}/api/v1/puc/cuentas/codigo/${codigo}`;
+    const url = `${API_BASE_URL}/puc/cuentas/codigo/${codigo}`;
     
     console.log('🔍 [PUC] Buscando cuenta por código:', url);
 
@@ -233,7 +233,7 @@ export const crearCuentaPuc = async (cuentaData) => {
   try {
     console.log('🆕 [PUC] Creando cuenta:', cuentaData);
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/puc/cuentas`, {
+    const response = await fetch(`${API_BASE_URL}/puc/cuentas`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -258,7 +258,7 @@ export const crearCuentaPuc = async (cuentaData) => {
 
 export const validarCodigoPuc = async (codigo) => {
   try {
-    const url = `${API_BASE_URL}/api/v1/puc/validar/${codigo}`;
+    const url = `${API_BASE_URL}/puc/validar/${codigo}`;
     
     console.log('✔️ [PUC] Validando código:', url);
 
@@ -366,7 +366,7 @@ export const authenticatedFetch = async (url, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/v1${url}`, {
+  const response = await fetch(`${API_BASE_URL}${url}`, {
     ...options,
     headers,
   });
