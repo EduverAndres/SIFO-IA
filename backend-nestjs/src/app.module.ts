@@ -1,8 +1,12 @@
-// backend-nestjs/src/app.module.ts
+// backend-nestjs/src/app.module.ts - VERSIÓN DE DIAGNÓSTICO
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+
+// 🐛 CONTROLADOR DE DIAGNÓSTICO
+import { DebugController } from './debug.controller';
+import { AppService } from './app.service';
 
 // 📦 ENTIDADES
 import { Proveedor } from './proveedores/proveedor.entity';
@@ -19,10 +23,6 @@ import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
 import { PucModule } from './puc/puc.module';
 
-// 🎯 CONTROLADORES Y SERVICIOS PRINCIPALES
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-
 // 🛠️ FILTROS E INTERCEPTORES
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -38,7 +38,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       cache: true,
     }),
 
-    // 🗄️ CONFIGURACIÓN DE BASE DE DATOS - CORREGIDA PARA SUPABASE
+    // 🗄️ CONFIGURACIÓN DE BASE DE DATOS
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -49,21 +49,25 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
         console.log('DATABASE_URL configurada:', databaseUrl ? '✅' : '❌');
         
         if (!databaseUrl) {
-          throw new Error('❌ DATABASE_URL no está configurada en las variables de entorno');
+          console.warn('⚠️ DATABASE_URL no configurada, usando configuración mock');
+          return {
+            type: 'postgres',
+            host: 'localhost',
+            port: 5432,
+            username: 'test',
+            password: 'test',
+            database: 'test',
+            entities: [Proveedor, Producto, OrdenCompra, DetalleOrden, User, CuentaPuc],
+            synchronize: false,
+            logging: false,
+          };
         }
         
         return {
           type: 'postgres',
           url: databaseUrl,
-          entities: [
-            Proveedor,
-            Producto,
-            OrdenCompra,
-            DetalleOrden,
-            User,
-            CuentaPuc, // ✅ Entidad PUC incluida
-          ],
-          synchronize: false, // ✅ DESHABILITADO para evitar problemas con Supabase
+          entities: [Proveedor, Producto, OrdenCompra, DetalleOrden, User, CuentaPuc],
+          synchronize: false,
           logging: configService.get('NODE_ENV') === 'development',
           ssl: {
             rejectUnauthorized: false,
@@ -72,8 +76,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
             ssl: {
               rejectUnauthorized: false,
             },
-            // Configuración optimizada para Supabase
-            max: 5, // Máximo 5 conexiones
+            max: 5,
             connectionTimeoutMillis: 60000,
             idleTimeoutMillis: 10000,
             acquireTimeoutMillis: 60000,
@@ -86,18 +89,20 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       },
     }),
 
-    // 📌 MÓDULOS DE LA APLICACIÓN
-    AuthModule,           // ✅ Autenticación
-    PucModule,            // ✅ Plan Único de Cuentas
-    ProveedoresModule,    // ✅ Gestión de proveedores
-    ProductosModule,      // ✅ Catálogo de productos
-    OrdenesCompraModule,  // ✅ Órdenes de compra
+    // 📌 MÓDULOS DE LA APLICACIÓN (TEMPORALMENTE COMENTADOS PARA DIAGNÓSTICO)
+    AuthModule,
+    // PucModule,
+    // ProveedoresModule,
+    // ProductosModule,
+    // OrdenesCompraModule,
   ],
   
-  controllers: [AppController], // ✅ CONTROLADOR PRINCIPAL AGREGADO
+  controllers: [
+    DebugController, // 🐛 CONTROLADOR DE DIAGNÓSTICO COMO PRINCIPAL
+  ],
   
   providers: [
-    AppService, // ✅ SERVICIO PRINCIPAL AGREGADO
+    AppService,
     
     // 🛡️ FILTROS GLOBALES DE EXCEPCIÓN
     {
@@ -122,8 +127,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 })
 export class AppModule {
   constructor() {
-    console.log('🏗️ AppModule inicializado correctamente');
-    console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
-    console.log('🎯 AppController registrado para manejar ruta raíz');
+    console.log('🐛 DEBUG AppModule inicializado');
+    console.log('🐛 DebugController registrado para manejar ruta raíz');
+    console.log('🐛 Módulos activos: Auth solamente (resto comentado)');
   }
 }

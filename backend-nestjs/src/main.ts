@@ -1,4 +1,4 @@
-// backend-nestjs/src/main.ts
+// backend-nestjs/src/main.ts - VERSIÓN DE DIAGNÓSTICO
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -9,149 +9,108 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   try {
-    const app = await NestFactory.create(AppModule);
+    console.log('🐛 DEBUG: Iniciando bootstrap...');
+    
+    const app = await NestFactory.create(AppModule, {
+      logger: ['log', 'error', 'warn', 'debug', 'verbose'], // Logging completo
+    });
+    
+    console.log('🐛 DEBUG: Aplicación NestJS creada exitosamente');
+    
     const configService = app.get(ConfigService);
 
     // 🌐 CORS - CONFIGURACIÓN COMPLETA
     const allowedOrigins = [
       'http://localhost:3000',
-      'http://localhost:3002', // <--- AGREGA TU FRONTEND AQUÍ
-      'http://localhost:5173', // Vite
+      'http://localhost:5173',
       'https://sifo-ia.netlify.app',
       /^https:\/\/.*\.netlify\.app$/,
     ];
     
     app.enableCors({
       origin: allowedOrigins,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'], // ✅ HEAD agregado
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
       credentials: true,
       preflightContinue: false,
       optionsSuccessStatus: 204,
     });
+    
+    console.log('🐛 DEBUG: CORS configurado con soporte para HEAD');
 
-    // 🛠️ VALIDACIONES GLOBALES - CONFIGURACIÓN CRÍTICA PARA DTOs
+    // 🛠️ VALIDACIONES GLOBALES
     app.useGlobalPipes(
       new ValidationPipe({
-        whitelist: true,                    // ✅ Solo permite propiedades definidas en DTOs
-        forbidNonWhitelisted: false,        // ✅ CAMBIADO: No rechaza propiedades extra (era true)
-        transform: true,                    // ✅ Transforma tipos automáticamente
+        whitelist: true,
+        forbidNonWhitelisted: false,
+        transform: true,
         transformOptions: {
-          enableImplicitConversion: true,   // ✅ Convierte strings a números automáticamente
+          enableImplicitConversion: true,
         },
-        disableErrorMessages: false,        // ✅ CAMBIADO: Siempre mostrar errores detallados
-        validateCustomDecorators: true,     // ✅ AGREGADO: Valida decoradores personalizados
-        skipMissingProperties: false,       // ✅ AGREGADO: No omite propiedades faltantes
+        disableErrorMessages: false,
+        validateCustomDecorators: true,
+        skipMissingProperties: false,
       }),
     );
+    
+    console.log('🐛 DEBUG: ValidationPipe configurado');
 
-    // 📚 SWAGGER DOCUMENTACIÓN
+    // 🚀 PREFIJO GLOBAL - COMENTADO TEMPORALMENTE PARA DIAGNÓSTICO
+    // app.setGlobalPrefix('api/v1');
+    console.log('🐛 DEBUG: Sin prefijo global para diagnóstico');
+
+    // 📚 SWAGGER DOCUMENTACIÓN (simplificado para diagnóstico)
     if (process.env.NODE_ENV !== 'production') {
       const config = new DocumentBuilder()
-        .setTitle('🏛️ Sistema SIFO - API Completa')
-        .setDescription(`
-          ## API completa para Sistema SIFO
-          
-          ### Módulos disponibles:
-          - 🔐 **Autenticación** - Registro y login de usuarios
-          - 🏛️ **PUC** - Plan Único de Cuentas
-          - 👥 **Proveedores** - Gestión de proveedores
-          - 📦 **Productos** - Catálogo de productos
-          - 📋 **Órdenes de Compra** - Gestión de órdenes
-          
-          ### Endpoints principales:
-          - **Auth:** \`/api/v1/auth/login\`, \`/api/v1/auth/register\`
-          - **PUC:** \`/api/v1/puc\`
-          - **Proveedores:** \`/api/v1/proveedores\`
-          
-          ### Ejemplos de uso:
-          
-          **Registro de usuario:**
-          \`\`\`json
-          POST /api/v1/auth/register
-          {
-            "username": "usuario123",
-            "email": "usuario@ejemplo.com",
-            "password": "123456"
-          }
-          \`\`\`
-          
-          **Login:**
-          \`\`\`json
-          POST /api/v1/auth/login
-          {
-            "email": "usuario@ejemplo.com",
-            "password": "123456"
-          }
-          \`\`\`
-        `)
+        .setTitle('🐛 SIFO Debug API')
+        .setDescription('API de diagnóstico para resolver el problema 404')
         .setVersion('1.0.0')
-        .addBearerAuth(
-          {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-            name: 'JWT',
-            description: 'Ingresa el token JWT obtenido del login',
-            in: 'header',
-          },
-          'JWT-auth'
-        )
-        .addServer('/api/v1', 'API v1')
-        .addTag('🔐 Auth', 'Endpoints de autenticación')
-        .addTag('🏛️ PUC', 'Plan Único de Cuentas')
-        .addTag('👥 Proveedores', 'Gestión de proveedores')
-        .addTag('📦 Productos', 'Catálogo de productos')
-        .addTag('📋 Órdenes', 'Órdenes de compra')
         .build();
 
       const document = SwaggerModule.createDocument(app, config);
-      SwaggerModule.setup('api/docs', app, document, {
-        swaggerOptions: {
-          persistAuthorization: true,
-          displayRequestDuration: true,
-          defaultModelsExpandDepth: 2,
-          defaultModelExpandDepth: 2,
-          docExpansion: 'list',
-          filter: true,
-          showRequestHeaders: true,
-        },
-        customSiteTitle: 'SIFO API Documentation',
-        customfavIcon: '/favicon.ico',
-        customCss: `
-          .swagger-ui .topbar { background-color: #1976d2; }
-          .swagger-ui .topbar .download-url-wrapper { display: none; }
-        `,
-      });
-
-      logger.log('📚 Swagger disponible en: /api/docs');
+      SwaggerModule.setup('docs', app, document); // Sin prefijo
+      
+      console.log('🐛 DEBUG: Swagger disponible en: /docs');
     }
-
-    // 🚀 PREFIJO GLOBAL
-    app.setGlobalPrefix('api/v1');
 
     // 🔥 INICIAR SERVIDOR
     const port = process.env.PORT || 3001;
     await app.listen(port, '0.0.0.0');
     
+    console.log('🐛 DEBUG: Servidor iniciado exitosamente');
     logger.log(`🚀 Servidor iniciado en puerto: ${port}`);
     logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.log(`🌐 CORS habilitado para: ${allowedOrigins.join(', ')}`);
     
-    // 🏥 HEALTH CHECK Y ENDPOINTS PRINCIPALES
-    logger.log(`🏥 Health check: http://localhost:${port}/api/v1/auth (debería responder)`);
-    logger.log(`📖 Documentación: http://localhost:${port}/api/docs`);
-    logger.log(`🔐 Auth Register: POST http://localhost:${port}/api/v1/auth/register`);
-    logger.log(`🔐 Auth Login: POST http://localhost:${port}/api/v1/auth/login`);
-    logger.log(`🏛️ PUC Estadísticas: GET http://localhost:${port}/api/v1/puc/estadisticas`);
+    // 🏥 ENDPOINTS DE DIAGNÓSTICO
+    logger.log(`🐛 DEBUG ENDPOINTS:`);
+    logger.log(`🐛 Health check raíz: http://localhost:${port}/`);
+    logger.log(`🐛 Test endpoint: http://localhost:${port}/test`);
+    logger.log(`🐛 Documentación: http://localhost:${port}/docs`);
+    logger.log(`🐛 Auth (si funciona): http://localhost:${port}/auth`);
+    
+    // Mostrar todas las rutas registradas
+    const server = app.getHttpServer();
+    const router = server._events.request._router;
+    if (router && router.stack) {
+      console.log('🐛 DEBUG: Rutas registradas:');
+      router.stack.forEach((layer: any) => {
+        if (layer.route) {
+          const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
+          console.log(`🐛   ${methods} ${layer.route.path}`);
+        }
+      });
+    }
     
   } catch (error) {
     logger.error('💥 Error crítico al iniciar servidor:', error);
+    console.error('🐛 DEBUG: Error completo:', error);
     process.exit(1);
   }
 }
 
 bootstrap().catch((error) => {
   console.error('💥 Error en bootstrap:', error);
+  console.error('🐛 DEBUG: Stack trace completo:', error.stack);
   process.exit(1);
 });
