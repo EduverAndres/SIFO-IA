@@ -19,8 +19,7 @@ import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { AuthModule } from './auth/auth.module';
 import { PucModule } from './puc/puc.module';
 
-// 🎯 CONTROLADOR Y SERVICIO PRINCIPAL
-import { AppController } from './app.controller';
+// 🎯 SERVICIO PRINCIPAL (sin controlador - manejado manualmente en main.ts)
 import { AppService } from './app.service';
 
 // 🛠️ FILTROS E INTERCEPTORES
@@ -94,7 +93,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     OrdenesCompraModule,
   ],
   
-  controllers: [AppController], // ✅ ÚNICO CONTROLADOR GLOBAL
+  controllers: [], // ✅ SIN CONTROLADORES GLOBALES - Rutas raíz manejadas manualmente
   
   providers: [
     AppService, // ✅ SERVICIO PRINCIPAL
@@ -123,7 +122,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 export class AppModule {
   constructor() {
     console.log('🏗️ AppModule inicializado correctamente');
-    console.log('🎯 AppController registrado para ruta raíz');
+    console.log('🎯 Rutas raíz manejadas manualmente en main.ts');
     console.log('📦 Módulos cargados: Auth, PUC, Proveedores, Productos, Órdenes');
   }
 }
