@@ -94,6 +94,8 @@ npm run build
 
 - **EduverAndres** - *Desarrollo inicial* - [EduverAndres](https://github.com/EduverAndres)
 ```
+
+```
 SIFO-IA
 ├─ backend-nestjs
 │  ├─ .prettierrc
@@ -114,10 +116,20 @@ SIFO-IA
 │  │  │  ├─ dto
 │  │  │  │  ├─ login-user.dto.ts
 │  │  │  │  └─ register-user.dto.ts
-│  │  │  └─ entities
-│  │  │     └─ user.entity.ts
+│  │  │  ├─ entities
+│  │  │  │  └─ user.entity.ts
+│  │  │  └─ strategies
+│  │  │     └─ jwt.strategy.ts
+│  │  ├─ common
+│  │  │  ├─ filters
+│  │  │  │  ├─ all-exceptions.filter.ts
+│  │  │  │  └─ http-exception.filter.ts
+│  │  │  └─ interceptors
+│  │  │     ├─ logging.interceptor.ts
+│  │  │     └─ transform.interceptor.ts
 │  │  ├─ config
 │  │  │  └─ supabase.config.ts
+│  │  ├─ debug.controller.ts
 │  │  ├─ ia-service
 │  │  │  └─ ia-service.controller.ts
 │  │  ├─ main.ts
@@ -141,14 +153,29 @@ SIFO-IA
 │  │  │  ├─ productos.controller.ts
 │  │  │  ├─ productos.module.ts
 │  │  │  └─ productos.service.ts
-│  │  └─ proveedores
+│  │  ├─ proveedores
+│  │  │  ├─ dto
+│  │  │  │  ├─ create-proveedor.dto.ts
+│  │  │  │  └─ update-proveedor.dto.ts
+│  │  │  ├─ proveedor.entity.ts
+│  │  │  ├─ proveedores.controller.ts
+│  │  │  ├─ proveedores.module.ts
+│  │  │  └─ proveedores.service.ts
+│  │  └─ puc
 │  │     ├─ dto
-│  │     │  ├─ create-proveedor.dto.ts
-│  │     │  └─ update-proveedor.dto.ts
-│  │     ├─ proveedor.entity.ts
-│  │     ├─ proveedores.controller.ts
-│  │     ├─ proveedores.module.ts
-│  │     └─ proveedores.service.ts
+│  │     │  ├─ arbol-puc.dto.ts
+│  │     │  ├─ create-cuenta-puc.dto.ts
+│  │     │  ├─ filtros-puc.dto.ts
+│  │     │  ├─ importar-puc.dto.ts
+│  │     │  ├─ response-puc.dto.ts
+│  │     │  └─ update-cuenta-puc.dto.ts
+│  │     ├─ entities
+│  │     │  └─ cuenta-puc.entity.ts
+│  │     ├─ interfaces
+│  │     │  └─ puc.interface.ts
+│  │     ├─ puc.controller.ts
+│  │     ├─ puc.module.ts
+│  │     └─ puc.service.ts
 │  ├─ test
 │  │  ├─ app.e2e-spec.ts
 │  │  └─ jest-e2e.json
@@ -156,6 +183,7 @@ SIFO-IA
 │  ├─ tsconfig.json
 │  └─ uploads
 ├─ database
+│  ├─ puc-schema.sql
 │  └─ schema.sql
 ├─ frontend-react
 │  ├─ netlify.toml
@@ -171,7 +199,8 @@ SIFO-IA
 │  ├─ src
 │  │  ├─ api
 │  │  │  ├─ ordenesApi.js
-│  │  │  └─ produccionApi.js
+│  │  │  ├─ produccionApi.js
+│  │  │  └─ pucApi.js
 │  │  ├─ App.js
 │  │  ├─ App.test.js
 │  │  ├─ assets
@@ -189,10 +218,24 @@ SIFO-IA
 │  │  │  ├─ Modal.jsx
 │  │  │  ├─ OrdenesDeCompraMenuModal.jsx
 │  │  │  ├─ ProtectedRoute.jsx
+│  │  │  ├─ puc
+│  │  │  │  ├─ CreateCuentaModal.jsx
+│  │  │  │  ├─ CuentaCard.jsx
+│  │  │  │  ├─ EditCuentaModal.jsx
+│  │  │  │  ├─ ImportPucModal.jsx
+│  │  │  │  ├─ PucDashboard.jsx
+│  │  │  │  ├─ PucFilters.jsx
+│  │  │  │  ├─ PucManager.jsx
+│  │  │  │  ├─ PucStats.jsx
+│  │  │  │  ├─ PucTable.jsx
+│  │  │  │  ├─ PucTableView.jsx
+│  │  │  │  └─ PucTreeView.jsx
 │  │  │  ├─ Register.jsx
 │  │  │  ├─ SelectField.jsx
 │  │  │  └─ wi.sql
+│  │  ├─ config
 │  │  ├─ hooks
+│  │  │  ├─ usePuc.js
 │  │  │  └─ useSafeRender.js
 │  │  ├─ index.css
 │  │  ├─ index.js
@@ -204,11 +247,13 @@ SIFO-IA
 │  │  │  │  ├─ MenuFinanciero.jsx
 │  │  │  │  ├─ OrdenesCompra.jsx
 │  │  │  │  ├─ PlaceholderPage.jsx
+│  │  │  │  ├─ PlanCuentas.jsx
 │  │  │  │  ├─ Presupuesto.jsx
 │  │  │  │  └─ Produccion.jsx
 │  │  │  ├─ HomePage.jsx
 │  │  │  ├─ LoginPage.jsx
 │  │  │  ├─ ProjectVision.jsx
+│  │  │  ├─ PucPage.jsx
 │  │  │  └─ RegisterPage.jsx
 │  │  ├─ reportWebVitals.js
 │  │  ├─ setupTests.js

@@ -122,29 +122,47 @@ class PucApiService {
 
   // ✅ Eliminar cuenta
   static async deleteCuenta(id) {
-    try {
-      console.log('🗑️ [PUC API] Eliminando cuenta ID:', id);
-      
-      // ✅ CORREGIDO: URL completa y correcta
-      const fullUrl = `${API_BASE}/puc/cuentas/${id}`;
-      console.log('🗑️ [PUC API] URL completa:', fullUrl);
-      
-      const response = await fetch(fullUrl, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error al eliminar cuenta:', error);
-      throw error;
+  try {
+    console.log('🗑️ [PUC API] Eliminando cuenta ID:', id);
+    console.log('🗑️ [PUC API] API_BASE:', API_BASE);
+    
+    // ✅ CORREGIDO: URL completa y correcta
+    const fullUrl = `${API_BASE}/puc/cuentas/${id}`;
+    console.log('🗑️ [PUC API] URL completa construida:', fullUrl);
+    
+    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que la URL contiene "cuentas"
+    if (!fullUrl.includes('/puc/cuentas/')) {
+      console.error('❌ ERROR: URL mal construida, falta "cuentas":', fullUrl);
+      throw new Error('URL mal construida para eliminación');
     }
-  }
+    
+    console.log('🗑️ [PUC API] Realizando petición DELETE a:', fullUrl);
+    
+    const response = await fetch(fullUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json', // ← Añadir header
+      },
+    });
 
+    console.log('🗑️ [PUC API] Respuesta del servidor:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      console.error('❌ [PUC API] Error del servidor:', errorData);
+      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ [PUC API] Cuenta eliminada exitosamente:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('❌ [PUC API] Error al eliminar cuenta:', error);
+    console.error('❌ [PUC API] Stack trace:', error.stack);
+    throw error;
+  }
+}
   // ✅ Obtener subcuentas de una cuenta específica
   static async getSubcuentas(codigoPadre) {
     try {

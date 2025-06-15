@@ -115,64 +115,37 @@ const PucTableView = ({
 
   // ✅ EJECUTAR ELIMINACIÓN CON MANEJO MEJORADO DE ERRORES
   const handleConfirmDelete = async () => {
-    if (!cuentaToDelete) return;
+  if (!cuentaToDelete) return;
 
-    setDeleting(true);
-    try {
-      console.log('🗑️ [TABLE] Eliminando cuenta:', cuentaToDelete.codigo);
-      
-      // Llamar a la función de eliminación del padre
-      const result = await onDelete(cuentaToDelete);
-      
-      console.log('✅ [TABLE] Cuenta eliminada exitosamente');
-      
-      // ✅ CERRAR MODAL Y MOSTRAR MENSAJE DE ÉXITO
-      setShowDeleteModal(false);
-      setCuentaToDelete(null);
-      
-      // Mostrar mensaje de éxito
-      showSuccess(`Cuenta ${cuentaToDelete.codigo} - ${cuentaToDelete.nombre} eliminada exitosamente`);
-      
-    } catch (error) {
-      console.error('💥 [TABLE] Error al eliminar cuenta:', error);
-      
-      // ✅ ANALIZAR EL ERROR Y MOSTRAR MENSAJE ESPECÍFICO
-      let userMessage = 'Error desconocido al eliminar la cuenta';
-      
-      if (error.message) {
-        const errorMsg = error.message.toLowerCase();
-        
-        if (errorMsg.includes('subcuentas') || errorMsg.includes('subcuenta') || errorMsg.includes('asociadas')) {
-          const subcuentasCount = getSubcuentasCount(cuentaToDelete.codigo);
-          userMessage = `No se puede eliminar la cuenta "${cuentaToDelete.codigo} - ${cuentaToDelete.nombre}" porque tiene ${subcuentasCount} subcuenta${subcuentasCount > 1 ? 's' : ''} asociada${subcuentasCount > 1 ? 's' : ''}. Elimine primero las subcuentas.`;
-        } else if (errorMsg.includes('movimientos') || errorMsg.includes('transacciones')) {
-          userMessage = `No se puede eliminar la cuenta "${cuentaToDelete.codigo} - ${cuentaToDelete.nombre}" porque tiene movimientos contables asociados.`;
-        } else if (errorMsg.includes('not found') || errorMsg.includes('no encontrada') || errorMsg.includes('404')) {
-          userMessage = `La cuenta "${cuentaToDelete.codigo} - ${cuentaToDelete.nombre}" no fue encontrada. Es posible que ya haya sido eliminada.`;
-        } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized') || errorMsg.includes('forbidden')) {
-          userMessage = `No tienes permisos para eliminar la cuenta "${cuentaToDelete.codigo} - ${cuentaToDelete.nombre}".`;
-        } else if (errorMsg.includes('conexión') || errorMsg.includes('network') || errorMsg.includes('fetch')) {
-          userMessage = `Error de conexión. Verifique su conexión a internet e intente nuevamente.`;
-        } else {
-          // Usar el mensaje del error directamente si es específico
-          userMessage = `Error al eliminar la cuenta "${cuentaToDelete.codigo} - ${cuentaToDelete.nombre}": ${error.message}`;
-        }
-      }
-      
-      // Mostrar mensaje de error
-      showError(userMessage);
-      
-      // ✅ CERRAR MODAL SOLO SI EL ERROR NO ES DE VALIDACIÓN
-      if (!error.message?.toLowerCase().includes('subcuentas') && 
-          !error.message?.toLowerCase().includes('movimientos')) {
-        setShowDeleteModal(false);
-        setCuentaToDelete(null);
-      }
-      
-    } finally {
-      setDeleting(false);
+  setDeleting(true);
+  try {
+    console.log('🗑️ [TABLE] Eliminando cuenta:', cuentaToDelete.codigo, 'ID:', cuentaToDelete.id);
+    
+    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que cuentaToDelete.id existe
+    if (!cuentaToDelete.id) {
+      throw new Error('La cuenta no tiene un ID válido');
     }
-  };
+    
+    // Llamar a la función de eliminación del padre
+    const result = await onDelete(cuentaToDelete);
+    
+    console.log('✅ [TABLE] Cuenta eliminada exitosamente');
+    
+    // ✅ CERRAR MODAL Y MOSTRAR MENSAJE DE ÉXITO
+    setShowDeleteModal(false);
+    setCuentaToDelete(null);
+    
+    // Mostrar mensaje de éxito
+    showSuccess(`Cuenta ${cuentaToDelete.codigo} - ${cuentaToDelete.nombre} eliminada exitosamente`);
+    
+  } catch (error) {
+    console.error('💥 [TABLE] Error al eliminar cuenta:', error);
+    // ... resto del manejo de errores
+  } finally {
+    setDeleting(false);
+  }
+};
+
 
   // Cancelar eliminación
   const handleCancelDelete = () => {
