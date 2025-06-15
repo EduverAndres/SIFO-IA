@@ -1,4 +1,4 @@
-// backend-nestjs/src/main.ts - VERSIÓN FINAL CON DEBUGGING
+// backend-nestjs/src/main.ts - VERSIÓN LIMPIA FINAL
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -12,7 +12,7 @@ async function bootstrap() {
     console.log('🚀 Iniciando aplicación SIFO...');
     
     const app = await NestFactory.create(AppModule, {
-      logger: ['log', 'error', 'warn', 'debug'], // Logging detallado
+      logger: ['log', 'error', 'warn'],
     });
     
     console.log('✅ Aplicación NestJS creada exitosamente');
@@ -36,7 +36,7 @@ async function bootstrap() {
       optionsSuccessStatus: 204,
     });
     
-    console.log('✅ CORS configurado (incluye HEAD)');
+    console.log('✅ CORS configurado');
 
     // 🛠️ VALIDACIONES GLOBALES
     app.useGlobalPipes(
@@ -59,36 +59,45 @@ async function bootstrap() {
     app.setGlobalPrefix('api/v1');
     console.log('✅ Prefijo global configurado: api/v1');
 
-    // 🏥 SOLUCIÓN DIRECTA: Registrar ruta raíz manualmente
+    // 🏥 RUTAS RAÍZ MANUALES (para monitoreo de Render)
     const httpAdapter = app.getHttpAdapter();
     
-    // Registrar manualmente la ruta raíz para manejar HEAD y GET
     httpAdapter.get('/', (req: any, res: any) => {
-      console.log(`🎯 GET / - Health check manual`);
+      console.log(`🎯 GET / - Health check`);
       res.json({
         success: true,
         message: 'Sistema SIFO - Backend funcionando correctamente',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
         environment: process.env.NODE_ENV || 'development',
-        endpoints: [
-          'GET / - Health check raíz',
-          'GET /api/v1/puc/estadisticas - Estadísticas PUC',
-          'GET /api/v1/puc/arbol - Árbol jerárquico',
-          'GET /api/v1/auth/login - Login',
-          'GET /api/docs - Documentación'
-        ]
+        endpoints: {
+          auth: [
+            'POST /auth/login (redirige a /api/v1/auth/login)',
+            'POST /auth/register (redirige a /api/v1/auth/register)'
+          ],
+          puc: [
+            'GET /puc/estadisticas (redirige a /api/v1/puc/estadisticas)',
+            'GET /puc/arbol (redirige a /api/v1/puc/arbol)',
+            'GET /puc/cuentas (redirige a /api/v1/puc/cuentas)'
+          ],
+          api: [
+            'GET /api/v1/puc/* (rutas directas)',
+            'POST /api/v1/auth/* (rutas directas)'
+          ],
+          docs: [
+            'GET /api/docs - Documentación Swagger'
+          ]
+        }
       });
     });
 
     httpAdapter.head('/', (req: any, res: any) => {
-      console.log(`🎯 HEAD / - Health check manual para monitoreo`);
+      console.log(`🎯 HEAD / - Health check para monitoreo`);
       res.status(200).end();
     });
 
-    // También registrar /health y /ping
     httpAdapter.get('/health', (req: any, res: any) => {
-      console.log(`🏥 GET /health - Health check detallado`);
+      console.log(`🏥 GET /health`);
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -120,6 +129,85 @@ async function bootstrap() {
 
     console.log('✅ Rutas raíz registradas manualmente');
 
+    // 🔐 RUTAS DE AUTH SIN PREFIJO (para compatibilidad con frontend)
+    httpAdapter.post('/auth/login', (req: any, res: any, next: any) => {
+      console.log('🔐 POST /auth/login - Redirigiendo a /api/v1/auth/login');
+      // Cambiar la URL y continuar con el middleware de NestJS
+      req.url = '/api/v1/auth/login';
+      req.originalUrl = '/api/v1/auth/login';
+      next();
+    });
+
+    httpAdapter.post('/auth/register', (req: any, res: any, next: any) => {
+      console.log('🔐 POST /auth/register - Redirigiendo a /api/v1/auth/register');
+      req.url = '/api/v1/auth/register';
+      req.originalUrl = '/api/v1/auth/register';
+      next();
+    });
+
+    httpAdapter.get('/auth/profile', (req: any, res: any, next: any) => {
+      console.log('🔐 GET /auth/profile - Redirigiendo a /api/v1/auth/profile');
+      req.url = '/api/v1/auth/profile';
+      req.originalUrl = '/api/v1/auth/profile';
+      next();
+    });
+
+    // También agregar soporte para OPTIONS (preflight CORS)
+    httpAdapter.options('/auth/*', (req: any, res: any) => {
+      console.log('🔐 OPTIONS /auth/* - CORS preflight');
+      res.status(204).end();
+    });
+
+    console.log('✅ Rutas de auth sin prefijo registradas (redirección)');
+
+    // 🏛️ RUTAS DE PUC SIN PREFIJO (para compatibilidad con frontend)
+    httpAdapter.get('/puc/estadisticas', (req: any, res: any, next: any) => {
+      console.log('🏛️ GET /puc/estadisticas - Redirigiendo a /api/v1/puc/estadisticas');
+      req.url = '/api/v1/puc/estadisticas';
+      req.originalUrl = '/api/v1/puc/estadisticas';
+      next();
+    });
+
+    httpAdapter.get('/puc/arbol', (req: any, res: any, next: any) => {
+      console.log('🏛️ GET /puc/arbol - Redirigiendo a /api/v1/puc/arbol');
+      req.url = '/api/v1/puc/arbol';
+      req.originalUrl = '/api/v1/puc/arbol';
+      next();
+    });
+
+    httpAdapter.get('/puc/cuentas', (req: any, res: any, next: any) => {
+      console.log('🏛️ GET /puc/cuentas - Redirigiendo a /api/v1/puc/cuentas');
+      req.url = '/api/v1/puc/cuentas';
+      req.originalUrl = '/api/v1/puc/cuentas';
+      next();
+    });
+
+    httpAdapter.post('/puc/cuentas', (req: any, res: any, next: any) => {
+      console.log('🏛️ POST /puc/cuentas - Redirigiendo a /api/v1/puc/cuentas');
+      req.url = '/api/v1/puc/cuentas';
+      req.originalUrl = '/api/v1/puc/cuentas';
+      next();
+    });
+
+    httpAdapter.get('/puc/test', (req: any, res: any, next: any) => {
+      console.log('🏛️ GET /puc/test - Redirigiendo a /api/v1/puc/test');
+      req.url = '/api/v1/puc/test';
+      req.originalUrl = '/api/v1/puc/test';
+      next();
+    });
+
+    // Ruta catch-all para PUC con parámetros
+    httpAdapter.all('/puc/*', (req: any, res: any, next: any) => {
+      const originalPath = req.url;
+      const newPath = req.url.replace('/puc/', '/api/v1/puc/');
+      console.log(`🏛️ ${req.method} ${originalPath} - Redirigiendo a ${newPath}`);
+      req.url = newPath;
+      req.originalUrl = newPath;
+      next();
+    });
+
+    console.log('✅ Rutas de PUC sin prefijo registradas (redirección)');
+
     // 📚 SWAGGER DOCUMENTACIÓN
     if (process.env.NODE_ENV !== 'production') {
       const config = new DocumentBuilder()
@@ -142,53 +230,20 @@ async function bootstrap() {
     console.log('🎉 SERVIDOR INICIADO EXITOSAMENTE');
     logger.log(`🚀 Puerto: ${port}`);
     logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.log(`🌐 CORS: ${allowedOrigins.join(', ')}`);
+    logger.log(`🌐 CORS habilitado`);
     
     // 🏥 ENDPOINTS PRINCIPALES
-    logger.log('📍 ENDPOINTS PRINCIPALES:');
-    logger.log(`   🏠 Health raíz: / (registrada manualmente)`);
-    logger.log(`   🔧 Health API: /api/v1/`);
+    logger.log('📍 ENDPOINTS DISPONIBLES:');
+    logger.log(`   🏠 Health: / y /health`);
+    logger.log(`   🔐 Auth: /auth/* → /api/v1/auth/*`);
+    logger.log(`   🏛️ PUC: /puc/* → /api/v1/puc/*`);
+    logger.log(`   🔧 API directa: /api/v1/*`);
     logger.log(`   📖 Docs: /api/docs`);
-    logger.log(`   🔐 Auth: /api/v1/auth/*`);
-    logger.log(`   🏛️ PUC: /api/v1/puc/*`);
-    logger.log(`   👥 Proveedores: /api/v1/proveedores/*`);
     
-    // 🐛 DEBUGGING: Mostrar rutas registradas (DESPUÉS de registrar rutas manuales)
-    console.log('🐛 DEBUGGING: Verificando rutas registradas...');
-    
-    // Obtener la instancia del adaptador HTTP y las rutas
-    const instance = httpAdapter.getInstance();
-    
-    if (instance._router && instance._router.stack) {
-      console.log('🐛 Rutas encontradas en Express router:');
-      instance._router.stack.forEach((layer: any, index: number) => {
-        if (layer.route) {
-          const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
-          console.log(`🐛   ${index + 1}. ${methods} ${layer.route.path}`);
-        } else if (layer.name === 'router' && layer.regexp) {
-          console.log(`🐛   ${index + 1}. [MIDDLEWARE] ${layer.regexp}`);
-        }
-      });
-    } else {
-      console.log('🐛 No se pudo acceder al router de Express');
-    }
-    
-    // Verificar específicamente si la ruta raíz está registrada
-    const hasRootRoute = instance._router?.stack?.some((layer: any) => 
-      layer.route && (layer.route.path === '/' || layer.route.path === '')
-    );
-    
-    console.log(`🐛 ¿Ruta raíz registrada? ${hasRootRoute ? '✅ SÍ' : '❌ NO'}`);
-    
-    if (hasRootRoute) {
-      console.log('✅ ÉXITO: La ruta raíz está correctamente registrada');
-    } else {
-      console.warn('⚠️ ADVERTENCIA: La ruta raíz no aparece en el router de Express, pero fue registrada manualmente');
-    }
+    logger.log('✅ Sistema SIFO listo - Frontend y Backend compatibles');
     
   } catch (error) {
     logger.error('💥 Error crítico al iniciar servidor:', error);
-    console.error('🐛 Stack trace:', error.stack);
     process.exit(1);
   }
 }
