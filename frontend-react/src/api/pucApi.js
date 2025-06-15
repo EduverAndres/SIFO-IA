@@ -123,7 +123,13 @@ class PucApiService {
   // ✅ Eliminar cuenta
   static async deleteCuenta(id) {
     try {
-      const response = await fetch(`${API_BASE}/puc/cuentas/${id}`, {
+      console.log('🗑️ [PUC API] Eliminando cuenta ID:', id);
+      
+      // ✅ CORREGIDO: URL completa y correcta
+      const fullUrl = `${API_BASE}/puc/cuentas/${id}`;
+      console.log('🗑️ [PUC API] URL completa:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
         method: 'DELETE',
       });
 
