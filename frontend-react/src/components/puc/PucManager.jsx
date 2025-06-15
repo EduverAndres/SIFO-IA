@@ -76,48 +76,62 @@ const PucManager = () => {
   // Función para manejar la eliminación de una cuenta
   const handleDelete = async (cuenta) => {
   try {
-    console.log('🗑️ [MANAGER] Iniciando eliminación de cuenta:', cuenta);
-    console.log('🗑️ [MANAGER] ID de cuenta:', cuenta.id, 'Tipo:', typeof cuenta.id);
+    console.log('🗑️ [MANAGER] === INICIO ELIMINACIÓN ===');
+    console.log('🗑️ [MANAGER] Cuenta completa:', JSON.stringify(cuenta, null, 2));
+    console.log('🗑️ [MANAGER] ID extraído:', cuenta.id);
+    console.log('🗑️ [MANAGER] Tipo de ID:', typeof cuenta.id);
+    console.log('🗑️ [MANAGER] Código de cuenta:', cuenta.codigo);
     
-    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que cuenta.id existe y es válido
-    if (!cuenta || !cuenta.id) {
-      throw new Error('Cuenta inválida o sin ID');
+    // 🚨 VERIFICACIÓN DE INTEGRIDAD
+    if (!cuenta) {
+      throw new Error('Cuenta es null o undefined');
     }
     
-    // ✅ AQUÍ SE CONECTA: Pasamos solo el ID al endpoint
-    console.log('🗑️ [MANAGER] Llamando a PucApiService.deleteCuenta con ID:', cuenta.id);
+    if (!cuenta.id) {
+      console.error('❌ [MANAGER] Estructura de cuenta sin ID:', cuenta);
+      throw new Error('La cuenta no tiene ID válido');
+    }
+    
+    console.log('🌐 [MANAGER] Llamando a PucApiService.deleteCuenta...');
+    
+    // ✅ LLAMADA AL API
     const response = await PucApiService.deleteCuenta(cuenta.id);
     
-    if (response.success) {
+    console.log('✅ [MANAGER] Respuesta exitosa:', response);
+    
+    if (response && response.success) {
       toast.success(`Cuenta ${cuenta.codigo} - ${cuenta.nombre} eliminada exitosamente`);
-      // Actualizar la lista local removiendo la cuenta eliminada
+      // Actualizar la lista local
       setCuentas(prevCuentas => 
         prevCuentas.filter(c => c.id !== cuenta.id)
       );
     } else {
-      toast.error(response.message || 'Error al eliminar la cuenta');
+      console.warn('⚠️ [MANAGER] Respuesta sin success:', response);
+      toast.error(response?.message || 'Error al eliminar la cuenta');
     }
+    
   } catch (error) {
-    console.error('❌ [MANAGER] Error al eliminar cuenta:', error);
+    console.error('💥 [MANAGER] === ERROR ELIMINACIÓN ===');
+    console.error('💥 [MANAGER] Error completo:', error);
+    console.error('💥 [MANAGER] Mensaje:', error.message);
+    console.error('💥 [MANAGER] Cuenta que causó error:', cuenta);
     
-    // Mostrar mensaje de error específico basado en el tipo de error
-    if (error.message.includes('subcuentas asociadas')) {
-      toast.error(`No se puede eliminar la cuenta ${cuenta.codigo} porque tiene subcuentas asociadas`);
+    // Manejo de errores específicos
+    let userMessage = 'Error desconocido al eliminar la cuenta';
+    
+    if (error.message.includes('URL mal construida')) {
+      userMessage = 'Error de configuración. Contacta al administrador.';
+    } else if (error.message.includes('subcuentas asociadas')) {
+      userMessage = `No se puede eliminar la cuenta ${cuenta.codigo} porque tiene subcuentas asociadas`;
     } else if (error.message.includes('404') || error.message.includes('no encontrada')) {
-      toast.error('La cuenta no existe o ya fue eliminada');
-      // Remover de la lista local si ya no existe
-      setCuentas(prevCuentas => 
-        prevCuentas.filter(c => c.id !== cuenta.id)
-      );
+      userMessage = 'La cuenta no existe o ya fue eliminada';
     } else if (error.message.includes('500')) {
-      toast.error('Error interno del servidor. Inténtalo más tarde.');
-    } else if (error.message.includes('403') || error.message.includes('401')) {
-      toast.error('No tienes permisos para eliminar esta cuenta');
+      userMessage = 'Error interno del servidor. Inténtalo más tarde.';
     } else {
-      toast.error('Error al eliminar la cuenta: ' + (error.message || 'Error desconocido'));
+      userMessage = `Error al eliminar la cuenta: ${error.message}`;
     }
     
-    // Re-lanzar el error para que el componente de tabla pueda manejarlo
+    toast.error(userMessage);
     throw error;
   }
 };

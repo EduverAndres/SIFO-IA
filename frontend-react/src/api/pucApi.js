@@ -1,6 +1,14 @@
 // src/api/pucApi.js - VERSIÓN FINAL CORREGIDA
 const API_BASE = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
 
+console.log('🔧 [CONFIG] API_BASE configurado como:', API_BASE);
+console.log('🔧 [CONFIG] REACT_APP_API_URL desde .env:', process.env.REACT_APP_API_URL);
+
+// Verificación de que API_BASE termina correctamente:
+if (API_BASE.endsWith('/')) {
+  console.warn('⚠️ [CONFIG] API_BASE termina con "/", esto podría causar URLs dobles');
+}
+
 class PucApiService {
   // ✅ Obtener todas las cuentas con filtros
   static async getCuentas(filtros = {}) {
@@ -124,31 +132,44 @@ class PucApiService {
   static async deleteCuenta(id) {
   try {
     console.log('🗑️ [PUC API] Eliminando cuenta ID:', id);
+    console.log('🗑️ [PUC API] Tipo de ID:', typeof id);
+    
+    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que API_BASE está definido
+    const API_BASE = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
     console.log('🗑️ [PUC API] API_BASE:', API_BASE);
     
-    // ✅ CORREGIDO: URL completa y correcta
+    // ✅ CONSTRUCCIÓN EXPLÍCITA DE LA URL
     const fullUrl = `${API_BASE}/puc/cuentas/${id}`;
     console.log('🗑️ [PUC API] URL completa construida:', fullUrl);
     
-    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que la URL contiene "cuentas"
+    // 🚨 VERIFICACIÓN DOBLE: Confirmar que la URL contiene "cuentas"
     if (!fullUrl.includes('/puc/cuentas/')) {
-      console.error('❌ ERROR: URL mal construida, falta "cuentas":', fullUrl);
-      throw new Error('URL mal construida para eliminación');
+      console.error('❌ ERROR CRÍTICO: URL mal construida:', fullUrl);
+      console.error('❌ API_BASE:', API_BASE);
+      console.error('❌ ID:', id);
+      throw new Error(`URL mal construida. Esperado: .../puc/cuentas/${id}, Obtenido: ${fullUrl}`);
     }
     
-    console.log('🗑️ [PUC API] Realizando petición DELETE a:', fullUrl);
+    console.log('🌐 [PUC API] Realizando petición DELETE a:', fullUrl);
     
     const response = await fetch(fullUrl, {
       method: 'DELETE',
       headers: {
-        'Content-Type': 'application/json', // ← Añadir header
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
     });
 
-    console.log('🗑️ [PUC API] Respuesta del servidor:', response.status, response.statusText);
+    console.log('📡 [PUC API] Respuesta del servidor:');
+    console.log('  - Status:', response.status);
+    console.log('  - StatusText:', response.statusText);
+    console.log('  - URL real:', response.url);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      const errorData = await response.json().catch(() => ({ 
+        message: `Error ${response.status}: ${response.statusText}` 
+      }));
+      
       console.error('❌ [PUC API] Error del servidor:', errorData);
       throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
     }
@@ -158,8 +179,10 @@ class PucApiService {
     return result;
     
   } catch (error) {
-    console.error('❌ [PUC API] Error al eliminar cuenta:', error);
-    console.error('❌ [PUC API] Stack trace:', error.stack);
+    console.error('💥 [PUC API] Error completo al eliminar cuenta:');
+    console.error('  - Mensaje:', error.message);
+    console.error('  - Stack:', error.stack);
+    console.error('  - ID recibido:', id);
     throw error;
   }
 }
