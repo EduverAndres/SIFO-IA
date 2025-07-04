@@ -56,19 +56,7 @@ const MenuFinanciero = () => {
       gradient: 'from-emerald-500 to-green-600',
       features: ['PUC estándar', 'Gestión de cuentas', 'Estructura jerárquica']
     },
-    // ← MÓDULO PLAN DE CUENTAS ORIGINAL
-    {
-      title: 'Plan de Cuentas',
-      description: 'Administra el catálogo general de cuentas contables',
-      icon: FaListAlt,
-      link: '/dashboard/plan-cuentas',
-      category: 'contabilidad',
-      status: 'active',
-      priority: 'high',
-      color: 'indigo',
-      gradient: 'from-indigo-500 to-purple-600',
-      features: ['Catálogo de cuentas', 'Configuración contable', 'Jerarquía personalizada']
-    },
+
     {
       title: 'Presupuesto',
       description: 'Planifica y controla presupuestos empresariales',

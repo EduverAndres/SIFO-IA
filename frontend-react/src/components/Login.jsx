@@ -125,7 +125,7 @@ const Login = () => {
         {successMessage && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <p className="text-green-700 text-sm font-medium text-center">
-              ✅ {successMessage}
+              {successMessage}
             </p>
           </div>
         )}
@@ -134,7 +134,7 @@ const Login = () => {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-700 text-sm font-medium text-center">
-              ❌ {error}
+              {error}
             </p>
           </div>
         )}

@@ -61,18 +61,14 @@ const DashboardLayout = () => {
     {
       path: '/dashboard',
       icon: FaHome,
-      label: 'Resumen General',
-      exact: true
+      exact: true,
+      label: 'Pagina Principal'
+
     },
     {
       path: '/dashboard/menu-financiero',
       icon: FaChartBar,
       label: 'Menú Financiero'
-    },
-    {
-      path: '/dashboard/plan-cuentas',
-      icon: FaScroll,
-      label: 'Plan de Cuentas'
     },
     {
       path: '/dashboard/configuracion',
