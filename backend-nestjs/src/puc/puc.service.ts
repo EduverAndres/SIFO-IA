@@ -13,8 +13,10 @@ import { PucExcelService } from './services/puc-excel.service';
 import { 
   ValidacionExcel, 
   ResultadoImportacion 
-} from './interfaces/excel-row.interface';
-
+} from './interfaces/excel-row.interface'
+;
+import { Multer } from 'multer';
+import { Request } from 'express';
 @Injectable()
 export class PucService {
   private readonly logger = new Logger(PucService.name);
@@ -591,17 +593,17 @@ export class PucService {
   // ===============================================
 
   async importarDesdeExcel(
-    file: Express.Multer.File, 
-    opciones: ImportPucExcelDto
-  ): Promise<ResultadoImportacion> {
+  file: Express.Multer.File, 
+  opciones: ImportPucExcelDto
+): Promise<ResultadoImportacion> { {
     this.logger.log(`Iniciando importación Excel: ${file.originalname}`);
     return await this.pucExcelService.importarDesdeExcel(file, opciones);
-  }
+}}
 
   async validarArchivoExcel(
-    file: Express.Multer.File, 
-    nombreHoja: string = 'PUC'
-  ): Promise<ValidacionExcel> {
+  file: Express.Multer.File, 
+  nombreHoja: string = 'PUC'
+): Promise<ValidacionExcel> {
     this.logger.log(`Validando archivo Excel: ${file.originalname}`);
     return await this.pucExcelService.validarArchivoExcel(file, nombreHoja);
   }
