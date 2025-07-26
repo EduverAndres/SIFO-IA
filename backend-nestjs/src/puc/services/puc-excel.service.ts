@@ -7,7 +7,6 @@ import { CuentaPuc } from '../entities/cuenta-puc.entity';
 import { ImportPucExcelDto } from '../dto/import-puc-excel.dto';
 import { ExportPucExcelDto } from '../dto/export-puc-excel.dto';
 import { 
-  ExcelRowPuc, 
   ValidacionExcel, 
   ResultadoImportacion 
 } from '../interfaces/excel-row.interface';
