@@ -1,45 +1,77 @@
-import { IsString, IsOptional, IsBoolean, Length, Matches } from 'class-validator';
+// backend-nestjs/src/puc/dto/create-cuenta-puc.dto.ts
+import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { NaturalezaCuentaEnum, TipoCuentaEnum, EstadoCuentaEnum } from '../entities/cuenta-puc.entity';
 
 export class CreateCuentaPucDto {
-  @ApiProperty({ description: 'Código único de la cuenta', example: '1105' })
+  @ApiProperty({
+    description: 'Código completo de la cuenta PUC',
+    example: '110501'
+  })
   @IsString()
-  @Length(1, 20)
-  @Matches(/^\d+$/, { message: 'El código debe contener solo números' })
-  codigo: string;
+  codigo_completo: string;
 
-  @ApiProperty({ description: 'Nombre de la cuenta', example: 'CAJA' })
+  @ApiProperty({
+    description: 'Nombre descriptivo de la cuenta',
+    example: 'Caja principal'
+  })
   @IsString()
-  @Length(1, 255)
   nombre: string;
 
-  @ApiPropertyOptional({ description: 'Descripción de la cuenta' })
+  @ApiPropertyOptional({
+    description: 'Naturaleza de la cuenta',
+    enum: NaturalezaCuentaEnum
+  })
   @IsOptional()
-  @IsString()
-  descripcion?: string;
+  @IsEnum(NaturalezaCuentaEnum)
+  naturaleza?: NaturalezaCuentaEnum;
 
-  @ApiPropertyOptional({ description: 'Código de la cuenta padre' })
+  @ApiPropertyOptional({
+    description: 'Tipo de cuenta',
+    enum: TipoCuentaEnum
+  })
+  @IsOptional()
+  @IsEnum(TipoCuentaEnum)
+  tipo_cuenta?: TipoCuentaEnum;
+
+  @ApiPropertyOptional({
+    description: 'Estado de la cuenta',
+    enum: EstadoCuentaEnum,
+    default: EstadoCuentaEnum.ACTIVA
+  })
+  @IsOptional()
+  @IsEnum(EstadoCuentaEnum)
+  estado?: EstadoCuentaEnum;
+
+  @ApiPropertyOptional({
+    description: 'Código de la cuenta padre',
+    example: '1105'
+  })
   @IsOptional()
   @IsString()
   codigo_padre?: string;
 
-  @ApiPropertyOptional({ description: 'Permite movimientos contables' })
+  @ApiPropertyOptional({
+    description: 'Indica si acepta movimientos',
+    default: false
+  })
   @IsOptional()
   @IsBoolean()
-  permite_movimiento?: boolean;
+  acepta_movimientos?: boolean;
 
-  @ApiPropertyOptional({ description: 'Requiere tercero' })
+  @ApiPropertyOptional({
+    description: 'Saldo inicial',
+    default: 0
+  })
   @IsOptional()
-  @IsBoolean()
-  requiere_tercero?: boolean;
+  @IsNumber()
+  saldo_inicial?: number;
 
-  @ApiPropertyOptional({ description: 'Requiere centro de costo' })
+  @ApiPropertyOptional({
+    description: 'Saldo final',
+    default: 0
+  })
   @IsOptional()
-  @IsBoolean()
-  requiere_centro_costo?: boolean;
-
-  @ApiPropertyOptional({ description: 'Observaciones adicionales' })
-  @IsOptional()
-  @IsString()
-  observaciones?: string;
+  @IsNumber()
+  saldo_final?: number;
 }

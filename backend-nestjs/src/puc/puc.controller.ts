@@ -1,4 +1,4 @@
-// backend-nestjs/src/puc/puc.controller.ts
+// backend-nestjs/src/puc/puc.controller.ts - ERRORES CORREGIDOS
 import { 
   Controller, 
   Get, 
@@ -12,9 +12,10 @@ import {
   UseInterceptors,
   Res,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  ParseBoolPipe,
+  DefaultValuePipe
 } from '@nestjs/common';
-
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { 
@@ -24,29 +25,39 @@ import {
   ApiParam, 
   ApiQuery,
   ApiConsumes,
-  ApiBody
+  ApiBody,
+  ApiProduces
 } from '@nestjs/swagger';
 
 import { PucService } from './puc.service';
+import { PucExcelService } from './services/puc-excel.service';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
 import { UpdateCuentaPucDto } from './dto/update-cuenta-puc.dto';
 import { FiltrosPucDto } from './dto/filtros-puc.dto';
 import { ImportPucExcelDto } from './dto/import-puc-excel.dto';
 import { ExportPucExcelDto } from './dto/export-puc-excel.dto';
-// Importar los tipos necesarios
+import { ValidarExcelDto } from './dto/validar-excel.dto';
+import { ResultadoImportacionDto } from './dto/resultado-importacion.dto';
+import { ResultadoValidacionDto } from './dto/resultado-validacion.dto';
 import { ResponsePucDto } from './dto/response-puc.dto';
-import { ValidacionExcel, ResultadoImportacion } from './interfaces/excel-row.interface';
 
-@ApiTags('🏛️ PUC')
+@ApiTags('🏛️ PUC (Plan Único de Cuentas)')
 @Controller('puc')
 export class PucController {
-  constructor(private readonly pucService: PucService) {
+  constructor(
+    private readonly pucService: PucService,
+    private readonly pucExcelService: PucExcelService
+  ) {
     console.log('🎯 PucController inicializado - rutas disponibles en /api/v1/puc');
   }
 
-  // ✅ ENDPOINT DE PRUEBA
+  // ===============================================
+  // 🔧 ENDPOINTS DE UTILIDAD
+  // ===============================================
+
   @Get('test')
-  @ApiOperation({ summary: 'Endpoint de prueba' })
+  @ApiOperation({ summary: 'Endpoint de prueba del controlador PUC' })
+  @ApiResponse({ status: 200, description: 'Controlador funcionando correctamente' })
   test(): { success: boolean; message: string; timestamp: string; rutas_disponibles: string[] } {
     return { 
       success: true, 
@@ -61,216 +72,144 @@ export class PucController {
         'GET /api/v1/puc/cuentas/:id',
         'PUT /api/v1/puc/cuentas/:id',
         'DELETE /api/v1/puc/cuentas/:id',
+        'POST /api/v1/puc/validar/excel',
         'POST /api/v1/puc/importar/excel',
         'GET /api/v1/puc/exportar/excel',
-        'GET /api/v1/puc/exportar/template',
-        'POST /api/v1/puc/validar/excel'
+        'GET /api/v1/puc/exportar/template'
       ]
     };
   }
 
-  // ✅ OBTENER ESTADÍSTICAS
   @Get('estadisticas')
-  @ApiOperation({ summary: 'Obtener estadísticas del PUC' })
+  @ApiOperation({ summary: 'Obtener estadísticas generales del PUC' })
   @ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
   async obtenerEstadisticas(): Promise<any> {
     console.log('📊 GET /api/v1/puc/estadisticas');
     return await this.pucService.obtenerEstadisticas();
   }
 
-  // ✅ OBTENER ÁRBOL JERÁRQUICO
+  // ===============================================
+  // 🌳 ENDPOINTS DE ÁRBOL JERÁRQUICO
+  // ===============================================
+
   @Get('arbol')
-  @ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas' })
-  @ApiQuery({ name: 'codigo_padre', required: false, type: String })
-  @ApiResponse({ status: 200, description: 'Árbol obtenido exitosamente' })
-  async obtenerArbol(@Query('codigo_padre') codigoPadre?: string): Promise<any> {
-    console.log('🌳 GET /api/v1/puc/arbol - codigo_padre:', codigoPadre);
-    return await this.pucService.obtenerArbol(codigoPadre);
+  @ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas PUC' })
+  @ApiQuery({ name: 'codigo_padre', required: false, type: String, description: 'Código de la cuenta padre para filtrar' })
+  @ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
+  @ApiResponse({ status: 200, description: 'Árbol jerárquico obtenido exitosamente' })
+  async obtenerArbol(
+    @Query('codigo_padre') codigoPadre?: string,
+    @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
+  ): Promise<any> {
+    console.log(`🌳 GET /api/v1/puc/arbol - padre: ${codigoPadre}, inactivas: ${incluirInactivas}`);
+    return await this.pucService.obtenerArbol(codigoPadre, incluirInactivas);
   }
 
-  // ✅ OBTENER CUENTAS CON FILTROS Y PAGINACIÓN
+  // ===============================================
+  // 📋 ENDPOINTS CRUD DE CUENTAS
+  // ===============================================
+
   @Get('cuentas')
-  @ApiOperation({ summary: 'Obtener cuentas con filtros y paginación' })
-  @ApiQuery({ name: 'estado', required: false, enum: ['ACTIVA', 'INACTIVA'] })
-  @ApiQuery({ name: 'limite', required: false, type: Number })
-  @ApiQuery({ name: 'pagina', required: false, type: Number })
-  @ApiQuery({ name: 'busqueda', required: false, type: String })
-  @ApiQuery({ name: 'tipo', required: false, enum: ['CLASE', 'GRUPO', 'CUENTA', 'SUBCUENTA', 'DETALLE'] })
-  @ApiQuery({ name: 'naturaleza', required: false, enum: ['DEBITO', 'CREDITO'] })
-  @ApiQuery({ name: 'codigo_padre', required: false, type: String })
-  @ApiResponse({ status: 200, description: 'Cuentas obtenidas exitosamente' })
-  async obtenerCuentas(@Query() query: any): Promise<any> {
-    console.log('📋 GET /api/v1/puc/cuentas - filtros:', query);
-    const filtros: FiltrosPucDto = {
-      estado: query.estado,
-      limite: query.limite,
-      pagina: query.pagina,
-      busqueda: query.busqueda,
-      tipo: query.tipo,
-      naturaleza: query.naturaleza,
-      codigo_padre: query.codigo_padre,
-      ...(query.orden_por && { orden_por: query.orden_por }),
-      ...(query.orden_direccion && { orden_direccion: query.orden_direccion }),
-    };
-    return await this.pucService.obtenerTodas(filtros);
+  @ApiOperation({ summary: 'Obtener lista de cuentas PUC con filtros' })
+  @ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente', type: [ResponsePucDto] })
+  async obtenerCuentas(@Query() filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
+    console.log('📋 GET /api/v1/puc/cuentas - filtros:', filtros);
+    return await this.pucService.obtenerCuentas(filtros);
   }
 
-  // ✅ CREAR NUEVA CUENTA
   @Post('cuentas')
   @ApiOperation({ summary: 'Crear nueva cuenta PUC' })
-  @ApiResponse({ status: 201, description: 'Cuenta creada exitosamente' })
+  @ApiResponse({ status: 201, description: 'Cuenta creada exitosamente', type: ResponsePucDto })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  async crearCuenta(@Body() createCuentaDto: CreateCuentaPucDto): Promise<any> {
-    console.log('➕ POST /api/v1/puc/cuentas', createCuentaDto);
-    return await this.pucService.crear(createCuentaDto);
+  async crearCuenta(@Body() createCuentaDto: CreateCuentaPucDto): Promise<ResponsePucDto> {
+    console.log('➕ POST /api/v1/puc/cuentas - datos:', createCuentaDto);
+    return await this.pucService.crearCuenta(createCuentaDto);
   }
 
-  // ✅ OBTENER CUENTA POR ID
   @Get('cuentas/:id')
-  @ApiOperation({ summary: 'Obtener cuenta por ID' })
-  @ApiParam({ name: 'id', description: 'ID de la cuenta', type: 'number' })
-  @ApiResponse({ status: 200, description: 'Cuenta encontrada' })
+  @ApiOperation({ summary: 'Obtener cuenta PUC por ID' })
+  @ApiParam({ name: 'id', type: 'number', description: 'ID de la cuenta' })
+  @ApiResponse({ status: 200, description: 'Cuenta encontrada', type: ResponsePucDto })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
-  async obtenerCuentaPorId(@Param('id') id: number): Promise<any> {
-    console.log('🔍 GET /api/v1/puc/cuentas/' + id);
-    return await this.pucService.obtenerPorId(id);
+  async obtenerCuentaPorId(@Param('id') id: number): Promise<ResponsePucDto> {
+    console.log(`🔍 GET /api/v1/puc/cuentas/${id}`);
+    return await this.pucService.obtenerCuentaPorId(id);
   }
 
-  // ✅ ACTUALIZAR CUENTA
   @Put('cuentas/:id')
   @ApiOperation({ summary: 'Actualizar cuenta PUC' })
-  @ApiParam({ name: 'id', description: 'ID de la cuenta', type: 'number' })
-  @ApiResponse({ status: 200, description: 'Cuenta actualizada exitosamente' })
+  @ApiParam({ name: 'id', type: 'number', description: 'ID de la cuenta' })
+  @ApiResponse({ status: 200, description: 'Cuenta actualizada exitosamente', type: ResponsePucDto })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   async actualizarCuenta(
     @Param('id') id: number,
     @Body() updateCuentaDto: UpdateCuentaPucDto
-  ): Promise<any> {
-    console.log('✏️ PUT /api/v1/puc/cuentas/' + id, updateCuentaDto);
-    return await this.pucService.actualizar(id, updateCuentaDto);
+  ): Promise<ResponsePucDto> {
+    console.log(`✏️ PUT /api/v1/puc/cuentas/${id} - datos:`, updateCuentaDto);
+    return await this.pucService.actualizarCuenta(id, updateCuentaDto);
   }
 
-  // ✅ ELIMINAR CUENTA
   @Delete('cuentas/:id')
-  @ApiOperation({ summary: 'Eliminar cuenta PUC' })
-  @ApiParam({ name: 'id', description: 'ID de la cuenta', type: 'number' })
+  @ApiOperation({ summary: 'Eliminar cuenta PUC (desactivar)' })
+  @ApiParam({ name: 'id', type: 'number', description: 'ID de la cuenta' })
   @ApiResponse({ status: 200, description: 'Cuenta eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
-  async eliminarCuenta(@Param('id') id: number): Promise<any> {
-    console.log('🗑️ DELETE /api/v1/puc/cuentas/' + id);
-    return await this.pucService.eliminar(id);
+  async eliminarCuenta(@Param('id') id: number): Promise<{ success: boolean; message: string }> {
+    console.log(`🗑️ DELETE /api/v1/puc/cuentas/${id}`);
+    await this.pucService.eliminarCuenta(id);
+    return { success: true, message: 'Cuenta eliminada exitosamente' };
   }
 
-  // ================================================
-  // 🆕 NUEVOS ENDPOINTS PARA EXCEL
-  // ================================================
+  // ===============================================
+  // 📤 ENDPOINTS DE EXPORTACIÓN EXCEL
+  // ===============================================
 
-  // ✅ IMPORTAR DESDE EXCEL
-  @Post('importar/excel')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Importar PUC desde archivo Excel' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Archivo Excel con estructura del PUC',
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-        options: {
-          type: 'object',
-          properties: {
-            sobreescribir: { type: 'boolean', default: false },
-            validar_jerarquia: { type: 'boolean', default: true },
-            importar_saldos: { type: 'boolean', default: true },
-            hoja: { type: 'string', default: 'PUC' }
-          }
-        }
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Archivo procesado exitosamente' })
-  @ApiResponse({ status: 400, description: 'Archivo inválido o errores de validación' })
-  async importarExcel(
-    @UploadedFile() file: Express.Multer.File,
-    @Body() options: ImportPucExcelDto
-  ): Promise<ResultadoImportacion> {
-    console.log('📥 POST /api/v1/puc/importar/excel - archivo:', file?.originalname);
-    console.log('Opciones:', options);
-    
-    if (!file) {
-      throw new Error('No se proporcionó archivo');
-    }
-
-    return await this.pucService.importarDesdeExcel(file, options);
-  }
-
-  // ✅ VALIDAR ARCHIVO EXCEL SIN IMPORTAR
-  @Post('validar/excel')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Validar archivo Excel del PUC sin importar' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Archivo Excel a validar',
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-        hoja: { type: 'string', default: 'PUC' }
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Validación completada' })
-  async validarExcel(
-    @UploadedFile() file: Express.Multer.File,
-    @Body('hoja') hoja: string = 'PUC'
-  ): Promise<ValidacionExcel> {
-    console.log('✅ POST /api/v1/puc/validar/excel - archivo:', file?.originalname);
-    
-    if (!file) {
-      throw new Error('No se proporcionó archivo');
-    }
-
-    return await this.pucService.validarArchivoExcel(file, hoja);
-  }
-
-  // ✅ EXPORTAR A EXCEL
   @Get('exportar/excel')
   @ApiOperation({ summary: 'Exportar PUC a archivo Excel' })
-  @ApiQuery({ name: 'incluir_saldos', required: false, type: Boolean, description: 'Incluir saldos en la exportación' })
-  @ApiQuery({ name: 'incluir_movimientos', required: false, type: Boolean, description: 'Incluir movimientos' })
-  @ApiQuery({ name: 'filtro_estado', required: false, enum: ['ACTIVA', 'INACTIVA', 'TODAS'] })
-  @ApiQuery({ name: 'filtro_tipo', required: false, type: String })
+  @ApiProduces('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  @ApiQuery({ name: 'incluir_saldos', required: false, type: Boolean, description: 'Incluir información de saldos', default: true })
+  @ApiQuery({ name: 'incluir_movimientos', required: false, type: Boolean, description: 'Incluir información de movimientos', default: true })
+  @ApiQuery({ name: 'incluir_fiscal', required: false, type: Boolean, description: 'Incluir información fiscal', default: true })
+  @ApiQuery({ name: 'filtro_estado', required: false, type: String, description: 'Filtrar por estado de cuenta' })
+  @ApiQuery({ name: 'filtro_tipo', required: false, type: String, description: 'Filtrar por tipo de cuenta' })
+  @ApiQuery({ name: 'filtro_clase', required: false, type: String, description: 'Filtrar por clase de cuenta' })
+  @ApiQuery({ name: 'solo_movimientos', required: false, type: Boolean, description: 'Solo cuentas que aceptan movimientos', default: false })
+  @ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
   @ApiResponse({ 
     status: 200, 
-    description: 'Archivo Excel generado',
+    description: 'Archivo Excel generado exitosamente',
     headers: {
       'Content-Type': { description: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-      'Content-Disposition': { description: 'attachment; filename="puc_export.xlsx"' }
+      'Content-Disposition': { description: 'attachment; filename="puc_export_YYYY-MM-DD.xlsx"' }
     }
   })
   async exportarExcel(
-    @Query('incluir_saldos') incluirSaldos: boolean = true,
-    @Query('incluir_movimientos') incluirMovimientos: boolean = true,
-    @Query('filtro_estado') filtroEstado: string = 'ACTIVA',
     @Res() res: Response,
-    @Query('filtro_tipo') filtroTipo?: string
+    @Query('incluir_saldos', new DefaultValuePipe(true), ParseBoolPipe) incluirSaldos: boolean = true,
+    @Query('incluir_movimientos', new DefaultValuePipe(true), ParseBoolPipe) incluirMovimientos: boolean = true,
+    @Query('incluir_fiscal', new DefaultValuePipe(true), ParseBoolPipe) incluirFiscal: boolean = true,
+    @Query('filtro_estado') filtroEstado?: string,
+    @Query('filtro_tipo') filtroTipo?: string,
+    @Query('filtro_clase') filtroClase?: string,
+    @Query('solo_movimientos', new DefaultValuePipe(false), ParseBoolPipe) soloMovimientos: boolean = false,
+    @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
   ): Promise<void> {
-    console.log('📤 GET /api/v1/puc/exportar/excel');
+    console.log('📤 GET /api/v1/puc/exportar/excel - opciones:', {
+      incluirSaldos, incluirMovimientos, incluirFiscal, filtroEstado, filtroTipo, filtroClase, soloMovimientos, incluirInactivas
+    });
     
     const opciones: ExportPucExcelDto = {
       incluir_saldos: incluirSaldos,
       incluir_movimientos: incluirMovimientos,
-      filtro_estado: filtroEstado,
-      filtro_tipo: filtroTipo
+      incluir_fiscal: incluirFiscal,
+      filtro_estado: filtroEstado as any,
+      filtro_tipo: filtroTipo as any,
+      filtro_clase: filtroClase,
+      solo_movimientos: soloMovimientos,
+      incluir_inactivas: incluirInactivas
     };
 
-    const buffer = await this.pucService.exportarAExcel(opciones);
+    const buffer = await this.pucExcelService.exportarAExcel(opciones);
     
     const fecha = new Date().toISOString().split('T')[0];
     const filename = `puc_export_${fecha}.xlsx`;
@@ -284,101 +223,302 @@ export class PucController {
     res.send(buffer);
   }
 
-  // ✅ DESCARGAR TEMPLATE DE EXCEL
   @Get('exportar/template')
-  @ApiOperation({ summary: 'Descargar template de Excel para importación' })
-  @ApiQuery({ name: 'con_ejemplos', required: false, type: Boolean, description: 'Incluir filas de ejemplo' })
+  @ApiOperation({ summary: 'Descargar template de Excel para importación de PUC' })
+  @ApiProduces('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  @ApiQuery({ name: 'con_ejemplos', required: false, type: Boolean, description: 'Incluir filas de ejemplo en el template', default: true })
   @ApiResponse({ 
     status: 200, 
-    description: 'Template Excel generado',
+    description: 'Template Excel generado exitosamente',
     headers: {
       'Content-Type': { description: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
       'Content-Disposition': { description: 'attachment; filename="puc_template.xlsx"' }
     }
   })
   async descargarTemplate(
-    @Query('con_ejemplos') conEjemplos: boolean = true,
-    @Res() res: Response
+    @Res() res: Response,
+    @Query('con_ejemplos', new DefaultValuePipe(true), ParseBoolPipe) conEjemplos: boolean = true
   ): Promise<void> {
-    console.log('📄 GET /api/v1/puc/exportar/template');
+    console.log(`📄 GET /api/v1/puc/exportar/template - con ejemplos: ${conEjemplos}`);
     
-    const buffer = await this.pucService.generarTemplateExcel(conEjemplos);
+    const buffer = await this.pucExcelService.generarTemplate(conEjemplos);
     
+    const filename = `puc_template_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
+
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': 'attachment; filename="puc_template.xlsx"',
+      'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': buffer.length.toString()
     });
 
     res.send(buffer);
   }
 
-  // ✅ OBTENER CUENTA POR CÓDIGO (ruta específica antes de parámetros genéricos)
-  @Get('cuentas/codigo/:codigo')
-  @ApiOperation({ summary: 'Obtener cuenta por código' })
-  @ApiParam({ name: 'codigo', description: 'Código de la cuenta', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Cuenta encontrada' })
-  @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
-  async obtenerPorCodigo(@Param('codigo') codigo: string): Promise<any> {
-    console.log('🔍 GET /api/v1/puc/cuentas/codigo/' + codigo);
-    return await this.pucService.obtenerPorCodigo(codigo);
+  // ===============================================
+  // 📥 ENDPOINTS DE IMPORTACIÓN EXCEL
+  // ===============================================
+
+  @Post('validar/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Validar archivo Excel del PUC sin importar los datos' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Archivo Excel con estructura del PUC para validación',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo Excel (.xlsx) con la estructura del PUC'
+        },
+        hoja: {
+          type: 'string',
+          default: 'PUC',
+          description: 'Nombre de la hoja a validar'
+        },
+        fila_inicio: {
+          type: 'number',
+          default: 3,
+          description: 'Fila donde inician los datos (después de headers)'
+        },
+        validar_jerarquia: {
+          type: 'boolean',
+          default: true,
+          description: 'Validar estructura jerárquica de las cuentas'
+        }
+      },
+      required: ['file']
+    },
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Archivo validado exitosamente',
+    type: ResultadoValidacionDto
+  })
+  @ApiResponse({ status: 400, description: 'Archivo inválido o errores de validación' })
+  async validarExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() opciones: ValidarExcelDto
+  ): Promise<ResultadoValidacionDto> {
+    console.log('🔍 POST /api/v1/puc/validar/excel - archivo:', file?.originalname);
+    console.log('Opciones de validación:', opciones);
+    
+    if (!file) {
+      throw new Error('No se proporcionó archivo para validar');
+    }
+
+    const validacion = await this.pucExcelService.validarArchivoExcel(file, opciones.hoja || 'PUC');
+    
+    // Convertir resultado a DTO
+    return {
+      es_valido: validacion.es_valido,
+      total_filas: validacion.total_filas,
+      filas_validas: validacion.total_filas - validacion.errores.length,
+      errores: validacion.errores.map((error, index) => ({
+        fila: index + 1,
+        error: error
+      })),
+      advertencias: validacion.advertencias,
+      estadisticas: {
+        cuentas_por_nivel: {},
+        cuentas_por_clase: {},
+        duplicados_encontrados: 0,
+        cuentas_sin_padre: 0
+      }
+    };
   }
 
-  // ✅ OBTENER SUBCUENTAS
-  @Get('cuentas/:codigo/subcuentas')
-  @ApiOperation({ summary: 'Obtener subcuentas de una cuenta específica' })
-  @ApiParam({ name: 'codigo', description: 'Código de la cuenta padre', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Subcuentas obtenidas exitosamente' })
-  async obtenerSubcuentas(@Param('codigo') codigo: string): Promise<any> {
-    console.log('🌿 GET /api/v1/puc/cuentas/' + codigo + '/subcuentas');
-    return await this.pucService.obtenerSubcuentas(codigo);
+  @Post('importar/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Importar PUC desde archivo Excel' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Archivo Excel con estructura del PUC y opciones de importación',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo Excel (.xlsx) con la estructura del PUC'
+        },
+        sobreescribir: {
+          type: 'boolean',
+          default: false,
+          description: 'Sobreescribir cuentas existentes'
+        },
+        validar_jerarquia: {
+          type: 'boolean',
+          default: true,
+          description: 'Validar estructura jerárquica antes de importar'
+        },
+        importar_saldos: {
+          type: 'boolean',
+          default: true,
+          description: 'Importar información de saldos desde el Excel'
+        },
+        importar_fiscal: {
+          type: 'boolean',
+          default: true,
+          description: 'Importar información fiscal (F350, F300, etc.)'
+        },
+        hoja: {
+          type: 'string',
+          default: 'PUC',
+          description: 'Nombre de la hoja de Excel a procesar'
+        },
+        fila_inicio: {
+          type: 'number',
+          default: 3,
+          description: 'Fila donde inician los datos (después de headers)'
+        }
+      },
+      required: ['file']
+    },
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Archivo procesado exitosamente',
+    type: ResultadoImportacionDto
+  })
+  @ApiResponse({ status: 400, description: 'Archivo inválido o errores de importación' })
+  @HttpCode(HttpStatus.OK)
+  async importarExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() opciones: ImportPucExcelDto
+  ): Promise<ResultadoImportacionDto> {
+    console.log('📥 POST /api/v1/puc/importar/excel - archivo:', file?.originalname);
+    console.log('Opciones de importación:', opciones);
+    
+    if (!file) {
+      throw new Error('No se proporcionó archivo para importar');
+    }
+
+    const inicioTiempo = Date.now();
+    const resultado = await this.pucExcelService.importarDesdeExcel(file, opciones);
+    const tiempoProcesamiento = Date.now() - inicioTiempo;
+
+    // Enriquecer resultado con información adicional
+    const resultadoCompleto: ResultadoImportacionDto = {
+      ...resultado,
+      archivo_procesado: file.originalname,
+      fecha_procesamiento: new Date(),
+      resumen: {
+        ...resultado.resumen,
+        tiempo_procesamiento: tiempoProcesamiento
+      }
+    };
+
+    console.log(`✅ Importación completada en ${tiempoProcesamiento}ms:`, resultado.resumen);
+    
+    return resultadoCompleto;
   }
 
-  // ✅ VALIDAR CÓDIGO
+  // ===============================================
+  // 🔍 ENDPOINTS DE VALIDACIÓN Y CONSULTA
+  // ===============================================
+
   @Get('validar/:codigo')
-  @ApiOperation({ summary: 'Validar un código PUC' })
-  @ApiParam({ name: 'codigo', description: 'Código a validar', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Validación completada' })
-  async validarCodigo(@Param('codigo') codigo: string): Promise<any> {
-    console.log('✅ GET /api/v1/puc/validar/' + codigo);
+  @ApiOperation({ summary: 'Validar código de cuenta PUC' })
+  @ApiParam({ name: 'codigo', type: 'string', description: 'Código de cuenta a validar' })
+  @ApiResponse({ status: 200, description: 'Resultado de la validación' })
+  async validarCodigo(@Param('codigo') codigo: string): Promise<{
+    valido: boolean;
+    existe: boolean;
+    nivel: number;
+    padre_requerido?: string;
+    padre_existe?: boolean;
+    sugerencias?: string[];
+  }> {
+    console.log(`🔍 GET /api/v1/puc/validar/${codigo}`);
     return await this.pucService.validarCodigo(codigo);
   }
 
-  // ✅ IMPORTAR PUC ESTÁNDAR
-  @Post('importar/estandar')
-  @ApiOperation({ summary: 'Importar PUC estándar de Colombia' })
-  @ApiResponse({ status: 200, description: 'PUC importado exitosamente' })
-  async importarPucEstandar(): Promise<any> {
-    console.log('📥 POST /api/v1/puc/importar/estandar');
-    return await this.pucService.importarPucEstandar();
+  @Get('cuentas/:codigo/subcuentas')
+  @ApiOperation({ summary: 'Obtener subcuentas de una cuenta específica' })
+  @ApiParam({ name: 'codigo', type: 'string', description: 'Código de la cuenta padre' })
+  @ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir subcuentas inactivas', default: false })
+  @ApiResponse({ status: 200, description: 'Lista de subcuentas obtenida exitosamente', type: [ResponsePucDto] })
+  async obtenerSubcuentas(
+    @Param('codigo') codigo: string,
+    @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
+  ): Promise<ResponsePucDto[]> {
+    console.log(`🌿 GET /api/v1/puc/cuentas/${codigo}/subcuentas - inactivas: ${incluirInactivas}`);
+    return await this.pucService.obtenerSubcuentas(codigo, incluirInactivas);
   }
 
-  // ✅ LIMPIAR/RESETEAR PUC
-  @Delete('limpiar')
-  @ApiOperation({ summary: 'Limpiar todas las cuentas del PUC' })
-  @ApiResponse({ status: 200, description: 'PUC limpiado exitosamente' })
-  async limpiarPuc(): Promise<any> {
-    console.log('🧹 DELETE /api/v1/puc/limpiar');
-    return await this.pucService.limpiarPuc();
+  @Get('buscar')
+  @ApiOperation({ summary: 'Buscar cuentas PUC por nombre o código' })
+  @ApiQuery({ name: 'q', type: 'string', description: 'Término de búsqueda (nombre o código)' })
+  @ApiQuery({ name: 'limite', required: false, type: Number, description: 'Límite de resultados', default: 50 })
+  @ApiQuery({ name: 'solo_activas', required: false, type: Boolean, description: 'Solo cuentas activas', default: true })
+  @ApiResponse({ status: 200, description: 'Resultados de búsqueda obtenidos exitosamente', type: [ResponsePucDto] })
+  async buscarCuentas(
+    @Query('q') termino: string,
+    @Query('limite', new DefaultValuePipe(50)) limite: number = 50,
+    @Query('solo_activas', new DefaultValuePipe(true), ParseBoolPipe) soloActivas: boolean = true
+  ): Promise<ResponsePucDto[]> {
+    console.log(`🔎 GET /api/v1/puc/buscar - término: "${termino}", límite: ${limite}, solo activas: ${soloActivas}`);
+    return await this.pucService.buscarCuentas(termino, limite, soloActivas);
   }
 
-  // ✅ OBTENER REPORTE DE SALDOS
-  @Get('reportes/saldos')
-  @ApiOperation({ summary: 'Obtener reporte de saldos del PUC' })
-  @ApiQuery({ name: 'fecha_corte', required: false, type: String })
-  @ApiQuery({ name: 'nivel', required: false, type: Number })
-  @ApiQuery({ name: 'incluir_ceros', required: false, type: Boolean })
+  // ===============================================
+  // 📊 ENDPOINTS DE REPORTES
+  // ===============================================
+
+  @Get('reportes/por-clase')
+  @ApiOperation({ summary: 'Obtener reporte de cuentas agrupadas por clase' })
+  @ApiQuery({ name: 'incluir_saldos', required: false, type: Boolean, description: 'Incluir información de saldos', default: false })
   @ApiResponse({ status: 200, description: 'Reporte generado exitosamente' })
-  async reporteSaldos(
-    @Query('fecha_corte') fechaCorte?: string,
-    @Query('nivel') nivel?: number,
-    @Query('incluir_ceros') incluirCeros: boolean = false
+  async reportePorClase(
+    @Query('incluir_saldos', new DefaultValuePipe(false), ParseBoolPipe) incluirSaldos: boolean = false
   ): Promise<any> {
-    console.log('📊 GET /api/v1/puc/reportes/saldos');
-    return await this.pucService.generarReporteSaldos({
-      fecha_corte: fechaCorte,
-      nivel: nivel,
-      incluir_ceros: incluirCeros
-    });
+    console.log(`📊 GET /api/v1/puc/reportes/por-clase - incluir saldos: ${incluirSaldos}`);
+    return await this.pucService.reportePorClase(incluirSaldos);
+  }
+
+  @Get('reportes/jerarquia-completa')
+  @ApiOperation({ summary: 'Obtener reporte completo de jerarquía PUC' })
+  @ApiQuery({ name: 'formato', required: false, enum: ['json', 'tree'], description: 'Formato del reporte', default: 'json' })
+  @ApiResponse({ status: 200, description: 'Reporte de jerarquía generado exitosamente' })
+  async reporteJerarquiaCompleta(
+    @Query('formato', new DefaultValuePipe('json')) formato: 'json' | 'tree' = 'json'
+  ): Promise<any> {
+    console.log(`📊 GET /api/v1/puc/reportes/jerarquia-completa - formato: ${formato}`);
+    return await this.pucService.reporteJerarquiaCompleta(formato);
+  }
+
+  // ===============================================
+  // 🔧 ENDPOINTS DE MANTENIMIENTO
+  // ===============================================
+
+  @Post('mantenimiento/recalcular-jerarquia')
+  @ApiOperation({ summary: 'Recalcular jerarquía y códigos padre de todas las cuentas' })
+  @ApiResponse({ status: 200, description: 'Jerarquía recalculada exitosamente' })
+  @HttpCode(HttpStatus.OK)
+  async recalcularJerarquia(): Promise<{
+    success: boolean;
+    message: string;
+    cuentas_actualizadas: number;
+    errores: string[];
+  }> {
+    console.log('🔧 POST /api/v1/puc/mantenimiento/recalcular-jerarquia');
+    return await this.pucService.recalcularJerarquia();
+  }
+
+  @Post('mantenimiento/validar-integridad')
+  @ApiOperation({ summary: 'Validar integridad de la estructura PUC' })
+  @ApiResponse({ status: 200, description: 'Validación de integridad completada' })
+  @HttpCode(HttpStatus.OK)
+  async validarIntegridad(): Promise<{
+    valido: boolean;
+    total_cuentas: number;
+    errores_encontrados: string[];
+    advertencias: string[];
+    recomendaciones: string[];
+  }> {
+    console.log('🔧 POST /api/v1/puc/mantenimiento/validar-integridad');
+    return await this.pucService.validarIntegridad();
   }
 }

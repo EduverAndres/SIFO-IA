@@ -1,7 +1,5 @@
-// src/puc/dto/update-cuenta-puc.dto.ts
-import { PartialType, OmitType } from '@nestjs/swagger';
+// backend-nestjs/src/puc/dto/update-cuenta-puc.dto.ts
+import { PartialType } from '@nestjs/swagger';
 import { CreateCuentaPucDto } from './create-cuenta-puc.dto';
 
-export class UpdateCuentaPucDto extends PartialType(
-  OmitType(CreateCuentaPucDto, ['codigo'] as const)
-) {}
+export class UpdateCuentaPucDto extends PartialType(CreateCuentaPucDto) {}

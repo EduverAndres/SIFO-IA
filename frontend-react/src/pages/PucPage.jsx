@@ -1,4 +1,4 @@
-// frontend-react/src/pages/PucPage.jsx - VERSIÓN COMPLETA
+// frontend-react/src/pages/PucPage.jsx - CÓDIGO COMPLETO Y CORREGIDO
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FaPlus, 
@@ -7,7 +7,7 @@ import {
   FaDownload, 
   FaUpload, 
   FaFileExcel,
-FaFileAlt,  FaCheck,
+  FaFileAlt,  
   FaTimes,
   FaTree,
   FaList,
@@ -15,16 +15,14 @@ FaFileAlt,  FaCheck,
   FaSpinner,
   FaExclamationTriangle,
   FaCheckCircle,
-  FaInfoCircle,
   FaQuestion,
   FaBookOpen,
-  
-  
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import Modal from '../components/Modal';
+import ImportPucExcelModal from '../components/puc/ImportPucExcelModal'; // Modal específico para Excel
 import { pucApi } from '../api/pucApi';
 
 const PucPage = () => {
@@ -40,7 +38,6 @@ const PucPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [showValidationModal, setShowValidationModal] = useState(false);
 
   // Estados de formularios
   const [editingAccount, setEditingAccount] = useState(null);
@@ -54,15 +51,7 @@ const PucPage = () => {
     codigo_padre: ''
   });
 
-  // Estados de importación/exportación
-  const [importFile, setImportFile] = useState(null);
-  const [importOptions, setImportOptions] = useState({
-    sobreescribir: false,
-    validar_jerarquia: true,
-    importar_saldos: true,
-    importar_fiscal: true,
-    hoja: 'PUC'
-  });
+  // Estados de exportación
   const [exportOptions, setExportOptions] = useState({
     incluir_saldos: true,
     incluir_movimientos: true,
@@ -70,8 +59,6 @@ const PucPage = () => {
     filtro_estado: 'ACTIVA',
     filtro_tipo: ''
   });
-  const [validationResult, setValidationResult] = useState(null);
-  const [importResult, setImportResult] = useState(null);
 
   // Estados de filtros y vista
   const [filtros, setFiltros] = useState({
@@ -94,10 +81,37 @@ const PucPage = () => {
   // ===============================================
   // 🔄 EFECTOS Y CARGA INICIAL
   // ===============================================
+  
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await pucApi.obtenerCuentas(filtros);
+      setCuentas(response.data || []);
+      setPaginacion({
+        total: response.total || 0,
+        totalPaginas: response.totalPaginas || 0,
+        paginaActual: response.pagina || 1
+      });
+    } catch (err) {
+      setError('Error cargando cuentas: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [filtros]);
+
+  const cargarEstadisticas = useCallback(async () => {
+    try {
+      const response = await pucApi.obtenerEstadisticas();
+      setEstadisticas(response.data);
+    } catch (err) {
+      console.error('Error cargando estadísticas:', err);
+    }
+  }, []);
+
   useEffect(() => {
     cargarDatos();
     cargarEstadisticas();
-  }, [filtros]);
+  }, [cargarDatos, cargarEstadisticas]);
 
   useEffect(() => {
     // Limpiar mensajes después de 5 segundos
@@ -115,95 +129,22 @@ const PucPage = () => {
     }
   }, [error]);
 
-  const cargarDatos = async () => {
-    setLoading(true);
-    try {
-      const response = await pucApi.obtenerCuentas(filtros);
-      setCuentas(response.data || []);
-      setPaginacion({
-        total: response.total || 0,
-        totalPaginas: response.totalPaginas || 0,
-        paginaActual: response.pagina || 1
-      });
-    } catch (err) {
-      setError('Error cargando cuentas: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cargarEstadisticas = async () => {
-    try {
-      const response = await pucApi.obtenerEstadisticas();
-      setEstadisticas(response.data);
-    } catch (err) {
-      console.error('Error cargando estadísticas:', err);
-    }
-  };
-
   // ===============================================
-  // 📥 FUNCIONES DE IMPORTACIÓN
+  // 📥 FUNCIÓN DE IMPORTACIÓN ACTUALIZADA
   // ===============================================
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Validar tipo de archivo
-      const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel'
-      ];
+  const handleImportSuccess = async (result) => {
+    try {
+      // Mostrar mensaje de éxito
+      setSuccess(`Importación completada: ${result.resumen.insertadas} insertadas, ${result.resumen.actualizadas} actualizadas`);
       
-      if (!allowedTypes.includes(file.type)) {
-        setError('Por favor selecciona un archivo Excel (.xlsx o .xls)');
-        return;
-      }
-
-      if (file.size > 10 * 1024 * 1024) { // 10MB límite
-        setError('El archivo es demasiado grande. Máximo 10MB.');
-        return;
-      }
-
-      setImportFile(file);
-      setError(null);
-    }
-  };
-
-  const validarArchivoExcel = async () => {
-    if (!importFile) {
-      setError('Por favor selecciona un archivo');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await pucApi.validarArchivoExcel(importFile, importOptions.hoja);
-      setValidationResult(response);
-      setShowValidationModal(true);
-    } catch (err) {
-      setError('Error validando archivo: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const importarArchivo = async () => {
-    if (!importFile) {
-      setError('Por favor selecciona un archivo');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await pucApi.importarDesdeExcel(importFile, importOptions);
-      setImportResult(response);
-      setSuccess(`Importación completada: ${response.resumen.insertadas} insertadas, ${response.resumen.actualizadas} actualizadas`);
-      setShowImportModal(false);
+      // Recargar datos
       await cargarDatos();
       await cargarEstadisticas();
+      
+      // Cerrar modal
+      setShowImportModal(false);
     } catch (err) {
-      setError('Error importando archivo: ' + err.message);
-    } finally {
-      setLoading(false);
+      console.error('Error al actualizar después de importar:', err);
     }
   };
 
@@ -815,248 +756,13 @@ const PucPage = () => {
           </form>
         </Modal>
 
-        {/* Modal Importar Excel */}
-        <Modal
-          show={showImportModal}
-          onClose={() => {
-            setShowImportModal(false);
-            setImportFile(null);
-            setValidationResult(null);
-          }}
-          title="Importar PUC desde Excel"
-          maxWidth="4xl"
-        >
-          <div className="space-y-6">
-            {/* Sección de archivo */}
-            <div className="border border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
-              <div className="text-center">
-                <FaFileExcel className="mx-auto h-12 w-12 text-green-600 mb-4" />
-                <div className="text-lg font-medium text-gray-900 mb-2">
-                  Seleccionar archivo Excel
-                </div>
-                <div className="text-sm text-gray-500 mb-4">
-                  Formatos soportados: .xlsx, .xls (máximo 10MB)
-                </div>
-                
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="excel-upload"
-                />
-                <label
-                  htmlFor="excel-upload"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors"
-                >
-                  <FaUpload className="mr-2" />
-                  Seleccionar Archivo
-                </label>
-                
-                {importFile && (
-                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center justify-center space-x-2">
-                      <FaCheckCircle className="text-green-600" />
-                      <span className="text-green-800 font-medium">{importFile.name}</span>
-                      <span className="text-green-600 text-sm">
-                        ({(importFile.size / 1024 / 1024).toFixed(2)} MB)
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Opciones de importación */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="font-medium text-gray-900">Opciones de Importación</h3>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="sobreescribir"
-                      checked={importOptions.sobreescribir}
-                      onChange={(e) => setImportOptions({...importOptions, sobreescribir: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="sobreescribir" className="text-sm text-gray-700">
-                      Sobreescribir cuentas existentes
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="validar_jerarquia"
-                      checked={importOptions.validar_jerarquia}
-                      onChange={(e) => setImportOptions({...importOptions, validar_jerarquia: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="validar_jerarquia" className="text-sm text-gray-700">
-                      Validar estructura jerárquica
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="importar_saldos"
-                      checked={importOptions.importar_saldos}
-                      onChange={(e) => setImportOptions({...importOptions, importar_saldos: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="importar_saldos" className="text-sm text-gray-700">
-                      Importar saldos y movimientos
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="importar_fiscal"
-                      checked={importOptions.importar_fiscal}
-                      onChange={(e) => setImportOptions({...importOptions, importar_fiscal: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="importar_fiscal" className="text-sm text-gray-700">
-                      Importar información fiscal
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="font-medium text-gray-900">Configuración</h3>
-                
-                <Input
-                  label="Nombre de la hoja"
-                  value={importOptions.hoja}
-                  onChange={(e) => setImportOptions({...importOptions, hoja: e.target.value})}
-                  placeholder="PUC"
-                />
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <FaInfoCircle className="text-blue-600 mt-0.5" />
-                    <div className="text-sm text-blue-800">
-                      <strong>Formato esperado:</strong>
-                      <ul className="mt-2 space-y-1 text-xs">
-                        <li>• Columna C: CLASE (1 dígito)</li>
-                        <li>• Columna D: GRUPO (2 dígitos)</li>
-                        <li>• Columna E: CUENTA (4 dígitos)</li>
-                        <li>• Columna F: SUBCUENTA (6 dígitos)</li>
-                        <li>• Columna G: DETALLE (8+ dígitos)</li>
-                        <li>• Columna I: DESCRIPCION (obligatorio)</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Resultado de validación */}
-            {validationResult && (
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <h4 className="font-medium text-gray-900 mb-3">Resultado de Validación</h4>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {validationResult.resumen?.total_filas || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Filas</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {validationResult.resumen?.filas_validas || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Válidas</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {validationResult.resumen?.filas_con_errores || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Con Errores</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {validationResult.resumen?.clases_encontradas || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Clases</div>
-                  </div>
-                </div>
-
-                {validationResult.errores && validationResult.errores.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                    <h5 className="font-medium text-red-800 mb-2">Errores encontrados:</h5>
-                    <div className="max-h-32 overflow-y-auto">
-                      <ul className="text-sm text-red-700 space-y-1">
-                        {validationResult.errores.slice(0, 5).map((error, index) => (
-                          <li key={index}>• {error}</li>
-                        ))}
-                        {validationResult.errores.length > 5 && (
-                          <li className="text-red-600 font-medium">
-                            ... y {validationResult.errores.length - 5} errores más
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {validationResult.advertencias && validationResult.advertencias.length > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <h5 className="font-medium text-yellow-800 mb-2">Advertencias:</h5>
-                    <ul className="text-sm text-yellow-700 space-y-1">
-                      {validationResult.advertencias.slice(0, 3).map((warning, index) => (
-                        <li key={index}>• {warning}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Botones de acción */}
-            <div className="flex justify-between space-x-4 pt-6 border-t border-gray-200">
-              <div className="flex space-x-3">
-                <Button
-                  onClick={validarArchivoExcel}
-                  disabled={!importFile}
-                  loading={loading}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white"
-                  icon={FaCheck}
-                >
-                  Validar Archivo
-                </Button>
-              </div>
-              
-              <div className="flex space-x-3">
-                <Button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportFile(null);
-                    setValidationResult(null);
-                  }}
-                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={importarArchivo}
-                  disabled={!importFile || (validationResult && !validationResult.es_valido)}
-                  loading={loading}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white"
-                  icon={FaUpload}
-                >
-                  Importar
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Modal>
+        {/* Modal Importar Excel - USANDO ImportPucExcelModal */}
+        <ImportPucExcelModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImportSuccess}
+          loading={loading}
+        />
 
         {/* Modal Exportar */}
         <Modal
@@ -1179,122 +885,6 @@ const PucPage = () => {
             </div>
           </div>
         </Modal>
-
-        {/* Modal Resultado de Importación */}
-        {importResult && (
-          <Modal
-            show={Boolean(importResult)}
-            onClose={() => setImportResult(null)}
-            title="Resultado de Importación"
-            maxWidth="3xl"
-          >
-            <div className="space-y-6">
-              {/* Resumen general */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {importResult.resumen?.total_procesadas || 0}
-                  </div>
-                  <div className="text-sm text-blue-700">Procesadas</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div className="text-2xl font-bold text-green-600">
-                    {importResult.resumen?.insertadas || 0}
-                  </div>
-                  <div className="text-sm text-green-700">Insertadas</div>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {importResult.resumen?.actualizadas || 0}
-                  </div>
-                  <div className="text-sm text-yellow-700">Actualizadas</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
-                  <div className="text-2xl font-bold text-red-600">
-                    {importResult.resumen?.errores || 0}
-                  </div>
-                  <div className="text-sm text-red-700">Errores</div>
-                </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {importResult.resumen?.omitidas || 0}
-                  </div>
-                  <div className="text-sm text-gray-700">Omitidas</div>
-                </div>
-              </div>
-
-              {/* Estado general */}
-              <div className={`p-4 rounded-lg border ${
-                importResult.exito 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center space-x-3">
-                  {importResult.exito ? (
-                    <FaCheckCircle className="text-green-600 text-xl" />
-                  ) : (
-                    <FaExclamationTriangle className="text-red-600 text-xl" />
-                  )}
-                  <div>
-                    <div className={`font-medium ${
-                      importResult.exito ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {importResult.exito ? 'Importación Exitosa' : 'Importación con Errores'}
-                    </div>
-                    <div className={`text-sm ${
-                      importResult.exito ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {importResult.mensaje}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Errores detallados */}
-              {importResult.errores && importResult.errores.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h4 className="font-medium text-red-800 mb-3">Errores Encontrados:</h4>
-                  <div className="max-h-40 overflow-y-auto">
-                    <ul className="text-sm text-red-700 space-y-2">
-                      {importResult.errores.map((error, index) => (
-                        <li key={index} className="flex space-x-2">
-                          <span className="font-medium">Fila {error.fila}:</span>
-                          <span>{error.error}</span>
-                          {error.codigo && (
-                            <span className="font-mono bg-red-100 px-1 rounded">
-                              ({error.codigo})
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {/* Advertencias */}
-              {importResult.advertencias && importResult.advertencias.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h4 className="font-medium text-yellow-800 mb-3">Advertencias:</h4>
-                  <ul className="text-sm text-yellow-700 space-y-1">
-                    {importResult.advertencias.map((warning, index) => (
-                      <li key={index}>• {warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex justify-end pt-4 border-t border-gray-200">
-                <Button
-                  onClick={() => setImportResult(null)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Cerrar
-                </Button>
-              </div>
-            </div>
-          </Modal>
-        )}
 
         {/* Ayuda y Documentación */}
         <div className="fixed bottom-6 right-6 z-40">

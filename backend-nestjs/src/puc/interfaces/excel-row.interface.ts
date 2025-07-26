@@ -1,21 +1,21 @@
-// backend-nestjs/src/puc/interfaces/excel-row.interface.ts
+// backend-nestjs/src/puc/interfaces/excel-row.interface.ts - CORREGIDA
 export interface ExcelRowPuc {
-  fila: number;
-  saldo_inicial?: number;
-  saldo_final?: number;
+  codigo_completo?: string;
+  nombre?: string;
   codigo_clase?: string;
   codigo_grupo?: string;
   codigo_cuenta?: string;
   codigo_subcuenta?: string;
   codigo_detalle?: string;
-  id_movimiento?: string;
-  descripcion?: string;
-  tipo_om?: string;
-  centro_costos?: string;
+  nivel?: number;
+  tipo_cta?: string;
+  saldo_inicial?: number;
+  saldo_final?: number;
   movimientos_debito?: number;
   movimientos_credito?: number;
-  tipo_cta?: string;
-  nivel?: number;
+  centro_costos?: string;
+  id_movimiento?: string;
+  tipo_om?: string;
   codigo_at?: string;
   codigo_ct?: string;
   codigo_cc?: string;
@@ -26,39 +26,51 @@ export interface ExcelRowPuc {
   aplica_ica?: boolean;
   aplica_dr110?: boolean;
   conciliacion_fiscal?: string;
+  fila?: number;
 }
 
 export interface ValidacionExcel {
   es_valido: boolean;
   errores: string[];
   advertencias: string[];
-  resumen: {
-    total_filas: number;
-    filas_validas: number;
-    filas_con_errores: number;
-    clases_encontradas: number;
-    grupos_encontrados: number;
-    cuentas_encontradas: number;
-    subcuentas_encontradas: number;
-    detalles_encontrados: number;
-  };
-  datos_procesados: ExcelRowPuc[];
+  total_filas: number;
+}
+
+export interface ErrorImportacion {
+  fila: number;
+  error: string;
+}
+
+export interface ResumenImportacion {
+  total_procesadas: number;
+  insertadas: number;
+  actualizadas: number;
+  errores: number;
+  omitidas: number;
+  tiempo_procesamiento?: number;
 }
 
 export interface ResultadoImportacion {
   exito: boolean;
   mensaje: string;
-  resumen: {
-    total_procesadas: number;
-    insertadas: number;
-    actualizadas: number;
-    errores: number;
-    omitidas: number;
-  };
-  errores: Array<{
-    fila: number;
-    codigo?: string;
-    error: string;
-  }>;
+  resumen: ResumenImportacion;
+  errores: ErrorImportacion[];
   advertencias: string[];
+  archivo_procesado?: string;
+  fecha_procesamiento?: Date;
+}
+
+export interface EstadisticasImportacion {
+  cuentas_por_nivel: Record<number, number>;
+  cuentas_por_clase: Record<string, number>;
+  total_saldo_inicial: number;
+  total_saldo_final: number;
+  cuentas_con_saldos: number;
+  cuentas_fiscales: {
+    f350: number;
+    f300: number;
+    exogena: number;
+    ica: number;
+    dr110: number;
+  };
 }

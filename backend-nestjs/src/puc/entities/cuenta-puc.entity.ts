@@ -16,7 +16,8 @@ export enum TipoCuentaEnum {
   CUENTA = 'CUENTA',
   SUBCUENTA = 'SUBCUENTA',
   DETALLE = 'DETALLE',
-  AUXILIAR = 'AUXILIAR'
+  AUXILIAR = 'AUXILIAR',
+  MADRE = "MADRE"
 }
 
 export enum NaturalezaCuentaEnum {
