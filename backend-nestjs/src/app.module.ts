@@ -1,7 +1,11 @@
-// backend-nestjs/src/app.module.ts
+// backend-nestjs/src/app.module.ts - CON APPCONTROLLER
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+
+// Importar controladores
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 // Importar módulos
 import { PucModule } from './puc/puc.module';
@@ -69,7 +73,7 @@ import { User } from './auth/entities/user.entity';
     ProveedoresModule,
     AuthModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [AppController], // ✅ AGREGAR APPCONTROLLER
+  providers: [AppService], // ✅ AGREGAR APPSERVICE
 })
 export class AppModule {}
