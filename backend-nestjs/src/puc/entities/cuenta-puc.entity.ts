@@ -53,23 +53,23 @@ export class CuentaPuc {
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de clase (1 dígito)' })
   @Index()
-  codigo_clase: string;
+  codigo_clase: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de grupo (2 dígitos)' })
   @Index()
-  codigo_grupo: string;
+  codigo_grupo: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de cuenta (4 dígitos)' })
   @Index()
-  codigo_cuenta: string;
+  codigo_cuenta: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de subcuenta (6 dígitos)' })
   @Index()
-  codigo_subcuenta: string;
+  codigo_subcuenta: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de detalle (8+ dígitos)' })
   @Index()
-  codigo_detalle: string;
+  codigo_detalle: string | null;
 
   @Column({ 
     type: 'varchar', 
@@ -96,7 +96,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Descripción detallada adicional'
   })
-  descripcion: string;
+  descripcion: string | null;
 
   // ===============================================
   // ⚙️ CONFIGURACIÓN DE LA CUENTA
@@ -156,7 +156,7 @@ export class CuentaPuc {
     comment: 'Código del padre en la jerarquía'
   })
   @Index()
-  codigo_padre: string;
+  codigo_padre: string | null;
 
   // ===============================================
   // 💰 CONFIGURACIONES DE MOVIMIENTOS
@@ -176,7 +176,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'ID de movimiento (I.D. del Excel)'
   })
-  id_movimiento: string;
+  id_movimiento: string | null;
 
   @Column({ 
     type: 'boolean', 
@@ -242,7 +242,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Centro de costos (del Excel)'
   })
-  centro_costos: string;
+  centro_costos: string | null;
 
   // ===============================================
   // 🏛️ INFORMACIÓN FISCAL (DEL EXCEL)
@@ -289,7 +289,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Conciliación fiscal (del Excel)'
   })
-  conciliacion_fiscal: string;
+  conciliacion_fiscal: string | null;
 
   // ===============================================
   // 📋 CAMPOS ADICIONALES DEL TEMPLATE
@@ -301,7 +301,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Tipo OM del Excel'
   })
-  tipo_om: string;
+  tipo_om: string | null;
 
   @Column({ 
     type: 'varchar', 
@@ -309,7 +309,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código AT del Excel'
   })
-  codigo_at: string;
+  codigo_at: string | null;
 
   @Column({ 
     type: 'varchar', 
@@ -317,7 +317,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código CT del Excel'
   })
-  codigo_ct: string;
+  codigo_ct: string | null;
 
   @Column({ 
     type: 'varchar', 
@@ -325,7 +325,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código CC del Excel'
   })
-  codigo_cc: string;
+  codigo_cc: string | null;
 
   @Column({ 
     type: 'varchar', 
@@ -333,7 +333,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código TI del Excel'
   })
-  codigo_ti: string;
+  codigo_ti: string | null;
 
   // ===============================================
   // 🌐 CONFIGURACIONES ADICIONALES NIIF
@@ -344,7 +344,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Dinámica contable de la cuenta'
   })
-  dinamica: string;
+  dinamica: string | null;
 
   @Column({ 
     type: 'boolean', 
@@ -359,7 +359,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código NIIF equivalente'
   })
-  codigo_niif: string;
+  codigo_niif: string | null;
 
   // ===============================================
   // 🔧 CAMPOS DE CONTROL
@@ -379,7 +379,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Usuario que creó el registro'
   })
-  usuario_creacion: string;
+  usuario_creacion: string | null;
 
   @CreateDateColumn({ 
     type: 'timestamptz',
@@ -393,7 +393,7 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Usuario que modificó el registro'
   })
-  usuario_modificacion: string;
+  usuario_modificacion: string | null;
 
   @UpdateDateColumn({ 
     type: 'timestamptz',
@@ -410,14 +410,14 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Número de fila del Excel de origen'
   })
-  fila_excel: number;
+  fila_excel: number | null;
 
   @Column({ 
     type: 'text', 
     nullable: true,
     comment: 'Observaciones adicionales'
   })
-  observaciones: string;
+  observaciones: string | null;
 
   // ===============================================
   // 🔄 HOOKS DE ENTITY (SE EJECUTAN AUTOMÁTICAMENTE)
@@ -428,7 +428,10 @@ export class CuentaPuc {
   autoCompletarCampos() {
     // Auto-generar código completo si no está definido
     if (!this.codigo_completo) {
-      this.codigo_completo = this.determinarCodigoCompleto();
+      const codigo = this.determinarCodigoCompleto();
+      if (codigo) {
+        this.codigo_completo = codigo;
+      }
     }
 
     // Auto-determinar tipo de cuenta
@@ -465,7 +468,7 @@ export class CuentaPuc {
   // 🔧 MÉTODOS AUXILIARES PRIVADOS
   // ===============================================
 
-  private determinarCodigoCompleto(): string {
+  private determinarCodigoCompleto(): string | null {
     // Retorna el código más específico disponible
     if (this.codigo_detalle) return this.codigo_detalle;
     if (this.codigo_subcuenta) return this.codigo_subcuenta;
@@ -529,7 +532,7 @@ export class CuentaPuc {
   // ===============================================
 
   getRutaJerarquica(): string {
-    const partes = [];
+    const partes: string[] = [];
     
     if (this.codigo_clase) partes.push(this.codigo_clase);
     if (this.codigo_grupo) partes.push(this.codigo_grupo);
@@ -572,7 +575,7 @@ export class CuentaPuc {
     exogena: boolean;
     ica: boolean;
     dr110: boolean;
-    conciliacion: string;
+    conciliacion: string | null;
   } {
     return {
       f350: this.aplica_f350,
