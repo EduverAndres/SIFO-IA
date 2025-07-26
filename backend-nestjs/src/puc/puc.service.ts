@@ -183,35 +183,38 @@ export class PucService {
   }
 
   async eliminarCuenta(id: number): Promise<void> {
-    try {
-      const cuenta = await this.cuentaPucRepository.findOne({
-        where: { id, activo: true }
-      });
+  try {
+    const cuenta = await this.cuentaPucRepository.findOne({
+      where: { id, activo: true }
+    });
 
-      if (!cuenta) {
-        throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
-      }
-
-      // Verificar que no tenga subcuentas
-      const subcuentas = await this.cuentaPucRepository.count({
-        where: { codigo_padre: cuenta.codigo_completo, activo: true }
-      });
-
-      if (subcuentas > 0) {
-        throw new BadRequestException('No se puede eliminar una cuenta que tiene subcuentas');
-      }
-
-      // Eliminación lógica
-      await this.cuentaPucRepository.update(id, { 
-        activo: false, 
-        fecha_modificacion: new Date() 
-      });
-
-    } catch (error) {
-      this.logger.error(`Error eliminando cuenta ${id}:`, error);
-      throw error;
+    if (!cuenta) {
+      throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
     }
+
+    // Verificar que no tenga subcuentas
+    const subcuentas = await this.cuentaPucRepository.count({
+      where: { codigo_padre: cuenta.codigo_completo, activo: true }
+    });
+
+    if (subcuentas > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar la cuenta ${cuenta.codigo_completo} porque tiene ${subcuentas} subcuentas`
+      );
+    }
+
+    // ✅ ELIMINACIÓN FÍSICA REAL
+    this.logger.log(`🗑️ Eliminando físicamente cuenta: ${cuenta.codigo_completo} - ${cuenta.nombre}`);
+    
+    await this.cuentaPucRepository.delete(id);
+
+    this.logger.log(`✅ Cuenta eliminada físicamente: ${cuenta.codigo_completo}`);
+
+  } catch (error) {
+    this.logger.error(`❌ Error eliminando cuenta ${id}:`, error);
+    throw error;
   }
+}
 
   async buscarCuentas(termino: string, limite: number, soloActivas: boolean): Promise<ResponsePucDto[]> {
     try {
