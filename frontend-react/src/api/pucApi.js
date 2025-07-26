@@ -1,7 +1,8 @@
-// frontend-react/src/api/pucApi.js - VERSIÓN ACTUALIZADA CON EXCEL
+// frontend-react/src/api/pucApi.js - VERSIÓN COMPLETA CORREGIDA
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api/v1';
+// ⚠️ CORRECCIÓN: Cambiar puerto por defecto a 3001
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
 
 // Configurar axios
 const api = axios.create({
@@ -9,13 +10,36 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 segundos de timeout
 });
 
-// Interceptor para manejo de errores
+// Interceptor para logs de desarrollo
+api.interceptors.request.use((config) => {
+  console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+  return config;
+});
+
+// Interceptor para manejo de errores mejorado
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    return response.data;
+  },
   (error) => {
+    console.error(`❌ API Error: ${error.response?.status || 'NETWORK'} ${error.config?.url}`, error.response?.data);
+    
+    // Mensajes de error más específicos
+    if (error.code === 'NETWORK_ERROR' || !error.response) {
+      throw new Error('Error de conexión. Verifica que el servidor esté ejecutándose.');
+    }
+    
+    const status = error.response?.status;
     const message = error.response?.data?.message || error.message || 'Error desconocido';
+    
+    if (status === 404) {
+      throw new Error(`Endpoint no encontrado: ${error.config?.url}\nVerifica que el backend esté corriendo en el puerto correcto.`);
+    }
+    
     throw new Error(message);
   }
 );
@@ -399,6 +423,32 @@ export const pucApi = {
       sistema: sistemaERP,
       credenciales
     });
+  },
+
+  // ===============================================
+  // 🧪 MÉTODOS DE PRUEBA Y DESARROLLO
+  // ===============================================
+
+  async test() {
+    return await api.get('/test');
+  },
+
+  // Verificar conectividad con el backend
+  async verificarConexion() {
+    try {
+      const response = await this.test();
+      return {
+        conectado: true,
+        mensaje: 'Conexión establecida exitosamente',
+        datos: response
+      };
+    } catch (error) {
+      return {
+        conectado: false,
+        mensaje: error.message,
+        error: error
+      };
+    }
   }
 };
 
