@@ -29,6 +29,7 @@ import {
   ApiProduces
 } from '@nestjs/swagger';
 
+import type { Multer } from 'multer';
 import { PucService } from './puc.service';
 import { PucExcelService } from './services/puc-excel.service';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
@@ -298,7 +299,7 @@ export class PucController {
   })
   @ApiResponse({ status: 400, description: 'Archivo inválido o errores de validación' })
   async validarExcel(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
     @Body() opciones: ValidarExcelDto
   ): Promise<ResultadoValidacionDto> {
     console.log('🔍 POST /api/v1/puc/validar/excel - archivo:', file?.originalname);
@@ -385,7 +386,7 @@ export class PucController {
   @ApiResponse({ status: 400, description: 'Archivo inválido o errores de importación' })
   @HttpCode(HttpStatus.OK)
   async importarExcel(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
     @Body() opciones: ImportPucExcelDto
   ): Promise<ResultadoImportacionDto> {
     console.log('📥 POST /api/v1/puc/importar/excel - archivo:', file?.originalname);
