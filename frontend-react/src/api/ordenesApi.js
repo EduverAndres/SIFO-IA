@@ -1,6 +1,6 @@
 // frontend-react/src/api/ordenesApi.js
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com';
+const API_BASE_URL = 'https://sifo-ia-main.onrender.com/api/v1';
 
 // Para debugging
 console.log('🔧 [DEBUG] API_BASE_URL:', API_BASE_URL);
