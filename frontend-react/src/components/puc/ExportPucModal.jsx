@@ -1,86 +1,54 @@
 // frontend-react/src/components/puc/ExportPucModal.jsx
 import React, { useState } from 'react';
-import Modal from '../Modal';
-import Button from '../Button';
-import SelectField from '../SelectField';
+import { 
+  FaDownload, 
+  FaFilter, 
+  FaCog, 
+  FaFileExcel, 
+  FaTimes,
+  FaCheck,
+  FaSpinner
+} from 'react-icons/fa';
+import Modal from '../common/Modal';
+import Button from '../common/Button';
+import { pucApi } from '../../api/pucApi';
+import { toast } from 'react-toastify';
 
 const ExportPucModal = ({ visible, onCancel }) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    filtro_estado: 'TODAS',
+  const [opciones, setOpciones] = useState({
+    incluir_saldos: true,
+    incluir_movimientos: true,
+    incluir_fiscal: false,
+    filtro_estado: '',
     filtro_tipo: '',
     filtro_clase: '',
     solo_movimientos: false,
-    incluir_inactivas: true,
-    incluir_saldos: true,
-    incluir_movimientos: false,
-    incluir_fiscal: false,
+    incluir_inactivas: false
   });
-
-  const handleInputChange = (name, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
 
   const handleExport = async () => {
     try {
       setLoading(true);
       
-      // Construir parámetros de consulta
-      const params = new URLSearchParams();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
-          params.append(key, value.toString());
-        }
-      });
-
-      // Llamar a la API
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/puc/exportar/excel?${params}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Error en la exportación');
-      }
-
-      // Descargar archivo
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+      // Llamar a la API con las opciones seleccionadas
+      await pucApi.exportarAExcel(opciones);
       
-      const fecha = new Date().toISOString().slice(0, 10);
-      link.download = `PUC_Export_${fecha}.xlsx`;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      // Cerrar modal y resetear
+      toast.success('PUC exportado exitosamente');
       onCancel();
-      setFormData({
-        filtro_estado: 'TODAS',
-        filtro_tipo: '',
-        filtro_clase: '',
-        solo_movimientos: false,
-        incluir_inactivas: true,
-        incluir_saldos: true,
-        incluir_movimientos: false,
-        incluir_fiscal: false,
-      });
-      
     } catch (error) {
       console.error('Error exportando PUC:', error);
-      alert('Error al exportar el archivo. Intente nuevamente.');
+      toast.error(error.response?.data?.message || 'Error al exportar PUC. Intente nuevamente.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpcionChange = (campo, valor) => {
+    setOpciones(prev => ({
+      ...prev,
+      [campo]: valor
+    }));
   };
 
   if (!visible) return null;
@@ -92,161 +60,200 @@ const ExportPucModal = ({ visible, onCancel }) => {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <FaFileExcel className="text-green-600 mr-3" />
               Exportar Plan Único de Cuentas
             </h2>
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <FaTimes className="w-6 h-6" />
             </button>
+          </div>
+
+          {/* Opciones de Contenido */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <FaCog className="w-4 h-4 mr-2" />
+              Contenido a Exportar
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={opciones.incluir_saldos}
+                    onChange={(e) => handleOpcionChange('incluir_saldos', e.target.checked)}
+                    className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Incluir Saldos Actuales
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={opciones.incluir_movimientos}
+                    onChange={(e) => handleOpcionChange('incluir_movimientos', e.target.checked)}
+                    className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Incluir Movimientos Contables
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={opciones.incluir_fiscal}
+                    onChange={(e) => handleOpcionChange('incluir_fiscal', e.target.checked)}
+                    className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Incluir Información Fiscal
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={opciones.solo_movimientos}
+                    onChange={(e) => handleOpcionChange('solo_movimientos', e.target.checked)}
+                    className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Solo Cuentas con Movimientos
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={opciones.incluir_inactivas}
+                    onChange={(e) => handleOpcionChange('incluir_inactivas', e.target.checked)}
+                    className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Incluir Cuentas Inactivas
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Filtros */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
+              <FaFilter className="w-4 h-4 mr-2" />
               Filtros de Exportación
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <SelectField
-                label="Estado"
-                value={formData.filtro_estado}
-                onChange={(value) => handleInputChange('filtro_estado', value)}
-                options={[
-                  { value: 'TODAS', label: 'Todas' },
-                  { value: 'ACTIVA', label: 'Activas' },
-                  { value: 'INACTIVA', label: 'Inactivas' },
-                  { value: 'SUSPENDIDA', label: 'Suspendidas' }
-                ]}
-              />
-              
-              <SelectField
-                label="Tipo de Cuenta"
-                value={formData.filtro_tipo}
-                onChange={(value) => handleInputChange('filtro_tipo', value)}
-                options={[
-                  { value: '', label: 'Todos los tipos' },
-                  { value: 'MADRE', label: 'Cuentas Madre' },
-                  { value: 'DETALLE', label: 'Cuentas Detalle' }
-                ]}
-              />
-              
-              <SelectField
-                label="Clase"
-                value={formData.filtro_clase}
-                onChange={(value) => handleInputChange('filtro_clase', value)}
-                options={[
-                  { value: '', label: 'Todas las clases' },
-                  { value: '1', label: '1 - Activos' },
-                  { value: '2', label: '2 - Pasivos' },
-                  { value: '3', label: '3 - Patrimonio' },
-                  { value: '4', label: '4 - Ingresos' },
-                  { value: '5', label: '5 - Gastos' },
-                  { value: '6', label: '6 - Costos' }
-                ]}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.solo_movimientos}
-                  onChange={(e) => handleInputChange('solo_movimientos', e.target.checked)}
-                  className="mr-2"
-                />
-                Solo cuentas que aceptan movimientos
-              </label>
-              
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.incluir_inactivas}
-                  onChange={(e) => handleInputChange('incluir_inactivas', e.target.checked)}
-                  className="mr-2"
-                />
-                Incluir cuentas inactivas
-              </label>
-            </div>
-          </div>
-
-          {/* Contenido */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Contenido a Exportar
-            </h3>
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.incluir_saldos}
-                  onChange={(e) => handleInputChange('incluir_saldos', e.target.checked)}
-                  className="mr-2"
-                />
-                Incluir saldos
-              </label>
-              
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.incluir_movimientos}
-                  onChange={(e) => handleInputChange('incluir_movimientos', e.target.checked)}
-                  className="mr-2"
-                />
-                Incluir movimientos
-              </label>
-              
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.incluir_fiscal}
-                  onChange={(e) => handleInputChange('incluir_fiscal', e.target.checked)}
-                  className="mr-2"
-                />
-                Incluir información fiscal
-              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado
+                </label>
+                <select
+                  value={opciones.filtro_estado}
+                  onChange={(e) => handleOpcionChange('filtro_estado', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="ACTIVA">Solo Activas</option>
+                  <option value="INACTIVA">Solo Inactivas</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Cuenta
+                </label>
+                <select
+                  value={opciones.filtro_tipo}
+                  onChange={(e) => handleOpcionChange('filtro_tipo', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos los tipos</option>
+                  <option value="CLASE">Clases</option>
+                  <option value="GRUPO">Grupos</option>
+                  <option value="CUENTA">Cuentas</option>
+                  <option value="SUBCUENTA">Subcuentas</option>
+                  <option value="AUXILIAR">Auxiliares</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Clase
+                </label>
+                <select
+                  value={opciones.filtro_clase}
+                  onChange={(e) => handleOpcionChange('filtro_clase', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todas las clases</option>
+                  <option value="1">1 - Activos</option>
+                  <option value="2">2 - Pasivos</option>
+                  <option value="3">3 - Patrimonio</option>
+                  <option value="4">4 - Ingresos</option>
+                  <option value="5">5 - Gastos</option>
+                  <option value="6">6 - Costos</option>
+                  <option value="7">7 - Costos de Producción</option>
+                  <option value="8">8 - Cuentas de Orden Deudoras</option>
+                  <option value="9">9 - Cuentas de Orden Acreedoras</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Footer */}
+          {/* Información del formato */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start">
+              <FaCheck className="text-blue-500 mr-3 mt-1 flex-shrink-0" />
+              <div>
+                <h4 className="text-sm font-medium text-blue-800 mb-1">
+                  Formato de Exportación
+                </h4>
+                <p className="text-sm text-blue-700">
+                  El archivo se exportará en formato Excel (.xlsx) con la misma estructura 
+                  y columnas que la plantilla de importación. Incluye todas las columnas 
+                  jerárquicas, descripciones y campos adicionales según las opciones seleccionadas.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
           <div className="flex justify-end space-x-3">
             <Button
-              variant="secondary"
               onClick={onCancel}
+              variant="secondary"
+              disabled={loading}
             >
               Cancelar
             </Button>
+            
             <Button
-              variant="primary"
               onClick={handleExport}
               disabled={loading}
-              className="flex items-center"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              icon={loading ? FaSpinner : FaDownload}
             >
               {loading ? (
-                <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <>
+                  <FaSpinner className="animate-spin mr-2" />
+                  Exportando...
+                </>
               ) : (
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <>
+                  <FaDownload className="mr-2" />
+                  Exportar PUC
+                </>
               )}
-              {loading ? 'Exportando...' : 'Exportar Excel'}
             </Button>
           </div>
         </div>
@@ -256,3 +263,122 @@ const ExportPucModal = ({ visible, onCancel }) => {
 };
 
 export default ExportPucModal;
+
+// ===============================================
+// 🎯 FRONTEND - API Service Completo
+// ===============================================
+
+// frontend-react/src/api/pucApi.js - Método exportarAExcel actualizado
+const pucApi = {
+  // ... otros métodos existentes ...
+
+  // Método de exportación mejorado
+  async exportarAExcel(opciones = {}) {
+    try {
+      const params = new URLSearchParams();
+      
+      // Mapear opciones con los nombres correctos del backend
+      const opcionesBackend = {
+        incluir_saldos: opciones.incluir_saldos !== false,
+        incluir_movimientos: opciones.incluir_movimientos !== false,
+        incluir_fiscal: opciones.incluir_fiscal !== false,
+        filtro_estado: opciones.filtro_estado || '',
+        filtro_tipo: opciones.filtro_tipo || '',
+        filtro_clase: opciones.filtro_clase || '',
+        solo_movimientos: opciones.solo_movimientos || false,
+        incluir_inactivas: opciones.incluir_inactivas || false
+      };
+
+      // Agregar parámetros no vacíos
+      Object.entries(opcionesBackend).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value.toString());
+        }
+      });
+
+      console.log('📤 Exportando PUC con opciones:', opcionesBackend);
+
+      const response = await api.get(`/puc/exportar/excel?${params.toString()}`, {
+        responseType: 'blob',
+        timeout: 300000 // 5 minutos para exportaciones grandes
+      });
+
+      // Generar nombre de archivo con timestamp
+      const fecha = new Date();
+      const timestamp = fecha.toISOString().split('T')[0];
+      const hora = fecha.toTimeString().split(' ')[0].replace(/:/g, '-');
+      const fileName = `puc_export_${timestamp}_${hora}.xlsx`;
+
+      // Crear y descargar archivo
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(url);
+
+      console.log('✅ Archivo descargado exitosamente:', fileName);
+      return { success: true, fileName };
+
+    } catch (error) {
+      console.error('❌ Error exportando PUC:', error);
+      
+      // Manejo específico de errores
+      if (error.response?.status === 404) {
+        throw new Error('No se encontraron cuentas para exportar con los filtros especificados');
+      } else if (error.response?.status === 500) {
+        throw new Error('Error interno del servidor al generar el archivo');
+      } else if (error.code === 'NETWORK_ERROR') {
+        throw new Error('Error de conexión. Verifique su conexión a internet');
+      } else {
+        throw new Error(error.response?.data?.message || 'Error al exportar el archivo PUC');
+      }
+    }
+  },
+
+  // Método para descargar template (ya existente, mejorado)
+  async descargarTemplate(conEjemplos = true) {
+    try {
+      console.log(`📄 Descargando template PUC (con ejemplos: ${conEjemplos})`);
+      
+      const response = await api.get(`/puc/exportar/template?con_ejemplos=${conEjemplos}`, {
+        responseType: 'blob',
+        timeout: 60000
+      });
+
+      const fileName = `puc_template_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
+      
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(url);
+
+      console.log('✅ Template descargado exitosamente:', fileName);
+      return { success: true, fileName };
+
+    } catch (error) {
+      console.error('❌ Error descargando template:', error);
+      throw new Error(error.response?.data?.message || 'Error al descargar template');
+    }
+  }
+};

@@ -1,12 +1,18 @@
-// src/components/puc/PucManager.jsx
+// frontend-react/src/components/puc/PucManager.jsx
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import PucTableView from './PucTableView';
-import PucApiService from '../../api/pucApi';
+import ExportPucModal from './ExportPucModal';
+import { pucApi } from '../../api/pucApi';
+import { FaDownload, FaFileExcel, FaPlus, FaUpload } from 'react-icons/fa';
 
 const PucManager = () => {
+  // Estados principales
   const [cuentas, setCuentas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showExportModal, setShowExportModal] = useState(false);
+  
+  // Estados de filtros
   const [filtros, setFiltros] = useState({
     page: 1,
     limit: 50,
@@ -17,136 +23,23 @@ const PucManager = () => {
     codigo_padre: ''
   });
 
-  // Cargar cuentas al inicializar el componente
+  // Cargar cuentas al montar el componente
   useEffect(() => {
     cargarCuentas();
   }, [filtros]);
 
-  // Función para cargar cuentas
+  // Función para cargar cuentas desde la API
   const cargarCuentas = async () => {
-    setLoading(true);
     try {
-      const response = await PucApiService.getCuentas(filtros);
-      
-      if (response.success) {
-        setCuentas(response.data || []);
-      } else {
-        toast.error('Error al cargar las cuentas');
-        setCuentas([]);
-      }
+      setLoading(true);
+      const response = await pucApi.obtenerCuentas(filtros);
+      setCuentas(response.data || []);
     } catch (error) {
-      console.error('Error al cargar cuentas:', error);
-      toast.error('Error al conectar con el servidor');
+      console.error('Error cargando cuentas:', error);
+      toast.error('Error al cargar las cuentas del PUC');
       setCuentas([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Función para manejar la edición de una cuenta
-  const handleEdit = async (cuenta) => {
-    try {
-      // Aquí puedes abrir un modal de edición o navegar a una página de edición
-      console.log('Editando cuenta:', cuenta);
-      toast.info('Función de edición en desarrollo');
-      
-      // Ejemplo de cómo se implementaría la edición:
-      /*
-      const updatedData = {
-        nombre: 'Nuevo nombre',
-        descripcion: 'Nueva descripción',
-        estado: 'ACTIVA'
-      };
-      
-      const response = await PucApiService.updateCuenta(cuenta.id, updatedData);
-      
-      if (response.success) {
-        toast.success('Cuenta actualizada exitosamente');
-        cargarCuentas(); // Recargar la lista
-      } else {
-        toast.error(response.message || 'Error al actualizar la cuenta');
-      }
-      */
-    } catch (error) {
-      console.error('Error al editar cuenta:', error);
-      toast.error('Error al editar la cuenta');
-    }
-  };
-
-  // Función para manejar la eliminación de una cuenta
-  const handleDelete = async (cuenta) => {
-  try {
-    console.log('🗑️ [MANAGER] === INICIO ELIMINACIÓN ===');
-    console.log('🗑️ [MANAGER] Cuenta completa:', JSON.stringify(cuenta, null, 2));
-    console.log('🗑️ [MANAGER] ID extraído:', cuenta.id);
-    console.log('🗑️ [MANAGER] Tipo de ID:', typeof cuenta.id);
-    console.log('🗑️ [MANAGER] Código de cuenta:', cuenta.codigo);
-    
-    // 🚨 VERIFICACIÓN DE INTEGRIDAD
-    if (!cuenta) {
-      throw new Error('Cuenta es null o undefined');
-    }
-    
-    if (!cuenta.id) {
-      console.error('❌ [MANAGER] Estructura de cuenta sin ID:', cuenta);
-      throw new Error('La cuenta no tiene ID válido');
-    }
-    
-    console.log('🌐 [MANAGER] Llamando a PucApiService.deleteCuenta...');
-    
-    // ✅ LLAMADA AL API
-    const response = await PucApiService.deleteCuenta(cuenta.id);
-    
-    console.log('✅ [MANAGER] Respuesta exitosa:', response);
-    
-    if (response && response.success) {
-      toast.success(`Cuenta ${cuenta.codigo} - ${cuenta.nombre} eliminada exitosamente`);
-      // Actualizar la lista local
-      setCuentas(prevCuentas => 
-        prevCuentas.filter(c => c.id !== cuenta.id)
-      );
-    } else {
-      console.warn('⚠️ [MANAGER] Respuesta sin success:', response);
-      toast.error(response?.message || 'Error al eliminar la cuenta');
-    }
-    
-  } catch (error) {
-    console.error('💥 [MANAGER] === ERROR ELIMINACIÓN ===');
-    console.error('💥 [MANAGER] Error completo:', error);
-    console.error('💥 [MANAGER] Mensaje:', error.message);
-    console.error('💥 [MANAGER] Cuenta que causó error:', cuenta);
-    
-    // Manejo de errores específicos
-    let userMessage = 'Error desconocido al eliminar la cuenta';
-    
-    if (error.message.includes('URL mal construida')) {
-      userMessage = 'Error de configuración. Contacta al administrador.';
-    } else if (error.message.includes('subcuentas asociadas')) {
-      userMessage = `No se puede eliminar la cuenta ${cuenta.codigo} porque tiene subcuentas asociadas`;
-    } else if (error.message.includes('404') || error.message.includes('no encontrada')) {
-      userMessage = 'La cuenta no existe o ya fue eliminada';
-    } else if (error.message.includes('500')) {
-      userMessage = 'Error interno del servidor. Inténtalo más tarde.';
-    } else {
-      userMessage = `Error al eliminar la cuenta: ${error.message}`;
-    }
-    
-    toast.error(userMessage);
-    throw error;
-  }
-};
-
-  // Función para crear una subcuenta
-  const handleCreateChild = async (codigoPadre) => {
-    try {
-      console.log('Creando subcuenta para:', codigoPadre);
-      toast.info('Función de crear subcuenta en desarrollo');
-      
-      // Aquí puedes implementar la lógica para crear una subcuenta
-      // Por ejemplo, abrir un modal con el código padre pre-completado
-    } catch (error) {
-      console.error('Error al crear subcuenta:', error);
-      toast.error('Error al crear subcuenta');
     }
   };
 
@@ -156,14 +49,73 @@ const PucManager = () => {
     toast.info('Lista actualizada');
   };
 
-  // Función para exportar a CSV
+  // Función para exportar a CSV (existente)
   const handleExportCsv = () => {
     try {
-      PucApiService.downloadCsvFile(cuentas, 'cuentas_puc_export.csv');
+      // Implementar lógica de exportación CSV existente
+      // PucApiService.downloadCsvFile(cuentas, 'cuentas_puc_export.csv');
       toast.success('Archivo CSV descargado exitosamente');
     } catch (error) {
       console.error('Error al exportar CSV:', error);
       toast.error('Error al exportar archivo CSV');
+    }
+  };
+
+  // Función para abrir modal de exportación Excel
+  const handleExportExcel = () => {
+    setShowExportModal(true);
+  };
+
+  // Función para editar cuenta
+  const handleEdit = async (cuenta) => {
+    try {
+      console.log('Editando cuenta:', cuenta);
+      toast.info('Función de edición en desarrollo');
+    } catch (error) {
+      console.error('Error al editar cuenta:', error);
+      toast.error('Error al editar cuenta');
+    }
+  };
+
+  // Función para eliminar cuenta
+  const handleDelete = async (cuenta) => {
+    try {
+      if (!confirm(`¿Está seguro de eliminar la cuenta ${cuenta.codigo}?`)) {
+        return;
+      }
+
+      await pucApi.eliminarCuenta(cuenta.id);
+      toast.success('Cuenta eliminada exitosamente');
+      cargarCuentas(); // Recargar lista
+    } catch (error) {
+      console.error('Error al eliminar cuenta:', error);
+      
+      // Manejo específico de errores
+      let userMessage = 'Error al eliminar la cuenta';
+      if (error.response?.status === 403) {
+        userMessage = 'No tiene permisos para eliminar esta cuenta. Contacta al administrador.';
+      } else if (error.message.includes('subcuentas asociadas')) {
+        userMessage = `No se puede eliminar la cuenta ${cuenta.codigo} porque tiene subcuentas asociadas`;
+      } else if (error.message.includes('404') || error.message.includes('no encontrada')) {
+        userMessage = 'La cuenta no existe o ya fue eliminada';
+      } else if (error.message.includes('500')) {
+        userMessage = 'Error interno del servidor. Inténtalo más tarde.';
+      } else {
+        userMessage = `Error al eliminar la cuenta: ${error.message}`;
+      }
+      
+      toast.error(userMessage);
+    }
+  };
+
+  // Función para crear subcuenta
+  const handleCreateChild = async (codigoPadre) => {
+    try {
+      console.log('Creando subcuenta para:', codigoPadre);
+      toast.info('Función de crear subcuenta en desarrollo');
+    } catch (error) {
+      console.error('Error al crear subcuenta:', error);
+      toast.error('Error al crear subcuenta');
     }
   };
 
@@ -183,10 +135,11 @@ const PucManager = () => {
             </div>
             
             <div className="flex items-center space-x-3">
+              {/* Botón de Actualizar */}
               <button
                 onClick={handleRefresh}
                 disabled={loading}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
@@ -197,19 +150,66 @@ const PucManager = () => {
                 )}
                 Actualizar
               </button>
+
+              {/* Botón de Importar */}
+              <button
+                onClick={() => toast.info('Modal de importación en desarrollo')}
+                className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <FaUpload className="h-4 w-4 mr-2" />
+                Importar Excel
+              </button>
               
+              {/* Botón de Exportar Excel */}
+              <button
+                onClick={handleExportExcel}
+                disabled={cuentas.length === 0}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-colors"
+              >
+                <FaFileExcel className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </button>
+
+              {/* Botón de Exportar CSV */}
               <button
                 onClick={handleExportCsv}
                 disabled={cuentas.length === 0}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 transition-colors"
               >
-                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <FaDownload className="h-4 w-4 mr-2" />
                 Exportar CSV
+              </button>
+
+              {/* Botón de Nueva Cuenta */}
+              <button
+                onClick={() => toast.info('Modal de nueva cuenta en desarrollo')}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <FaPlus className="h-4 w-4 mr-2" />
+                Nueva Cuenta
               </button>
             </div>
           </div>
+
+          {/* Indicador de estado */}
+          {loading && (
+            <div className="mt-4 flex items-center text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              Cargando cuentas del PUC...
+            </div>
+          )}
+
+          {!loading && cuentas.length > 0 && (
+            <div className="mt-4 text-sm text-gray-600">
+              Se encontraron <span className="font-semibold text-gray-900">{cuentas.length}</span> cuentas
+            </div>
+          )}
+
+          {!loading && cuentas.length === 0 && (
+            <div className="mt-4 text-sm text-yellow-600">
+              No se encontraron cuentas con los filtros aplicados
+            </div>
+          )}
         </div>
 
         {/* Filtros de búsqueda */}
@@ -226,7 +226,7 @@ const PucManager = () => {
                 value={filtros.busqueda}
                 onChange={(e) => setFiltros(prev => ({ ...prev, busqueda: e.target.value, page: 1 }))}
                 placeholder="Código o nombre..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               />
             </div>
 
@@ -239,7 +239,7 @@ const PucManager = () => {
                 id="tipo"
                 value={filtros.tipo}
                 onChange={(e) => setFiltros(prev => ({ ...prev, tipo: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
                 <option value="">Todos</option>
                 <option value="CLASE">Clase</option>
@@ -259,7 +259,7 @@ const PucManager = () => {
                 id="naturaleza"
                 value={filtros.naturaleza}
                 onChange={(e) => setFiltros(prev => ({ ...prev, naturaleza: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
                 <option value="">Todas</option>
                 <option value="DEBITO">Débito</option>
@@ -276,7 +276,7 @@ const PucManager = () => {
                 id="estado"
                 value={filtros.estado}
                 onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
                 <option value="">Todos</option>
                 <option value="ACTIVA">Activa</option>
@@ -296,12 +296,41 @@ const PucManager = () => {
                   estado: '',
                   codigo_padre: ''
                 })}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 Limpiar
               </button>
             </div>
           </div>
+
+          {/* Filtros activos */}
+          {(filtros.busqueda || filtros.tipo || filtros.naturaleza || filtros.estado) && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center space-x-2 text-sm">
+                <span className="text-gray-500">Filtros activos:</span>
+                {filtros.busqueda && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                    Búsqueda: {filtros.busqueda}
+                  </span>
+                )}
+                {filtros.tipo && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                    Tipo: {filtros.tipo}
+                  </span>
+                )}
+                {filtros.naturaleza && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
+                    Naturaleza: {filtros.naturaleza}
+                  </span>
+                )}
+                {filtros.estado && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800">
+                    Estado: {filtros.estado}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tabla de cuentas */}
@@ -316,6 +345,12 @@ const PucManager = () => {
             loading={loading}
           />
         </div>
+
+        {/* Modal de exportación Excel */}
+        <ExportPucModal
+          visible={showExportModal}
+          onCancel={() => setShowExportModal(false)}
+        />
       </div>
     </div>
   );

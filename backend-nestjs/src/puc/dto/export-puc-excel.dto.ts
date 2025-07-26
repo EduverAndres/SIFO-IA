@@ -1,87 +1,94 @@
-// backend-nestjs/src/puc/dto/export-puc-excel.dto.ts
-import { IsOptional, IsBoolean, IsString, IsEnum } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { EstadoCuentaEnum, TipoCuentaEnum } from '../entities/cuenta-puc.entity';
+import { IsOptional, IsBoolean, IsString, IsIn } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class ExportPucExcelDto {
-  @ApiPropertyOptional({
-    description: 'Incluir información de saldos en la exportación',
+  @ApiProperty({ 
+    description: 'Incluir columnas de saldos actuales',
     default: true,
-    type: Boolean
+    required: false
   })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   incluir_saldos?: boolean = true;
 
-  @ApiPropertyOptional({
-    description: 'Incluir información de movimientos',
+  @ApiProperty({ 
+    description: 'Incluir columnas de movimientos contables',
     default: true,
-    type: Boolean
+    required: false
   })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   incluir_movimientos?: boolean = true;
 
-  @ApiPropertyOptional({
-    description: 'Incluir información fiscal',
-    default: true,
-    type: Boolean
+  @ApiProperty({ 
+    description: 'Incluir columnas de información fiscal',
+    default: false,
+    required: false
   })
   @IsOptional()
   @IsBoolean()
-  incluir_fiscal?: boolean = true;
+  @Transform(({ value }) => value === 'true' || value === true)
+  incluir_fiscal?: boolean = false;
 
-  @ApiPropertyOptional({
+  @ApiProperty({ 
     description: 'Filtrar por estado de cuenta',
-    enum: EstadoCuentaEnum,
-    type: String
+    enum: ['ACTIVA', 'INACTIVA'],
+    required: false
   })
   @IsOptional()
-  @IsEnum(EstadoCuentaEnum)
-  filtro_estado?: EstadoCuentaEnum;
+  @IsString()
+  @IsIn(['ACTIVA', 'INACTIVA'])
+  filtro_estado?: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({ 
     description: 'Filtrar por tipo de cuenta',
-    enum: TipoCuentaEnum,
-    type: String
+    enum: ['CLASE', 'GRUPO', 'CUENTA', 'SUBCUENTA', 'AUXILIAR'],
+    required: false
   })
   @IsOptional()
-  @IsEnum(TipoCuentaEnum)
-  filtro_tipo?: TipoCuentaEnum;
+  @IsString()
+  @IsIn(['CLASE', 'GRUPO', 'CUENTA', 'SUBCUENTA', 'AUXILIAR'])
+  filtro_tipo?: string;
 
-  @ApiPropertyOptional({
-    description: 'Filtrar por clase de cuenta (1-9)',
-    type: String
+  @ApiProperty({ 
+    description: 'Filtrar por clase (1-9)',
+    required: false
   })
   @IsOptional()
   @IsString()
   filtro_clase?: string;
 
-  @ApiPropertyOptional({
-    description: 'Incluir solo cuentas que aceptan movimientos',
+  @ApiProperty({ 
+    description: 'Exportar solo cuentas con movimientos',
     default: false,
-    type: Boolean
+    required: false
   })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   solo_movimientos?: boolean = false;
 
-  @ApiPropertyOptional({
-    description: 'Incluir cuentas inactivas',
+  @ApiProperty({ 
+    description: 'Incluir cuentas inactivas en la exportación',
     default: false,
-    type: Boolean
+    required: false
   })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   incluir_inactivas?: boolean = false;
 
-  @ApiPropertyOptional({
-    description: 'Formato de archivo de salida',
-    default: 'xlsx',
-    enum: ['xlsx', 'csv'],
-    type: String
+  // 🆕 NUEVA PROPIEDAD AGREGADA
+  @ApiProperty({ 
+    description: 'Incluir hoja de resumen con estadísticas',
+    default: false,
+    required: false
   })
   @IsOptional()
-  @IsString()
-  formato?: 'xlsx' | 'csv' = 'xlsx';
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  incluir_resumen?: boolean = false;
 }
