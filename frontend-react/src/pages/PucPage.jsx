@@ -21,10 +21,10 @@ FaFileAlt,  FaCheck,
   
   
 } from 'react-icons/fa';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import Select from '../components/ui/Select';
-import Modal from '../components/ui/Modal';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import Select from '../components/Select';
+import Modal from '../components/Modal';
 import { pucApi } from '../api/pucApi';
 
 const PucPage = () => {
