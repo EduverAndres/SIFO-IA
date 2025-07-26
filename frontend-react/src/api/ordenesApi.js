@@ -133,7 +133,6 @@ export const getPucCuentas = async (filtros = {}) => {
     const url = `${API_BASE_URL}/api/v1/puc/cuentas${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     
     console.log('🏛️ [PUC] Obteniendo cuentas:', url);
-
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
