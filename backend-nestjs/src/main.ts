@@ -1,8 +1,9 @@
-// backend-nestjs/src/main.ts - DESDE CERO
+// backend-nestjs/src/main.ts - CON CONFIGURACIÓN DE MULTER
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -22,6 +23,10 @@ async function bootstrap() {
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
       credentials: true,
     });
+
+    // 📁 CONFIGURACIÓN DE ARCHIVOS Y BODY SIZE
+    app.use(json({ limit: '50mb' }));
+    app.use(urlencoded({ extended: true, limit: '50mb' }));
 
     // 🛠️ VALIDACIÓN
     app.useGlobalPipes(
