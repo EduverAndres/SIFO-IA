@@ -1,11 +1,22 @@
-// Modal.jsx
+// frontend-react/src/components/ui/Modal.jsx
 import React, { useEffect } from 'react';
+import { FaTimes } from 'react-icons/fa';
 
-const Modal = ({ isOpen, onClose, children, title = 'Menú de Opciones' }) => {
-  // Efecto para manejar el escape key
+const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = 'md',
+  showCloseButton = true,
+  closeOnOverlayClick = true,
+  className = '',
+  ...props
+}) => {
+  // Manejar tecla Escape
   useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.keyCode === 27) {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
@@ -22,57 +33,87 @@ const Modal = ({ isOpen, onClose, children, title = 'Menú de Opciones' }) => {
     };
   }, [isOpen, onClose]);
 
-  // Renderizado condicional más seguro
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
-  // Función para cerrar el modal al hacer clic en el overlay
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+    full: 'max-w-7xl'
+  };
+
   const handleOverlayClick = (e) => {
-    // Solo cerrar si se hace clic directamente en el overlay, no en el contenido del modal
-    if (e.target === e.currentTarget) {
+    if (closeOnOverlayClick && e.target === e.currentTarget) {
       onClose();
     }
   };
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4 animate-fade-in"
-      onClick={handleOverlayClick}
+      className="fixed inset-0 z-50 overflow-y-auto"
+      aria-labelledby="modal-title"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
     >
-      {/* Contenedor del modal con animación de entrada */}
-      <div
-        className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-xl mx-auto relative
-                    transform transition-all duration-500 ease-out
-                    scale-100 opacity-100
-                    border border-blue-200"
-        onClick={(e) => e.stopPropagation()} // Prevenir que el clic en el contenido cierre el modal
+      {/* Overlay */}
+      <div 
+        className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+        onClick={handleOverlayClick}
       >
-        {/* Botón de cerrar */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-3xl font-bold
-                      p-1 rounded-full hover:bg-gray-100 transition-colors duration-200 z-10"
-          aria-label="Cerrar modal"
-          type="button"
-        >
-          &times;
-        </button>
+        {/* Background overlay */}
+        <div 
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          aria-hidden="true"
+        ></div>
 
-        {/* Título del modal */}
-        <h2 
-          id="modal-title"
-          className="text-3xl font-extrabold text-blue-700 mb-8 text-center pb-4 border-b border-blue-100"
+        {/* Center modal */}
+        <span 
+          className="hidden sm:inline-block sm:align-middle sm:h-screen" 
+          aria-hidden="true"
         >
-          {title}
-        </h2>
+          &#8203;
+        </span>
 
-        {/* Contenido del modal (children) */}
-        <div className="modal-content overflow-y-auto max-h-[70vh]">
-          {children}
+        {/* Modal panel */}
+        <div 
+          className={`
+            inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all 
+            sm:my-8 sm:align-middle sm:w-full ${sizeClasses[size]} ${className}
+          `}
+          {...props}
+        >
+          {/* Header */}
+          {(title || showCloseButton) && (
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                {title && (
+                  <h3 
+                    className="text-lg leading-6 font-medium text-gray-900" 
+                    id="modal-title"
+                  >
+                    {title}
+                  </h3>
+                )}
+                
+                {showCloseButton && (
+                  <button
+                    type="button"
+                    className="bg-white rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    onClick={onClose}
+                  >
+                    <span className="sr-only">Cerrar</span>
+                    <FaTimes className="h-6 w-6" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+            {children}
+          </div>
         </div>
       </div>
     </div>

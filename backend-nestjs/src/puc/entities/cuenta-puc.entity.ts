@@ -1,4 +1,4 @@
-// backend-nestjs/src/puc/entities/cuenta-puc.entity.ts
+// backend-nestjs/src/puc/entities/cuenta-puc.entity.ts - COMPLETA Y CORREGIDA
 import { 
   Entity, 
   PrimaryGeneratedColumn, 
@@ -52,23 +52,18 @@ export class CuentaPuc {
   // ===============================================
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de clase (1 dígito)' })
-  @Index()
   codigo_clase: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de grupo (2 dígitos)' })
-  @Index()
   codigo_grupo: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de cuenta (4 dígitos)' })
-  @Index()
   codigo_cuenta: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de subcuenta (6 dígitos)' })
-  @Index()
   codigo_subcuenta: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, comment: 'Código de detalle (8+ dígitos)' })
-  @Index()
   codigo_detalle: string | null;
 
   @Column({ 
@@ -77,7 +72,6 @@ export class CuentaPuc {
     unique: true,
     comment: 'Código completo de la cuenta (el más específico disponible)'
   })
-  @Index()
   codigo_completo: string;
 
   // ===============================================
@@ -108,7 +102,6 @@ export class CuentaPuc {
     default: TipoCuentaEnum.DETALLE,
     comment: 'Tipo de cuenta según jerarquía'
   })
-  @Index()
   tipo_cuenta: TipoCuentaEnum;
 
   @Column({ 
@@ -117,7 +110,6 @@ export class CuentaPuc {
     default: NaturalezaCuentaEnum.DEBITO,
     comment: 'Naturaleza contable de la cuenta'
   })
-  @Index()
   naturaleza: NaturalezaCuentaEnum;
 
   @Column({ 
@@ -126,7 +118,6 @@ export class CuentaPuc {
     default: EstadoCuentaEnum.ACTIVA,
     comment: 'Estado actual de la cuenta'
   })
-  @Index()
   estado: EstadoCuentaEnum;
 
   @Column({ 
@@ -134,7 +125,6 @@ export class CuentaPuc {
     default: 1,
     comment: 'Nivel jerárquico (NL del Excel)'
   })
-  @Index()
   nivel: number;
 
   @Column({ 
@@ -155,7 +145,6 @@ export class CuentaPuc {
     nullable: true,
     comment: 'Código del padre en la jerarquía'
   })
-  @Index()
   codigo_padre: string | null;
 
   // ===============================================
@@ -167,7 +156,6 @@ export class CuentaPuc {
     default: true,
     comment: 'Si la cuenta acepta movimientos contables'
   })
-  @Index()
   acepta_movimientos: boolean;
 
   @Column({ 
@@ -370,7 +358,6 @@ export class CuentaPuc {
     default: true,
     comment: 'Si el registro está activo'
   })
-  @Index()
   activo: boolean;
 
   @Column({ 

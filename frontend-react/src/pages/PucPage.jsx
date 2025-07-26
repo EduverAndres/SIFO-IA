@@ -7,8 +7,7 @@ import {
   FaDownload, 
   FaUpload, 
   FaFileExcel,
-  FaFileTemplate,
-  FaCheck,
+FaFileAlt,  FaCheck,
   FaTimes,
   FaTree,
   FaList,
@@ -19,7 +18,7 @@ import {
   FaInfoCircle,
   FaQuestion,
   FaBookOpen,
-  FaFileAlt,
+  
   
 } from 'react-icons/fa';
 import Button from '../components/ui/Button';
@@ -402,7 +401,7 @@ const PucPage = () => {
             <Button
               onClick={descargarTemplate}
               className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-              icon={FaFileTemplate}
+              icon={FaFileAlt}
               loading={loading}
             >
               Template
