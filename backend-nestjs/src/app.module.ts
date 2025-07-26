@@ -1,102 +1,76 @@
-// backend-nestjs/src/app.module.ts - SIMPLE
+// backend-nestjs/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
-// ENTIDADES
-import { Proveedor } from './proveedores/proveedor.entity';
-import { Producto } from './productos/producto.entity';
+// Importar módulos
+import { PucModule } from './puc/puc.module';
+import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
+import { ProductosModule } from './productos/productos.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
+
+// Importar entidades
+import { CuentaPuc } from './puc/entities/cuenta-puc.entity';
 import { OrdenCompra } from './ordenes-compra/orden-compra.entity';
 import { DetalleOrden } from './ordenes-compra/detalle-orden.entity';
-import { User } from './auth/entities/user.entity';
-import { CuentaPuc } from './puc/entities/cuenta-puc.entity';
-
-// MÓDULOS
-import { ProveedoresModule } from './proveedores/proveedores.module';
-import { ProductosModule } from './productos/productos.module';
-import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
-import { AuthModule } from './auth/auth.module';
-import { PucModule } from './puc/puc.module';
-
-// FILTROS
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { Producto } from './productos/producto.entity';
+import { Proveedor } from './proveedores/proveedor.entity';
 
 @Module({
   imports: [
+    // Configuración de variables de entorno
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      cache: true,
     }),
 
+    // Configuración de TypeORM
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get('DB_HOST', 'localhost'),
+        port: parseInt(configService.get('DB_PORT', '5432')),
+        username: configService.get('DB_USERNAME', 'postgres'),
+        password: configService.get('DB_PASSWORD', 'password'),
+        database: configService.get('DB_DATABASE', 'ordenes_compra_db'),
+        
+        // Entidades registradas
+        entities: [
+          CuentaPuc,      // Nueva entidad PUC
+          OrdenCompra,
+          DetalleOrden,
+          Producto,
+          Proveedor,
+        ],
+        
+        // Configuración de desarrollo
+        synchronize: configService.get('NODE_ENV') !== 'production', // Solo en desarrollo
+        logging: configService.get('NODE_ENV') === 'development',
+        
+        // Configuraciones adicionales para PostgreSQL
+        ssl: configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
+        
+        // Configuraciones de timezone
+        timezone: 'America/Bogota',
+        
+        // Configuraciones de pooling para mejor rendimiento
+        extra: {
+          connectionLimit: 10,
+          acquireTimeout: 60000,
+          timeout: 60000,
+        },
+      }),
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        const databaseUrl = configService.get<string>('DATABASE_URL');
-        
-        if (!databaseUrl) {
-          throw new Error('DATABASE_URL requerida');
-        }
-        
-        return {
-          type: 'postgres',
-          url: databaseUrl,
-          entities: [
-            Proveedor,
-            Producto,
-            OrdenCompra,
-            DetalleOrden,
-            User,
-            CuentaPuc,
-          ],
-          synchronize: false,
-          logging: false,
-          ssl: {
-            rejectUnauthorized: false,
-          },
-          extra: {
-            ssl: {
-              rejectUnauthorized: false,
-            },
-            max: 5,
-            connectionTimeoutMillis: 60000,
-            idleTimeoutMillis: 10000,
-          },
-        };
-      },
     }),
 
-    AuthModule,
+    // Módulos de la aplicación
     PucModule,
-    ProveedoresModule,
-    ProductosModule,
     OrdenesCompraModule,
+    ProductosModule,
+    ProveedoresModule,
   ],
-  
   controllers: [],
-  
-  providers: [
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: LoggingInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformInterceptor,
-    },
-  ],
+  providers: [],
 })
 export class AppModule {}
