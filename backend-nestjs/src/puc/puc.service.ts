@@ -46,58 +46,95 @@ export class PucService {
   // 📋 MÉTODOS CRUD IMPLEMENTADOS
   // ===============================================
 
-  async obtenerCuentas(filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
-    try {
-      const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
+  async obtenerCuentas(filtros: FiltrosPucDto): Promise<any> {
+  try {
+    const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
-      // Aplicar filtros
-      if (filtros.busqueda) {
-        query.andWhere(
-          '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.nombre ILIKE :busqueda)',
-          { busqueda: `%${filtros.busqueda}%` }
-        );
-      }
-
-      if (filtros.tipo) {
-        query.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: filtros.tipo });
-      }
-
-      if (filtros.naturaleza) {
-        query.andWhere('cuenta.naturaleza = :naturaleza', { naturaleza: filtros.naturaleza });
-      }
-
-      if (filtros.estado) {
-        query.andWhere('cuenta.estado = :estado', { estado: filtros.estado });
-      }
-
-      if (filtros.codigo_padre) {
-        query.andWhere('cuenta.codigo_padre = :codigo_padre', { codigo_padre: filtros.codigo_padre });
-      }
-
-      if (filtros.solo_movimiento) {
-        query.andWhere('cuenta.acepta_movimientos = :acepta_movimientos', { acepta_movimientos: true });
-      }
-
-      // Solo cuentas activas por defecto
-      query.andWhere('cuenta.activo = :activo', { activo: true });
-
-      // Ordenamiento
-      query.orderBy('cuenta.codigo_completo', 'ASC');
-
-      // Límite
-      const limite = Math.min(Number(filtros.limite) || 50, 1000);
-      query.limit(limite);
-
-      const cuentas = await query.getMany();
-
-      // Mapear a ResponsePucDto
-      return cuentas.map(cuenta => this.mapearAResponseDto(cuenta));
-
-    } catch (error) {
-      this.logger.error('Error obteniendo cuentas:', error);
-      throw new BadRequestException('Error obteniendo cuentas del PUC');
+    // Aplicar filtros
+    if (filtros.busqueda) {
+      query.andWhere(
+        '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.nombre ILIKE :busqueda)',
+        { busqueda: `%${filtros.busqueda}%` }
+      );
     }
+
+    if (filtros.tipo) {
+      query.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: filtros.tipo });
+    }
+
+    if (filtros.naturaleza) {
+      query.andWhere('cuenta.naturaleza = :naturaleza', { naturaleza: filtros.naturaleza });
+    }
+
+    if (filtros.estado) {
+      query.andWhere('cuenta.estado = :estado', { estado: filtros.estado });
+    }
+
+    if (filtros.codigo_padre) {
+      query.andWhere('cuenta.codigo_padre = :codigo_padre', { codigo_padre: filtros.codigo_padre });
+    }
+
+    if (filtros.solo_movimiento) {
+      query.andWhere('cuenta.acepta_movimientos = :acepta_movimientos', { acepta_movimientos: true });
+    }
+
+    // Solo cuentas activas por defecto
+    query.andWhere('cuenta.activo = :activo', { activo: true });
+
+    // Contar total para paginación
+    const totalQuery = query.clone();
+    const total = await totalQuery.getCount();
+
+    // Aplicar paginación
+    const limite = Math.min(Number(filtros.limite) || 50, 1000);
+    const pagina = Number(filtros.pagina) || 1;
+    const offset = (pagina - 1) * limite;
+
+    query.orderBy('cuenta.codigo_completo', 'ASC');
+    query.limit(limite);
+    query.offset(offset);
+
+    const cuentas = await query.getMany();
+
+    // Calcular paginación
+    const totalPaginas = Math.ceil(total / limite);
+
+    // Estructura consistente para el frontend
+    return {
+      success: true,
+      data: cuentas.map(cuenta => this.mapearAResponseDto(cuenta)), // Asegurar que devuelve un array
+      pagination: {
+        total,
+        totalPaginas,
+        paginaActual: pagina,
+        limite,
+        hasNext: pagina < totalPaginas,
+        hasPrev: pagina > 1
+      },
+      filtros,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    this.logger.error('Error obteniendo cuentas:', error);
+    
+    // Devolver estructura segura en caso de error
+    return {
+      success: false,
+      data: [], // Siempre devolver un array vacío en caso de error
+      pagination: {
+        total: 0,
+        totalPaginas: 0,
+        paginaActual: 1,
+        limite: 50,
+        hasNext: false,
+        hasPrev: false
+      },
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
   }
+}
 
   async crearCuenta(createCuentaDto: CreateCuentaPucDto): Promise<ResponsePucDto> {
     try {
@@ -263,90 +300,142 @@ export class PucService {
   // ===============================================
 
   async obtenerEstadisticas(): Promise<any> {
-    try {
-      const stats = await this.cuentaPucRepository
-        .createQueryBuilder('cuenta')
-        .select([
-          'COUNT(*) as total',
-          'COUNT(CASE WHEN cuenta.tipo_cuenta = \'CLASE\' THEN 1 END) as clases',
-          'COUNT(CASE WHEN cuenta.tipo_cuenta = \'GRUPO\' THEN 1 END) as grupos',
-          'COUNT(CASE WHEN cuenta.tipo_cuenta = \'CUENTA\' THEN 1 END) as cuentas_nivel3',
-          'COUNT(CASE WHEN cuenta.tipo_cuenta = \'SUBCUENTA\' THEN 1 END) as subcuentas',
-          'COUNT(CASE WHEN cuenta.tipo_cuenta = \'DETALLE\' THEN 1 END) as detalles',
-          'COUNT(CASE WHEN cuenta.acepta_movimientos = true THEN 1 END) as acepta_movimientos',
-          'COUNT(CASE WHEN cuenta.naturaleza = \'DEBITO\' THEN 1 END) as debito',
-          'COUNT(CASE WHEN cuenta.naturaleza = \'CREDITO\' THEN 1 END) as credito',
-          'COUNT(CASE WHEN cuenta.estado = \'ACTIVA\' THEN 1 END) as activas',
-          'COUNT(CASE WHEN cuenta.estado = \'INACTIVA\' THEN 1 END) as inactivas'
-        ])
-        .where('cuenta.activo = :activo', { activo: true })
-        .getRawOne();
+  try {
+    const stats = await this.cuentaPucRepository
+      .createQueryBuilder('cuenta')
+      .select([
+        'COUNT(*) as total',
+        'COUNT(CASE WHEN cuenta.tipo_cuenta = \'CLASE\' THEN 1 END) as clases',
+        'COUNT(CASE WHEN cuenta.tipo_cuenta = \'GRUPO\' THEN 1 END) as grupos',
+        'COUNT(CASE WHEN cuenta.tipo_cuenta = \'CUENTA\' THEN 1 END) as cuentas_nivel3',
+        'COUNT(CASE WHEN cuenta.tipo_cuenta = \'SUBCUENTA\' THEN 1 END) as subcuentas',
+        'COUNT(CASE WHEN cuenta.tipo_cuenta = \'DETALLE\' THEN 1 END) as detalles',
+        'COUNT(CASE WHEN cuenta.acepta_movimientos = true THEN 1 END) as acepta_movimientos',
+        'COUNT(CASE WHEN cuenta.naturaleza = \'DEBITO\' THEN 1 END) as debito',
+        'COUNT(CASE WHEN cuenta.naturaleza = \'CREDITO\' THEN 1 END) as credito',
+        'COUNT(CASE WHEN cuenta.estado = \'ACTIVA\' THEN 1 END) as activas',
+        'COUNT(CASE WHEN cuenta.estado = \'INACTIVA\' THEN 1 END) as inactivas'
+      ])
+      .where('cuenta.activo = :activo', { activo: true })
+      .getRawOne();
 
-      return {
-        total: parseInt(stats.total),
+    // Estructura consistente para el frontend
+    return {
+      success: true,
+      data: {
+        total: parseInt(stats.total) || 0,
         por_tipo: {
-          clases: parseInt(stats.clases),
-          grupos: parseInt(stats.grupos),
-          cuentas: parseInt(stats.cuentas_nivel3),
-          subcuentas: parseInt(stats.subcuentas),
-          detalles: parseInt(stats.detalles)
+          clases: parseInt(stats.clases) || 0,
+          grupos: parseInt(stats.grupos) || 0,
+          cuentas: parseInt(stats.cuentas_nivel3) || 0,
+          subcuentas: parseInt(stats.subcuentas) || 0,
+          detalles: parseInt(stats.detalles) || 0
         },
         por_naturaleza: {
-          debito: parseInt(stats.debito),
-          credito: parseInt(stats.credito)
+          debito: parseInt(stats.debito) || 0,
+          credito: parseInt(stats.credito) || 0
         },
         por_estado: {
-          activas: parseInt(stats.activas),
-          inactivas: parseInt(stats.inactivas)
+          activas: parseInt(stats.activas) || 0,
+          inactivas: parseInt(stats.inactivas) || 0
         },
-        acepta_movimientos: parseInt(stats.acepta_movimientos)
-      };
+        acepta_movimientos: parseInt(stats.acepta_movimientos) || 0,
+        timestamp: new Date().toISOString()
+      }
+    };
 
-    } catch (error) {
-      this.logger.error('Error obteniendo estadísticas:', error);
-      throw new BadRequestException('Error obteniendo estadísticas del PUC');
-    }
+  } catch (error) {
+    this.logger.error('Error obteniendo estadísticas:', error);
+    
+    // Devolver estructura segura en caso de error
+    return {
+      success: false,
+      data: {
+        total: 0,
+        por_tipo: {
+          clases: 0,
+          grupos: 0,
+          cuentas: 0,
+          subcuentas: 0,
+          detalles: 0
+        },
+        por_naturaleza: {
+          debito: 0,
+          credito: 0
+        },
+        por_estado: {
+          activas: 0,
+          inactivas: 0
+        },
+        acepta_movimientos: 0,
+        timestamp: new Date().toISOString()
+      },
+      error: error.message
+    };
   }
+}
 
   async obtenerArbol(codigoPadre?: string, incluirInactivas: boolean = false): Promise<any> {
-    try {
-      const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
+  try {
+    const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
-      if (codigoPadre) {
-        query.where('cuenta.codigo_padre = :codigo_padre', { codigo_padre: codigoPadre });
-      } else {
-        query.where('cuenta.codigo_padre IS NULL');
-      }
-
-      if (!incluirInactivas) {
-        query.andWhere('cuenta.activo = :activo', { activo: true });
-      }
-
-      query.orderBy('cuenta.codigo_completo', 'ASC');
-
-      const cuentas = await query.getMany();
-
-      // Agregar información de hijos para cada cuenta
-      const cuentasConHijos = await Promise.all(
-        cuentas.map(async (cuenta) => {
-          const tieneHijos = await this.cuentaPucRepository.count({
-            where: { codigo_padre: cuenta.codigo_completo, activo: true }
-          }) > 0;
-
-          return {
-            ...this.mapearAResponseDto(cuenta),
-            tiene_hijos: tieneHijos
-          };
-        })
-      );
-
-      return cuentasConHijos;
-
-    } catch (error) {
-      this.logger.error('Error obteniendo árbol:', error);
-      throw new BadRequestException('Error obteniendo árbol del PUC');
+    if (codigoPadre) {
+      query.where('cuenta.codigo_padre = :codigo_padre', { codigo_padre: codigoPadre });
+    } else {
+      query.where('cuenta.codigo_padre IS NULL');
     }
+
+    if (!incluirInactivas) {
+      query.andWhere('cuenta.activo = :activo', { activo: true });
+    }
+
+    query.orderBy('cuenta.codigo_completo', 'ASC');
+
+    const cuentas = await query.getMany();
+
+    // Agregar información de hijos para cada cuenta
+    const cuentasConHijos = await Promise.all(
+      cuentas.map(async (cuenta) => {
+        const tieneHijos = await this.cuentaPucRepository.count({
+          where: { codigo_padre: cuenta.codigo_completo, activo: true }
+        }) > 0;
+
+        return {
+          ...this.mapearAResponseDto(cuenta),
+          tiene_hijos: tieneHijos
+        };
+      })
+    );
+
+    // Estructura consistente para el frontend
+    return {
+      success: true,
+      data: cuentasConHijos, // Asegurar que devuelve un array
+      metadata: {
+        codigo_padre: codigoPadre || null,
+        incluir_inactivas: incluirInactivas,
+        total_nodos: cuentasConHijos.length
+      },
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    this.logger.error('Error obteniendo árbol:', error);
+    
+    // Devolver estructura segura en caso de error
+    return {
+      success: false,
+      data: [], // Siempre devolver un array vacío en caso de error
+      metadata: {
+        codigo_padre: codigoPadre || null,
+        incluir_inactivas: incluirInactivas,
+        total_nodos: 0
+      },
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
   }
+}
 
   async obtenerSubcuentas(codigo: string, incluirInactivas: boolean = false): Promise<ResponsePucDto[]> {
     try {

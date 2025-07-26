@@ -2,8 +2,16 @@
 import axios from 'axios';
 
 // Configuración base de la API
+const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
+
+console.log('🔧 API Configuration:', {
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  baseURL: baseURL,
+  NODE_ENV: process.env.NODE_ENV
+});
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1', // Corregida para tu backend
+  baseURL: baseURL,
   timeout: 30000, // 30 segundos
   headers: {
     'Content-Type': 'application/json',
@@ -25,6 +33,7 @@ api.interceptors.request.use(
       console.log('API Request:', {
         method: config.method,
         url: config.url,
+        fullURL: config.baseURL + config.url,
         data: config.data,
       });
     }
@@ -60,14 +69,14 @@ api.interceptors.response.use(
       switch (status) {
         case 401:
           console.error('Error 401: No autorizado');
-          // Opcional: redirect a login
-          // window.location.href = '/login';
           break;
         case 403:
           console.error('Error 403: Acceso denegado');
           break;
         case 404:
           console.error('Error 404: Recurso no encontrado');
+          console.error('URL intentada:', error.config?.url);
+          console.error('Base URL:', error.config?.baseURL);
           break;
         case 500:
           console.error('Error 500: Error interno del servidor');

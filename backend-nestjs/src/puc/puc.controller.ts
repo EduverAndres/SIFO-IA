@@ -82,41 +82,50 @@ export class PucController {
   }
 
   @Get('estadisticas')
-  @ApiOperation({ summary: 'Obtener estadísticas generales del PUC' })
-  @ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
-  async obtenerEstadisticas(): Promise<any> {
-    console.log('📊 GET /api/v1/puc/estadisticas');
-    return await this.pucService.obtenerEstadisticas();
-  }
+@ApiOperation({ summary: 'Obtener estadísticas generales del PUC' })
+@ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
+async obtenerEstadisticas(): Promise<any> {
+  console.log('📊 GET /api/v1/puc/estadisticas');
+  const resultado = await this.pucService.obtenerEstadisticas();
+  
+  // El servicio ya devuelve la estructura correcta
+  return resultado;
+}
 
   // ===============================================
   // 🌳 ENDPOINTS DE ÁRBOL JERÁRQUICO
   // ===============================================
 
   @Get('arbol')
-  @ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas PUC' })
-  @ApiQuery({ name: 'codigo_padre', required: false, type: String, description: 'Código de la cuenta padre para filtrar' })
-  @ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
-  @ApiResponse({ status: 200, description: 'Árbol jerárquico obtenido exitosamente' })
-  async obtenerArbol(
-    @Query('codigo_padre') codigoPadre?: string,
-    @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
-  ): Promise<any> {
-    console.log(`🌳 GET /api/v1/puc/arbol - padre: ${codigoPadre}, inactivas: ${incluirInactivas}`);
-    return await this.pucService.obtenerArbol(codigoPadre, incluirInactivas);
-  }
+@ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas PUC' })
+@ApiQuery({ name: 'codigo_padre', required: false, type: String, description: 'Código de la cuenta padre para filtrar' })
+@ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
+@ApiResponse({ status: 200, description: 'Árbol jerárquico obtenido exitosamente' })
+async obtenerArbol(
+  @Query('codigo_padre') codigoPadre?: string,
+  @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
+): Promise<any> {
+  console.log(`🌳 GET /api/v1/puc/arbol - padre: ${codigoPadre}, inactivas: ${incluirInactivas}`);
+  const resultado = await this.pucService.obtenerArbol(codigoPadre, incluirInactivas);
+  
+  // El servicio ya devuelve la estructura correcta
+  return resultado;
+}
 
   // ===============================================
   // 📋 ENDPOINTS CRUD DE CUENTAS
   // ===============================================
 
   @Get('cuentas')
-  @ApiOperation({ summary: 'Obtener lista de cuentas PUC con filtros' })
-  @ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente', type: [ResponsePucDto] })
-  async obtenerCuentas(@Query() filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
-    console.log('📋 GET /api/v1/puc/cuentas - filtros:', filtros);
-    return await this.pucService.obtenerCuentas(filtros);
-  }
+@ApiOperation({ summary: 'Obtener lista de cuentas PUC con filtros' })
+@ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente', type: [ResponsePucDto] })
+async obtenerCuentas(@Query() filtros: FiltrosPucDto): Promise<any> {
+  console.log('📋 GET /api/v1/puc/cuentas - filtros:', filtros);
+  const resultado = await this.pucService.obtenerCuentas(filtros);
+  
+  // El servicio ya devuelve la estructura correcta
+  return resultado;
+}
 
   @Post('cuentas')
   @ApiOperation({ summary: 'Crear nueva cuenta PUC' })
