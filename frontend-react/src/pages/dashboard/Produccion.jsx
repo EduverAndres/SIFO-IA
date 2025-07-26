@@ -57,10 +57,11 @@ const Produccion = () => {
   const [selectedOrden, setSelectedOrden] = useState(null);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
 
-  // Estados para datos de la API
+  // Cambiar la inicialización del estado
   const [proveedores, setProveedores] = useState([]);
   const [productos, setProductos] = useState([]);
   const [ordenesCompra, setOrdenesCompra] = useState([]);
+
   const [estadisticas, setEstadisticas] = useState({
     total: 0,
     pendientes: 0,
@@ -95,10 +96,23 @@ const Produccion = () => {
     precio_unitario: 0
   });
 
+
+
   // Cargar datos al montar el componente
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Agregar al useEffect inicial
+  useEffect(() => {
+    console.log('🔍 Debug - Estados actuales:', {
+      proveedores: { tipo: typeof proveedores, esArray: Array.isArray(proveedores), length: proveedores?.length },
+      productos: { tipo: typeof productos, esArray: Array.isArray(productos), length: productos?.length },
+      isLoading,
+      error
+    });
+  }, [proveedores, productos, isLoading, error]);
+
 
   // Cargar datos cuando cambie la pestaña activa
   useEffect(() => {
@@ -108,27 +122,55 @@ const Produccion = () => {
     }
   }, [activeTab]);
 
+  // Mejorar la función loadInitialData
   const loadInitialData = async () => {
     setIsLoading(true);
+    setError('');
+
     try {
-      await Promise.all([
+      const results = await Promise.allSettled([
         loadProveedores(),
         loadProductos()
       ]);
+
+      // Verificar si alguna promesa falló
+      const failures = results.filter(result => result.status === 'rejected');
+      if (failures.length > 0) {
+        console.error('Algunos datos fallaron al cargar:', failures);
+        showError(`Error al cargar ${failures.length} conjunto(s) de datos`);
+      }
     } catch (error) {
-      console.error('Error al cargar datos iniciales:', error);
-      setError('Error al cargar los datos iniciales');
+      console.error('Error crítico al cargar datos iniciales:', error);
+      setError('Error crítico al cargar los datos iniciales');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Agregar estas validaciones antes del return principal
+  const validProveedores = Array.isArray(proveedores) ? proveedores : [];
+  const validProductos = Array.isArray(productos) ? productos : [];
+  const validOrdenesCompra = Array.isArray(ordenesCompra) ? ordenesCompra : [];
+
+  // Usar estas variables validadas en todo el render
+  // Ejemplo en los selects:
+  <select>
+    <option value="">Seleccionar proveedor...</option>
+    {validProveedores.map((proveedor) => (
+      <option key={proveedor.id} value={proveedor.id}>
+        {proveedor.nombre}
+      </option>
+    ))}
+  </select>
+
+  // Usar en todas las funciones de carga
   const loadProveedores = async () => {
     try {
       const data = await getProveedores();
-      setProveedores(data);
+      setProveedores(safeArrayAccess(data));
     } catch (error) {
       console.error('Error al cargar proveedores:', error);
+      setProveedores([]);
       showError('Error al cargar proveedores');
     }
   };
@@ -136,22 +178,85 @@ const Produccion = () => {
   const loadProductos = async () => {
     try {
       const data = await getProductos();
-      setProductos(data);
+      console.log('Respuesta productos:', data); // Para debug
+      setProductos(safeArrayAccess(data)); // Usar la función helper
     } catch (error) {
       console.error('Error al cargar productos:', error);
+      setProductos([]); // ✅ Importante: fallback a array vacío
       showError('Error al cargar productos');
     }
   };
 
+
+
+  // Función helper mejorada
+  const renderWithErrorBoundary = (renderFunction, fallback = null) => {
+    try {
+      const result = renderFunction();
+      return result;
+    } catch (error) {
+      console.error('Error en render:', error);
+      return fallback || (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+          <p className="text-red-600">Error al mostrar contenido</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 text-red-800 underline"
+          >
+            Recargar página
+          </button>
+        </div>
+      );
+    }
+  };
+
+  // Función para editar proveedor
+  const editarProveedor = (proveedor) => {
+    console.log('Editar proveedor:', proveedor);
+    // Implementar según tus necesidades
+  };
+
+
+
+  // Funciones de render separadas
+  const renderProveedoresRows = () => {
+    return validProveedores.map((proveedor) => (
+      <tr key={proveedor.id} className="hover:bg-gray-50">
+        <td className="px-4 py-3 text-sm font-medium text-gray-900">{proveedor.nombre}</td>
+        <td className="px-4 py-3 text-sm text-gray-700">{proveedor.contacto}</td>
+        <td className="px-4 py-3 text-sm text-gray-700">{proveedor.correo_electronico}</td>
+        <td className="px-4 py-3 text-sm">
+          <div className="flex space-x-2">
+            <button onClick={() => editarProveedor(proveedor)} className="text-blue-600">
+              <FaEdit />
+            </button>
+            <button onClick={() => eliminarProveedor(proveedor.id)} className="text-red-600">
+              <FaTrash />
+            </button>
+          </div>
+        </td>
+      </tr>
+    ));
+  };
+
+  // En el JSX:
+  <tbody className="divide-y divide-gray-200">
+    {renderWithErrorBoundary(renderProveedoresRows)}
+  </tbody>
+
+
   const loadOrdenesCompra = async () => {
     try {
       const data = await getOrdenesCompra();
-      setOrdenesCompra(data);
+      console.log('Respuesta órdenes:', data); // Para debug
+      setOrdenesCompra(safeArrayAccess(data)); // Usar la función helper
     } catch (error) {
-      console.error('Error al cargar órdenes de compra:', error);
+      console.error('Error al cargar órdenes:', error);
+      setOrdenesCompra([]); // ✅ Importante: fallback a array vacío
       showError('Error al cargar órdenes de compra');
     }
   };
+
 
   const loadEstadisticas = async () => {
     try {
@@ -234,92 +339,103 @@ const Produccion = () => {
     }
   };
 
-  // En frontend-react/src/pages/dashboard/Produccion.jsx
-// Corregir la función handleOrdenCompraSubmit
 
-const handleOrdenCompraSubmit = async (e) => {
-  e.preventDefault();
-  if (ordenCompraForm.id_proveedor && ordenCompraForm.fecha_entrega && ordenCompraForm.detalles.length > 0) {
-    setIsLoading(true);
-    try {
-      // Preparar datos para enviar al backend - CORREGIDO
-      const ordenParaEnviar = {
-        id_proveedor: parseInt(ordenCompraForm.id_proveedor),
-        fecha_entrega: ordenCompraForm.fecha_entrega,
-        detalles: ordenCompraForm.detalles.map(detalle => ({
-          id_producto: parseInt(detalle.id_producto), // ✅ ASEGURAR QUE SEA NÚMERO
-          cantidad: parseInt(detalle.cantidad), // ✅ ASEGURAR QUE SEA NÚMERO
-          precio_unitario: parseFloat(detalle.precio_unitario) // ✅ ASEGURAR QUE SEA NÚMERO
-        }))
+  // Agregar esta función de utilidad al inicio del componente
+  const safeArrayAccess = (data, fallback = []) => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.data)) return data.data;
+    if (data && Array.isArray(data.proveedores)) return data.proveedores;
+    if (data && Array.isArray(data.productos)) return data.productos;
+    if (data && Array.isArray(data.ordenes)) return data.ordenes;
+    return fallback;
+  };
+
+  // En frontend-react/src/pages/dashboard/Produccion.jsx
+  // Corregir la función handleOrdenCompraSubmit
+
+  const handleOrdenCompraSubmit = async (e) => {
+    e.preventDefault();
+    if (ordenCompraForm.id_proveedor && ordenCompraForm.fecha_entrega && ordenCompraForm.detalles.length > 0) {
+      setIsLoading(true);
+      try {
+        // Preparar datos para enviar al backend - CORREGIDO
+        const ordenParaEnviar = {
+          id_proveedor: parseInt(ordenCompraForm.id_proveedor),
+          fecha_entrega: ordenCompraForm.fecha_entrega,
+          detalles: ordenCompraForm.detalles.map(detalle => ({
+            id_producto: parseInt(detalle.id_producto), // ✅ ASEGURAR QUE SEA NÚMERO
+            cantidad: parseInt(detalle.cantidad), // ✅ ASEGURAR QUE SEA NÚMERO
+            precio_unitario: parseFloat(detalle.precio_unitario) // ✅ ASEGURAR QUE SEA NÚMERO
+          }))
+        };
+
+        console.log('Datos a enviar:', JSON.stringify(ordenParaEnviar, null, 2));
+
+        const response = await crearOrdenCompra(ordenParaEnviar);
+        setOrdenCompraForm({ id_proveedor: '', fecha_entrega: '', detalles: [] });
+        await loadOrdenesCompra();
+        showSuccess(`¡Orden de compra creada exitosamente! ID: ${response.orden?.id || 'N/A'}`);
+      } catch (error) {
+        console.error('Error completo:', error);
+
+        // Mejorar el manejo de errores para mostrar más detalles
+        let errorMessage = 'Error al crear orden de compra';
+
+        if (error.message) {
+          try {
+            // Si el error contiene detalles de validación, mostrarlos
+            if (error.message.includes('Errores de validación')) {
+              errorMessage = 'Error de validación. Verifica que:\n' +
+                '• Todos los productos estén seleccionados\n' +
+                '• Las cantidades sean números válidos mayores a 0\n' +
+                '• Los precios sean números válidos mayores a 0';
+            } else {
+              errorMessage = error.message;
+            }
+          } catch (e) {
+            errorMessage = 'Error al crear orden de compra: ' + error.message;
+          }
+        }
+
+        showError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      showError('Por favor complete todos los campos requeridos y agregue al menos un detalle.');
+    }
+  };
+
+  // También corregir la función agregarDetalle
+  const agregarDetalle = () => {
+    if (detalleTemp.id_producto && detalleTemp.cantidad > 0 && detalleTemp.precio_unitario > 0) {
+      const producto = productos.find(p => p.id == detalleTemp.id_producto);
+
+      if (!producto) {
+        showError('Producto no encontrado. Por favor seleccione un producto válido.');
+        return;
+      }
+
+      const nuevoDetalle = {
+        id: Date.now(), // ID temporal para la UI
+        id_producto: parseInt(detalleTemp.id_producto), // ✅ CONVERTIR A NÚMERO
+        producto: producto,
+        cantidad: parseInt(detalleTemp.cantidad), // ✅ CONVERTIR A NÚMERO
+        precio_unitario: parseFloat(detalleTemp.precio_unitario), // ✅ CONVERTIR A NÚMERO
+        total: parseInt(detalleTemp.cantidad) * parseFloat(detalleTemp.precio_unitario)
       };
 
-      console.log('Datos a enviar:', JSON.stringify(ordenParaEnviar, null, 2));
+      console.log('Agregando detalle:', nuevoDetalle); // Debug
 
-      const response = await crearOrdenCompra(ordenParaEnviar);
-      setOrdenCompraForm({ id_proveedor: '', fecha_entrega: '', detalles: [] });
-      await loadOrdenesCompra();
-      showSuccess(`¡Orden de compra creada exitosamente! ID: ${response.orden?.id || 'N/A'}`);
-    } catch (error) {
-      console.error('Error completo:', error);
-      
-      // Mejorar el manejo de errores para mostrar más detalles
-      let errorMessage = 'Error al crear orden de compra';
-      
-      if (error.message) {
-        try {
-          // Si el error contiene detalles de validación, mostrarlos
-          if (error.message.includes('Errores de validación')) {
-            errorMessage = 'Error de validación. Verifica que:\n' +
-                          '• Todos los productos estén seleccionados\n' +
-                          '• Las cantidades sean números válidos mayores a 0\n' +
-                          '• Los precios sean números válidos mayores a 0';
-          } else {
-            errorMessage = error.message;
-          }
-        } catch (e) {
-          errorMessage = 'Error al crear orden de compra: ' + error.message;
-        }
-      }
-      
-      showError(errorMessage);
-    } finally {
-      setIsLoading(false);
+      setOrdenCompraForm({
+        ...ordenCompraForm,
+        detalles: [...ordenCompraForm.detalles, nuevoDetalle]
+      });
+      setDetalleTemp({ id_producto: '', cantidad: 1, precio_unitario: 0 });
+    } else {
+      showError('Por favor complete todos los campos del detalle con valores válidos.');
     }
-  } else {
-    showError('Por favor complete todos los campos requeridos y agregue al menos un detalle.');
-  }
-};
-
-// También corregir la función agregarDetalle
-const agregarDetalle = () => {
-  if (detalleTemp.id_producto && detalleTemp.cantidad > 0 && detalleTemp.precio_unitario > 0) {
-    const producto = productos.find(p => p.id == detalleTemp.id_producto);
-    
-    if (!producto) {
-      showError('Producto no encontrado. Por favor seleccione un producto válido.');
-      return;
-    }
-    
-    const nuevoDetalle = {
-      id: Date.now(), // ID temporal para la UI
-      id_producto: parseInt(detalleTemp.id_producto), // ✅ CONVERTIR A NÚMERO
-      producto: producto,
-      cantidad: parseInt(detalleTemp.cantidad), // ✅ CONVERTIR A NÚMERO
-      precio_unitario: parseFloat(detalleTemp.precio_unitario), // ✅ CONVERTIR A NÚMERO
-      total: parseInt(detalleTemp.cantidad) * parseFloat(detalleTemp.precio_unitario)
-    };
-    
-    console.log('Agregando detalle:', nuevoDetalle); // Debug
-    
-    setOrdenCompraForm({
-      ...ordenCompraForm,
-      detalles: [...ordenCompraForm.detalles, nuevoDetalle]
-    });
-    setDetalleTemp({ id_producto: '', cantidad: 1, precio_unitario: 0 });
-  } else {
-    showError('Por favor complete todos los campos del detalle con valores válidos.');
-  }
-};
+  };
 
 
   const eliminarDetalle = (id) => {
@@ -365,12 +481,12 @@ const agregarDetalle = () => {
       setIsLoading(true);
       try {
         await crearProducto(productoForm);
-        setProductoForm({ 
-          nombre: '', 
-          descripcion: '', 
-          stock_actual: 0, 
-          stock_minimo: 1, 
-          stock_maximo: 100 
+        setProductoForm({
+          nombre: '',
+          descripcion: '',
+          stock_actual: 0,
+          stock_minimo: 1,
+          stock_maximo: 100
         });
         await loadProductos();
         showSuccess('¡Producto creado exitosamente!');
@@ -418,14 +534,14 @@ const agregarDetalle = () => {
   // Funciones de filtrado y ordenamiento
   const filteredOrdenes = ordenesCompra.filter(orden => {
     const matchesSearch = orden.id.toString().includes(searchTerm) ||
-                         orden.proveedor?.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
+      orden.proveedor?.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || orden.estado === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
   const sortedOrdenes = [...filteredOrdenes].sort((a, b) => {
     let aValue, bValue;
-    
+
     switch (sortField) {
       case 'id':
         aValue = a.id;
@@ -503,8 +619,8 @@ const agregarDetalle = () => {
       {/* Header con navegación de regreso */}
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Link 
-            to="/dashboard/menu-financiero" 
+          <Link
+            to="/dashboard/menu-financiero"
             className="flex items-center text-blue-600 hover:text-blue-800 mr-6 transition-colors duration-200"
           >
             <FaArrowLeft className="mr-2" />
@@ -544,7 +660,7 @@ const agregarDetalle = () => {
               {tabs.map((tab) => {
                 const IconComponent = tab.icon;
                 const isActive = activeTab === tab.id;
-                
+
                 return (
                   <button
                     key={tab.id}
@@ -569,7 +685,7 @@ const agregarDetalle = () => {
                       {tab.name}
                     </span>
                     <span className="sm:hidden text-[10px] leading-tight text-center">
-                      {tab.name.includes('Orden') 
+                      {tab.name.includes('Orden')
                         ? 'Orden'
                         : tab.name.split(' ')[1] || tab.name.split(' ')[0]
                       }
@@ -579,7 +695,7 @@ const agregarDetalle = () => {
               })}
             </nav>
           </div>
-          
+
           {/* Indicador de pestañas activas para móvil */}
           <div className="lg:hidden flex justify-center py-2 bg-gray-50 border-t border-gray-100">
             <div className="flex space-x-1">
@@ -587,17 +703,16 @@ const agregarDetalle = () => {
                 <button
                   key={`indicator-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                    activeTab === tab.id 
-                      ? `bg-${tab.color}-500 w-6` 
-                      : 'bg-gray-300 hover:bg-gray-400'
-                  }`}
+                  className={`w-2 h-2 rounded-full transition-all duration-200 ${activeTab === tab.id
+                    ? `bg-${tab.color}-500 w-6`
+                    : 'bg-gray-300 hover:bg-gray-400'
+                    }`}
                   aria-label={`Ir a ${tab.name}`}
                 />
               ))}
             </div>
           </div>
-          
+
           {/* Mensaje informativo para pantallas muy pequeñas */}
           <div className="sm:hidden px-4 py-1 bg-blue-50 text-center">
             <p className="text-xs text-blue-600">
@@ -615,7 +730,7 @@ const agregarDetalle = () => {
                 <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Proveedor</h2>
                 <FaUserTie className="text-2xl text-blue-600" />
               </div>
-              
+
               <form onSubmit={handleProveedorSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -624,14 +739,14 @@ const agregarDetalle = () => {
                   <input
                     type="text"
                     value={proveedorForm.nombre}
-                    onChange={(e) => setProveedorForm({...proveedorForm, nombre: e.target.value})}
+                    onChange={(e) => setProveedorForm({ ...proveedorForm, nombre: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ej: Tech Solutions S.A."
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Persona de Contacto *
@@ -639,14 +754,14 @@ const agregarDetalle = () => {
                   <input
                     type="text"
                     value={proveedorForm.contacto}
-                    onChange={(e) => setProveedorForm({...proveedorForm, contacto: e.target.value})}
+                    onChange={(e) => setProveedorForm({ ...proveedorForm, contacto: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ej: Juan Pérez"
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Correo Electrónico *
@@ -654,14 +769,14 @@ const agregarDetalle = () => {
                   <input
                     type="email"
                     value={proveedorForm.correo_electronico}
-                    onChange={(e) => setProveedorForm({...proveedorForm, correo_electronico: e.target.value})}
+                    onChange={(e) => setProveedorForm({ ...proveedorForm, correo_electronico: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ej: contacto@proveedor.com"
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <button
                     type="submit"
@@ -690,38 +805,24 @@ const agregarDetalle = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {proveedores.map((proveedor) => (
+                      {Array.isArray(proveedores) ? proveedores.map((proveedor) => (
                         <tr key={proveedor.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{proveedor.nombre}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{proveedor.contacto}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{proveedor.correo_electronico}</td>
                           <td className="px-4 py-3 text-sm">
-                            <div className="flex space-x-2">
-                              <button 
-                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100"
-                                title="Ver detalles"
-                              >
-                                <FaEye />
-                              </button>
-                              <button 
-                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-100"
-                                title="Editar"
-                              >
-                                <FaEdit />
-                              </button>
-                              <button 
-                                onClick={() => eliminarProveedorHandler(proveedor.id)}
-                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
-                                title="Eliminar"
-                                disabled={isLoading}
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
+                            {/* Acciones */}
                           </td>
                         </tr>
-                      ))}
+                      )) : (
+                        <tr>
+                          <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
+                            {isLoading ? 'Cargando proveedores...' : 'No hay proveedores disponibles'}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
+
                   </table>
                 </div>
               </div>
@@ -735,7 +836,7 @@ const agregarDetalle = () => {
                 <h2 className="text-xl font-bold text-gray-800">Crear Nuevo Producto</h2>
                 <FaBoxOpen className="text-2xl text-green-600" />
               </div>
-              
+
               <form onSubmit={handleProductoSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -744,14 +845,14 @@ const agregarDetalle = () => {
                   <input
                     type="text"
                     value={productoForm.nombre}
-                    onChange={(e) => setProductoForm({...productoForm, nombre: e.target.value})}
+                    onChange={(e) => setProductoForm({ ...productoForm, nombre: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Ej: Laptop Dell XPS"
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Stock Actual
@@ -759,20 +860,20 @@ const agregarDetalle = () => {
                   <input
                     type="number"
                     value={productoForm.stock_actual}
-                    onChange={(e) => setProductoForm({...productoForm, stock_actual: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setProductoForm({ ...productoForm, stock_actual: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     min="0"
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Descripción *
                   </label>
                   <textarea
                     value={productoForm.descripcion}
-                    onChange={(e) => setProductoForm({...productoForm, descripcion: e.target.value})}
+                    onChange={(e) => setProductoForm({ ...productoForm, descripcion: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     rows="3"
                     placeholder="Descripción detallada del producto..."
@@ -780,7 +881,7 @@ const agregarDetalle = () => {
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Stock Mínimo *
@@ -788,14 +889,14 @@ const agregarDetalle = () => {
                   <input
                     type="number"
                     value={productoForm.stock_minimo}
-                    onChange={(e) => setProductoForm({...productoForm, stock_minimo: parseInt(e.target.value) || 1})}
+                    onChange={(e) => setProductoForm({ ...productoForm, stock_minimo: parseInt(e.target.value) || 1 })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     min="1"
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Stock Máximo *
@@ -803,14 +904,14 @@ const agregarDetalle = () => {
                   <input
                     type="number"
                     value={productoForm.stock_maximo}
-                    onChange={(e) => setProductoForm({...productoForm, stock_maximo: parseInt(e.target.value) || 100})}
+                    onChange={(e) => setProductoForm({ ...productoForm, stock_maximo: parseInt(e.target.value) || 100 })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     min="1"
                     required
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <button
                     type="submit"
@@ -851,32 +952,31 @@ const agregarDetalle = () => {
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{producto.stock_actual}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{producto.stock_minimo} / {producto.stock_maximo}</td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              producto.stock_actual <= producto.stock_minimo 
-                                ? 'bg-red-100 text-red-800' 
-                                : producto.stock_actual >= producto.stock_maximo
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${producto.stock_actual <= producto.stock_minimo
+                              ? 'bg-red-100 text-red-800'
+                              : producto.stock_actual >= producto.stock_maximo
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-green-100 text-green-800'
-                            }`}>
-                              {producto.stock_actual <= producto.stock_minimo ? 'Bajo' : 
-                               producto.stock_actual >= producto.stock_maximo ? 'Alto' : 'Normal'}
+                              }`}>
+                              {producto.stock_actual <= producto.stock_minimo ? 'Bajo' :
+                                producto.stock_actual >= producto.stock_maximo ? 'Alto' : 'Normal'}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex space-x-2">
-                              <button 
+                              <button
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100"
                                 title="Ver detalles"
                               >
                                 <FaEye />
                               </button>
-                              <button 
+                              <button
                                 className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-100"
                                 title="Editar"
                               >
                                 <FaEdit />
                               </button>
-                              <button 
+                              <button
                                 onClick={() => eliminarProductoHandler(producto.id)}
                                 className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
                                 title="Eliminar"
@@ -902,7 +1002,7 @@ const agregarDetalle = () => {
                 <h2 className="text-xl font-bold text-gray-800">Crear Orden de Compra</h2>
                 <FaShoppingCart className="text-2xl text-purple-600" />
               </div>
-              
+
               <form onSubmit={handleOrdenCompraSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -911,7 +1011,7 @@ const agregarDetalle = () => {
                     </label>
                     <select
                       value={ordenCompraForm.id_proveedor}
-                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, id_proveedor: e.target.value})}
+                      onChange={(e) => setOrdenCompraForm({ ...ordenCompraForm, id_proveedor: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       required
                       disabled={isLoading}
@@ -924,7 +1024,7 @@ const agregarDetalle = () => {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Fecha de Entrega *
@@ -932,7 +1032,7 @@ const agregarDetalle = () => {
                     <input
                       type="date"
                       value={ordenCompraForm.fecha_entrega}
-                      onChange={(e) => setOrdenCompraForm({...ordenCompraForm, fecha_entrega: e.target.value})}
+                      onChange={(e) => setOrdenCompraForm({ ...ordenCompraForm, fecha_entrega: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       required
                       disabled={isLoading}
@@ -948,38 +1048,40 @@ const agregarDetalle = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Producto</label>
                       <select
                         value={detalleTemp.id_producto}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, id_producto: e.target.value})}
+                        onChange={(e) => setDetalleTemp({ ...detalleTemp, id_producto: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         disabled={isLoading}
                       >
                         <option value="">Seleccionar...</option>
-                        {productos.map((producto) => (
+                        {Array.isArray(productos) ? productos.map((producto) => (
                           <option key={producto.id} value={producto.id}>
                             {producto.nombre}
                           </option>
-                        ))}
+                        )) : (
+                          <option disabled>No hay productos disponibles</option>
+                        )}
                       </select>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad</label>
                       <input
                         type="number"
-                        value={detalleTemp.cantidad}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, cantidad: parseInt(e.target.value) || 1})}
+                        value={detalleTemp.cantidad || ''}
+                        onChange={(e) => setDetalleTemp({ ...detalleTemp, cantidad: parseInt(e.target.value) || 1 })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         min="1"
                         placeholder="Cantidad"
                         disabled={isLoading}
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Precio Unit.</label>
                       <input
                         type="number"
-                        value={detalleTemp.precio_unitario}
-                        onChange={(e) => setDetalleTemp({...detalleTemp, precio_unitario: parseFloat(e.target.value) || 0})}
+                        value={detalleTemp.precio_unitario || ''}
+                        onChange={(e) => setDetalleTemp({ ...detalleTemp, precio_unitario: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         step="0.01"
                         min="0"
@@ -987,12 +1089,12 @@ const agregarDetalle = () => {
                         disabled={isLoading}
                       />
                     </div>
-                    
+
                     <div className="flex items-end">
                       <button
                         type="button"
                         onClick={agregarDetalle}
-                        disabled={isLoading}
+                        disabled={isLoading || !Array.isArray(productos) || productos.length === 0}
                         className="w-full px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
                       >
                         <FaPlus className="mr-2" />
@@ -1001,6 +1103,7 @@ const agregarDetalle = () => {
                     </div>
                   </div>
                 </div>
+
 
                 {/* Lista de detalles */}
                 {ordenCompraForm.detalles.length > 0 && (
@@ -1021,6 +1124,7 @@ const agregarDetalle = () => {
                           {ordenCompraForm.detalles.map((detalle) => (
                             <tr key={detalle.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 text-sm font-medium text-gray-900">{detalle.producto.nombre}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">{detalle.cantidad}</td> {/* ✅ CORREGIDO */}
                               <td className="px-4 py-3 text-sm text-gray-700">${detalle.precio_unitario.toFixed(2)}</td>
                               <td className="px-4 py-3 text-sm font-medium text-gray-900">${detalle.total.toFixed(2)}</td>
                               <td className="px-4 py-3 text-sm">
@@ -1035,10 +1139,11 @@ const agregarDetalle = () => {
                               </td>
                             </tr>
                           ))}
+
                         </tbody>
                       </table>
                     </div>
-                    
+
                     <div className="mt-4 text-right">
                       <span className="text-lg font-bold text-gray-900">
                         Total: ${ordenCompraForm.detalles.reduce((sum, detalle) => sum + detalle.total, 0).toFixed(2)}
@@ -1051,11 +1156,10 @@ const agregarDetalle = () => {
                   <button
                     type="submit"
                     disabled={ordenCompraForm.detalles.length === 0 || isLoading}
-                    className={`px-6 py-3 font-medium rounded-lg transition-colors duration-200 flex items-center ${
-                      ordenCompraForm.detalles.length === 0 || isLoading
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
+                    className={`px-6 py-3 font-medium rounded-lg transition-colors duration-200 flex items-center ${ordenCompraForm.detalles.length === 0 || isLoading
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                      }`}
                   >
                     {isLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaSave className="mr-2" />}
                     {isLoading ? 'Creando...' : 'Crear Orden'}
@@ -1079,7 +1183,9 @@ const agregarDetalle = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Total Órdenes</p>
-                      <p className="text-2xl font-bold text-gray-800">{estadisticas.total || ordenesCompra.length}</p>
+                      <p className="text-2xl font-bold text-gray-800">
+                        {estadisticas.total || (Array.isArray(ordenesCompra) ? ordenesCompra.length : 0)}
+                      </p>
                     </div>
                     <div className="bg-blue-100 p-3 rounded-full">
                       <FaShoppingCart className="text-blue-600" />
@@ -1091,7 +1197,7 @@ const agregarDetalle = () => {
                     <div>
                       <p className="text-sm text-gray-600">Completadas</p>
                       <p className="text-2xl font-bold text-green-600">
-                        {estadisticas.completadas || ordenesCompra.filter(o => o.estado === 'Completada').length}
+                        {estadisticas.completadas || (Array.isArray(ordenesCompra) ? ordenesCompra.filter(o => o.estado === 'Completada').length : 0)}
                       </p>
                     </div>
                     <div className="bg-green-100 p-3 rounded-full">
@@ -1104,7 +1210,7 @@ const agregarDetalle = () => {
                     <div>
                       <p className="text-sm text-gray-600">Pendientes</p>
                       <p className="text-2xl font-bold text-yellow-600">
-                        {estadisticas.pendientes || ordenesCompra.filter(o => o.estado === 'Pendiente').length}
+                        {estadisticas.pendientes || (Array.isArray(ordenesCompra) ? ordenesCompra.filter(o => o.estado === 'Pendiente').length : 0)}
                       </p>
                     </div>
                     <div className="bg-yellow-100 p-3 rounded-full">
@@ -1117,7 +1223,7 @@ const agregarDetalle = () => {
                     <div>
                       <p className="text-sm text-gray-600">Valor Total</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        ${(estadisticas.valorTotal || ordenesCompra.reduce((total, orden) => total + parseFloat(orden.total || 0), 0)).toLocaleString()}
+                        ${(estadisticas.valorTotal || (Array.isArray(ordenesCompra) ? ordenesCompra.reduce((total, orden) => total + parseFloat(orden.total || 0), 0) : 0)).toLocaleString()}
                       </p>
                     </div>
                     <div className="bg-purple-100 p-3 rounded-full">
@@ -1136,7 +1242,7 @@ const agregarDetalle = () => {
                       <input
                         type="text"
                         placeholder="Buscar por ID o proveedor..."
-                        value={searchTerm}
+                        value={searchTerm || ''}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
@@ -1145,7 +1251,7 @@ const agregarDetalle = () => {
                   <div className="flex items-center gap-2">
                     <FaFilter className="text-gray-400" />
                     <select
-                      value={filterStatus}
+                      value={filterStatus || 'all'}
                       onChange={(e) => setFilterStatus(e.target.value)}
                       className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
@@ -1165,7 +1271,7 @@ const agregarDetalle = () => {
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('id')}
                         >
@@ -1174,7 +1280,7 @@ const agregarDetalle = () => {
                             {getSortIcon('id')}
                           </div>
                         </th>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('proveedor')}
                         >
@@ -1183,7 +1289,7 @@ const agregarDetalle = () => {
                             {getSortIcon('proveedor')}
                           </div>
                         </th>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('fecha_orden')}
                         >
@@ -1192,7 +1298,7 @@ const agregarDetalle = () => {
                             {getSortIcon('fecha_orden')}
                           </div>
                         </th>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('fecha_entrega')}
                         >
@@ -1201,7 +1307,7 @@ const agregarDetalle = () => {
                             {getSortIcon('fecha_entrega')}
                           </div>
                         </th>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('total')}
                         >
@@ -1210,7 +1316,7 @@ const agregarDetalle = () => {
                             {getSortIcon('total')}
                           </div>
                         </th>
-                        <th 
+                        <th
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('estado')}
                         >
@@ -1261,7 +1367,7 @@ const agregarDetalle = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <div className="flex items-center space-x-2">
-                                <button 
+                                <button
                                   onClick={() => verDetalleOrden(orden)}
                                   className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-100 transition-colors duration-200"
                                   title="Ver detalles"
@@ -1269,7 +1375,7 @@ const agregarDetalle = () => {
                                   <FaEye className="text-sm" />
                                 </button>
                                 {orden.estado === 'Pendiente' && (
-                                  <button 
+                                  <button
                                     onClick={() => cambiarEstadoOrden(orden.id, 'Aprobada')}
                                     className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-100 transition-colors duration-200"
                                     title="Aprobar"
@@ -1278,13 +1384,13 @@ const agregarDetalle = () => {
                                     <FaCheck className="text-sm" />
                                   </button>
                                 )}
-                                <button 
+                                <button
                                   className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100 transition-colors duration-200"
                                   title="Imprimir"
                                 >
                                   <FaPrint className="text-sm" />
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => eliminarOrdenHandler(orden.id)}
                                   className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100 transition-colors duration-200"
                                   title="Eliminar"
@@ -1332,7 +1438,7 @@ const agregarDetalle = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Información general */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1359,7 +1465,7 @@ const agregarDetalle = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <h4 className="text-lg font-semibold text-gray-800">Información del Proveedor</h4>
                   <div className="space-y-2">
@@ -1378,7 +1484,7 @@ const agregarDetalle = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Detalles de productos */}
               <div>
                 <h4 className="text-lg font-semibold text-gray-800 mb-4">Productos Solicitados</h4>
@@ -1406,7 +1512,7 @@ const agregarDetalle = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 <div className="mt-4 flex justify-end">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="text-right">
@@ -1420,7 +1526,7 @@ const agregarDetalle = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Observaciones */}
               {selectedOrden.observaciones && (
                 <div>
@@ -1430,7 +1536,7 @@ const agregarDetalle = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Acciones */}
               <div className="border-t pt-6">
                 <div className="flex flex-wrap gap-3 justify-end">
@@ -1498,4 +1604,4 @@ const agregarDetalle = () => {
 };
 
 export default Produccion;
-                              
+

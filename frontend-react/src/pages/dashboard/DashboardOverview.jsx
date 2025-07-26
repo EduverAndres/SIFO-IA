@@ -1,527 +1,486 @@
 // src/pages/dashboard/DashboardOverview.jsx
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
   FaMoneyBillWave,
   FaShoppingCart,
-  FaCalculator,
-  FaChartLine,
   FaFileInvoiceDollar,
   FaUsers,
-  FaExclamationTriangle,
   FaCheckCircle,
   FaClock,
   FaArrowUp,
-  FaHandHoldingUsd,
-  FaExchangeAlt,
-  FaRobot,
-  FaProjectDiagram,
+  FaArrowDown,
+  FaChartLine,
+  FaBuilding,
+  FaRocket,
+  FaCoins,
+  FaCreditCard,
   FaWallet,
-  FaUserTie,
-  FaReceipt,
-  FaDatabase,
-  FaUsersCog,
-  FaPiggyBank,
-  FaSearch,
-  FaFilter,
+  FaCalendarAlt,
   FaEye,
-  FaPlay,
-  FaStar,
+  FaDownload
 } from 'react-icons/fa';
 
+// Recharts imports
+import {
+  AreaChart, Area,
+  LineChart, Line,
+  BarChart, Bar,
+  ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+} from 'recharts';
+
 const DashboardOverview = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedPeriod, setSelectedPeriod] = useState('12m');
+  const [animationKey, setAnimationKey] = useState(0);
 
-  // Datos simulados para el overview
-  const quickStats = [
+  // Efecto para animaciones
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimationKey(1), 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Datos estadísticos principales
+  const mainStats = [
     {
-      title: 'Ventas del Mes',
-      value: '$125,430',
-      change: '+12.5%',
+      title: 'Ingresos Totales',
+      value: '$8,547,280',
+      change: '+23.8%',
       trend: 'up',
       icon: FaMoneyBillWave,
-      color: 'green'
-    },
-    {
-      title: 'Órdenes Pendientes',
-      value: '28',
-      change: '-8.2%',
-      trend: 'down',
-      icon: FaShoppingCart,
-      color: 'blue'
-    },
-    {
-      title: 'Facturas por Cobrar',
-      value: '$45,200',
-      change: '+3.1%',
-      trend: 'up',
-      icon: FaFileInvoiceDollar,
-      color: 'yellow'
-    },
-    {
-      title: 'Clientes Activos',
-      value: '1,247',
-      change: '+15.3%',
-      trend: 'up',
-      icon: FaUsers,
-      color: 'purple'
-    }
-  ];
-
-  // Módulos financieros con categorías y estado
-  const financialModules = [
-    {
-      title: 'Órdenes de Compra',
-      description: 'Gestiona órdenes de compra, proveedores y seguimiento de entregas',
-      icon: FaShoppingCart,
-      link: '/dashboard/ordenes-compra',
-      category: 'compras',
-      status: 'active',
-      priority: 'high',
-      color: 'blue',
-      gradient: 'from-blue-500 to-blue-600',
-      features: ['Gestión de proveedores', 'Seguimiento de órdenes', 'Reportes automáticos']
-    },
-    {
-      title: 'Presupuesto',
-      description: 'Planifica y controla presupuestos empresariales',
-      icon: FaPiggyBank,
-      link: '/dashboard/presupuesto',
-      category: 'planificacion',
-      status: 'development',
-      priority: 'high',
-      color: 'green',
-      gradient: 'from-green-500 to-emerald-600',
-      features: ['Planificación anual', 'Control de gastos', 'Alertas de límites']
-    },
-    {
-      title: 'Reportes Financieros',
-      description: 'Genera reportes detallados y análisis financieros',
-      icon: FaChartLine,
-      link: '/dashboard/reportes',
-      category: 'reportes',
-      status: 'development',
-      priority: 'medium',
-      color: 'purple',
-      gradient: 'from-purple-500 to-indigo-600',
-      features: ['Gráficos interactivos', 'Exportar PDF/Excel', 'Análisis predictivo']
-    },
-    {
-      title: 'Cuentas por Pagar/Cobrar',
-      description: 'Administra cuentas pendientes y flujo de efectivo',
-      icon: FaHandHoldingUsd,
-      link: '/dashboard/cuentas-pagar',
-      category: 'cuentas',
-      status: 'development',
-      priority: 'high',
-      color: 'orange',
-      gradient: 'from-orange-500 to-red-500',
-      features: ['Recordatorios automáticos', 'Estados de cuenta', 'Conciliación']
-    },
-    {
-      title: 'Tesorería',
-      description: 'Gestiona liquidez y flujos de caja empresariales',
-      icon: FaMoneyBillWave,
-      link: '/dashboard/tesoreria',
-      category: 'tesoreria',
-      status: 'development',
-      priority: 'medium',
-      color: 'emerald',
+      description: 'vs período anterior',
       gradient: 'from-emerald-500 to-teal-600',
-      features: ['Flujo de caja', 'Proyecciones', 'Gestión de liquidez']
+      bgColor: 'bg-emerald-50'
     },
     {
-      title: 'Conciliación Bancaria',
-      description: 'Automatiza procesos de conciliación con entidades bancarias',
-      icon: FaExchangeAlt,
-      link: '/dashboard/conciliacion',
-      category: 'bancos',
-      status: 'development',
-      priority: 'medium',
-      color: 'cyan',
-      gradient: 'from-cyan-500 to-blue-600',
-      features: ['Sincronización bancaria', 'Conciliación automática', 'Reportes de diferencias']
+      title: 'Rentabilidad',
+      value: '38.4%',
+      change: '+5.2%',
+      trend: 'up',
+      icon: FaChartLine,
+      description: 'margen neto',
+      gradient: 'from-blue-500 to-indigo-600',
+      bgColor: 'bg-blue-50'
     },
     {
-      title: 'Procesos IA',
-      description: 'Inteligencia artificial para automatización financiera',
-      icon: FaRobot,
-      link: '/dashboard/procesos-ia',
-      category: 'tecnologia',
-      status: 'beta',
-      priority: 'low',
-      color: 'violet',
-      gradient: 'from-violet-500 to-purple-600',
-      features: ['Predicciones automáticas', 'Detección de anomalías', 'ML financiero']
-    },
-    {
-      title: 'Proyectos Financieros',
-      description: 'Gestiona proyectos con componente financiero',
-      icon: FaProjectDiagram,
-      link: '/dashboard/proyectos',
-      category: 'proyectos',
-      status: 'development',
-      priority: 'medium',
-      color: 'indigo',
-      gradient: 'from-indigo-500 to-blue-600',
-      features: ['Control de presupuesto', 'ROI por proyecto', 'Timeline financiero']
-    },
-    {
-      title: 'Caja y Bancos',
-      description: 'Control de movimientos de efectivo y cuentas bancarias',
+      title: 'Flujo de Caja',
+      value: '$2,847,360',
+      change: '+18.7%',
+      trend: 'up',
       icon: FaWallet,
-      link: '/dashboard/caja-bancos',
-      category: 'bancos',
-      status: 'development',
-      priority: 'high',
-      color: 'teal',
-      gradient: 'from-teal-500 to-cyan-600',
-      features: ['Arqueo de caja', 'Movimientos bancarios', 'Saldos en tiempo real']
+      description: 'disponible',
+      gradient: 'from-purple-500 to-violet-600',
+      bgColor: 'bg-purple-50'
     },
     {
-      title: 'Contabilidad NIIF',
-      description: 'Contabilidad bajo estándares internacionales',
-      icon: FaFileInvoiceDollar,
-      link: '/dashboard/contabilidad',
-      category: 'contabilidad',
-      status: 'development',
-      priority: 'high',
-      color: 'slate',
-      gradient: 'from-slate-500 to-gray-600',
-      features: ['Asientos automáticos', 'Estados financieros', 'Cumplimiento NIIF']
-    },
-    {
-      title: 'Nómina',
-      description: 'Gestión integral de nómina y recursos humanos',
-      icon: FaUserTie,
-      link: '/dashboard/nomina',
-      category: 'rrhh',
-      status: 'development',
-      priority: 'medium',
-      color: 'rose',
-      gradient: 'from-rose-500 to-pink-600',
-      features: ['Cálculo automático', 'Prestaciones sociales', 'Reportes laborales']
-    },
-    {
-      title: 'Facturación Electrónica',
-      description: 'Genera facturas electrónicas DIAN',
-      icon: FaReceipt,
-      link: '/dashboard/facturacion',
-      category: 'facturacion',
-      status: 'development',
-      priority: 'high',
-      color: 'amber',
-      gradient: 'from-amber-500 to-yellow-600',
-      features: ['Integración DIAN', 'Envío automático', 'Seguimiento de facturas']
-    },
-    {
-      title: 'Migración de Datos',
-      description: 'Importa datos desde otros sistemas',
-      icon: FaDatabase,
-      link: '/dashboard/migracion',
-      category: 'tecnologia',
-      status: 'development',
-      priority: 'low',
-      color: 'gray',
-      gradient: 'from-gray-500 to-slate-600',
-      features: ['Importación masiva', 'Validación de datos', 'Mapeo inteligente']
-    },
-    {
-      title: 'Integración CRM',
-      description: 'Conecta con sistemas de gestión de clientes',
-      icon: FaUsersCog,
-      link: '/dashboard/crm',
-      category: 'integraciones',
-      status: 'development',
-      priority: 'low',
-      color: 'lime',
-      gradient: 'from-lime-500 to-green-600',
-      features: ['Sincronización CRM', 'Vista 360° clientes', 'Pipeline comercial']
+      title: 'ROI Anual',
+      value: '42.1%',
+      change: '+7.3%',
+      trend: 'up',
+      icon: FaArrowUp, // ✅ CORREGIDO: FaTrendingUp → FaArrowUp
+      description: 'retorno inversión',
+      gradient: 'from-amber-500 to-orange-600',
+      bgColor: 'bg-amber-50'
     }
   ];
 
-  // Categorías para filtrado
-  const categories = [
-    { id: 'all', name: 'Todos los Módulos', count: financialModules.length },
-    { id: 'compras', name: 'Compras', count: financialModules.filter(m => m.category === 'compras').length },
-    { id: 'planificacion', name: 'Planificación', count: financialModules.filter(m => m.category === 'planificacion').length },
-    { id: 'cuentas', name: 'Cuentas', count: financialModules.filter(m => m.category === 'cuentas').length },
-    { id: 'bancos', name: 'Bancos', count: financialModules.filter(m => m.category === 'bancos').length },
-    { id: 'reportes', name: 'Reportes', count: financialModules.filter(m => m.category === 'reportes').length },
-    { id: 'tecnologia', name: 'Tecnología', count: financialModules.filter(m => m.category === 'tecnologia').length }
+  // Datos para gráficas financieras
+  const monthlyFinancialData = [
+    { mes: 'Ene', ingresos: 1200000, gastos: 720000, utilidad: 480000, roi: 40.0 },
+    { mes: 'Feb', ingresos: 1450000, gastos: 870000, utilidad: 580000, roi: 40.0 },
+    { mes: 'Mar', ingresos: 1380000, gastos: 828000, utilidad: 552000, roi: 40.0 },
+    { mes: 'Abr', ingresos: 1680000, gastos: 940800, utilidad: 739200, roi: 44.0 },
+    { mes: 'May', ingresos: 1950000, gastos: 1092000, utilidad: 858000, roi: 44.0 },
+    { mes: 'Jun', ingresos: 2100000, gastos: 1176000, utilidad: 924000, roi: 44.0 },
+    { mes: 'Jul', ingresos: 2350000, gastos: 1269000, utilidad: 1081000, roi: 46.0 },
+    { mes: 'Ago', ingresos: 2180000, gastos: 1176400, utilidad: 1003600, roi: 46.0 },
+    { mes: 'Sep', ingresos: 2420000, gastos: 1307600, utilidad: 1112400, roi: 46.0 },
+    { mes: 'Oct', ingresos: 2650000, gastos: 1431000, utilidad: 1219000, roi: 46.0 }, // ✅ CORREGIDO: ingreses → ingresos
+    { mes: 'Nov', ingresos: 2580000, gastos: 1393200, utilidad: 1186800, roi: 46.0 },
+    { mes: 'Dic', ingresos: 2847360, gastos: 1538834, utilidad: 1308526, roi: 46.0 }
   ];
 
-  // Filtrar módulos
-  const filteredModules = financialModules.filter(module => {
-    const matchesSearch = module.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         module.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || module.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Función para obtener badge de estado
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'active':
-        return <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Activo</span>;
-      case 'beta':
-        return <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Beta</span>;
-      case 'development':
-        return <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">En Desarrollo</span>;
-      default:
-        return <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Próximamente</span>;
-    }
-  };
-
-  // Función para obtener icono de prioridad
-  const getPriorityIcon = (priority) => {
-    switch (priority) {
-      case 'high':
-        return <FaStar className="text-yellow-500 text-sm" />;
-      case 'medium':
-        return <FaStar className="text-gray-400 text-sm" />;
-      default:
-        return null;
-    }
-  };
-
-  const recentActivities = [
-    {
-      type: 'success',
-      message: 'Orden de compra #OC-2025-001 completada',
-      time: 'Hace 2 horas'
-    },
-    {
-      type: 'warning',
-      message: 'Factura #F-2025-0234 próxima a vencer',
-      time: 'Hace 4 horas'
-    },
-    {
-      type: 'info',
-      message: 'Nuevo proveedor agregado: Tech Solutions S.A.',
-      time: 'Hace 6 horas'
-    },
-    {
-      type: 'success',
-      message: 'Conciliación bancaria completada',
-      time: 'Ayer'
-    }
+  const profitabilityData = [
+    { trimestre: 'Q1 2024', utilidadBruta: 65.2, utilidadOperacional: 42.8, utilidadNeta: 38.4 },
+    { trimestre: 'Q2 2024', utilidadBruta: 67.1, utilidadOperacional: 44.2, utilidadNeta: 40.1 },
+    { trimestre: 'Q3 2024', utilidadBruta: 68.9, utilidadOperacional: 45.6, utilidadNeta: 41.3 },
+    { trimestre: 'Q4 2024', utilidadBruta: 70.2, utilidadOperacional: 47.1, utilidadNeta: 42.8 }
   ];
 
-  const getActivityIcon = (type) => {
-    switch (type) {
-      case 'success':
-        return <FaCheckCircle className="text-green-500" />;
-      case 'warning':
-        return <FaExclamationTriangle className="text-yellow-500" />;
-      case 'info':
-        return <FaClock className="text-blue-500" />;
-      default:
-        return <FaClock className="text-gray-500" />;
+  const cashFlowData = [
+    { mes: 'Ene', operacional: 450000, inversion: -120000, financiamiento: 80000 },
+    { mes: 'Feb', operacional: 520000, inversion: -95000, financiamiento: 60000 },
+    { mes: 'Mar', operacional: 480000, inversion: -150000, financiamiento: 100000 },
+    { mes: 'Abr', operacional: 620000, inversion: -80000, financiamiento: 40000 },
+    { mes: 'May', operacional: 720000, inversion: -200000, financiamiento: 120000 },
+    { mes: 'Jun', operacional: 780000, inversion: -160000, financiamiento: 90000 },
+    { mes: 'Jul', operacional: 850000, inversion: -180000, financiamiento: 110000 },
+    { mes: 'Ago', operacional: 820000, inversion: -140000, financiamiento: 85000 },
+    { mes: 'Sep', operacional: 920000, inversion: -220000, financiamiento: 130000 },
+    { mes: 'Oct', operacional: 980000, inversion: -190000, financiamiento: 105000 },
+    { mes: 'Nov', operacional: 950000, inversion: -170000, financiamiento: 95000 },
+    { mes: 'Dic', operacional: 1050000, inversion: -250000, financiamiento: 150000 }
+  ];
+
+  const expenseBreakdown = [
+    { categoria: 'Operaciones', valor: 4280000, porcentaje: 42.8, color: '#3b82f6' },
+    { categoria: 'Personal', valor: 2850000, porcentaje: 28.5, color: '#10b981' },
+    { categoria: 'Marketing', valor: 1520000, porcentaje: 15.2, color: '#f59e0b' },
+    { categoria: 'Tecnología', valor: 950000, porcentaje: 9.5, color: '#8b5cf6' },
+    { categoria: 'Otros', valor: 400000, porcentaje: 4.0, color: '#ef4444' }
+  ];
+
+  const kpiData = [
+    { indicador: 'Liquidez', valor: 85, meta: 80 },
+    { indicador: 'Rentabilidad', valor: 92, meta: 85 },
+    { indicador: 'Eficiencia', valor: 78, meta: 75 },
+    { indicador: 'Crecimiento', valor: 95, meta: 90 },
+    { indicador: 'Solvencia', valor: 88, meta: 85 },
+    { indicador: 'Productividad', valor: 82, meta: 80 }
+  ];
+
+  const topMetrics = [
+    {
+      title: 'EBITDA',
+      value: '$3,847,280',
+      change: '+24.5%',
+      icon: FaCoins,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100'
+    },
+    {
+      title: 'Margen Operacional',
+      value: '47.1%',
+      change: '+3.2%',
+      icon: FaCreditCard,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100'
+    },
+    {
+      title: 'Días de Cobro',
+      value: '32 días',
+      change: '-8 días',
+      icon: FaCalendarAlt,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100'
+    },
+    {
+      title: 'Capital de Trabajo',
+      value: '$1,247,850',
+      change: '+15.8%',
+      icon: FaBuilding,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-100'
     }
-  };
+  ];
 
   return (
-    <div className="p-4 md:p-6 space-y-8">
-      {/* Header de bienvenida */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 rounded-2xl p-8 text-white relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4 md:p-6 space-y-8">
+      {/* Header Principal */}
+      <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
         <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-10 rounded-full -mr-20 -mt-20"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16"></div>
+        
         <div className="relative z-10">
-          <h2 className="text-3xl md:text-4xl font-bold mb-3">¡Bienvenido de vuelta!</h2>
-          <p className="text-blue-100 text-lg">Explora todos los módulos financieros disponibles para tu empresa</p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center">
+              <FaRocket className="text-5xl mr-6 text-yellow-300" />
+              <div>
+                <h1 className="text-5xl md:text-6xl font-bold mb-2 tracking-tight">Dashboard Financiero</h1>
+                <p className="text-blue-100 text-xl font-medium">Análisis Ejecutivo • Período 2024</p>
+              </div>
+            </div>
+            
+            <div className="hidden md:flex space-x-4">
+              {['12m', '6m', '3m'].map((period) => (
+                <button
+                  key={period}
+                  onClick={() => setSelectedPeriod(period)}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    selectedPeriod === period
+                      ? 'bg-white text-blue-600 shadow-lg'
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  {period === '12m' ? '12 Meses' : period === '6m' ? '6 Meses' : '3 Meses'}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-4">
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/20">
+              <span className="text-sm font-semibold">📊 Performance: Excelente</span>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/20">
+              <span className="text-sm font-semibold">🎯 Meta Anual: 95% Cumplida</span>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/20">
+              <span className="text-sm font-semibold">⚡ Actualizado: Tiempo Real</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Estadísticas rápidas */}
+      {/* Métricas Principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {quickStats.map((stat, index) => {
+        {mainStats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (
-            <div key={index} className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1 font-medium">{stat.title}</p>
-                  <p className="text-3xl font-bold text-gray-800 mb-2">{stat.value}</p>
-                  <div className="flex items-center">
-                    <FaArrowUp className={`text-sm mr-1 ${stat.trend === 'up' ? 'text-green-500' : 'text-red-500 transform rotate-180'}`} />
-                    <span className={`text-sm font-medium ${stat.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                      {stat.change}
-                    </span>
-                  </div>
+            <div key={index} className="group bg-white/95 backdrop-blur-lg p-8 rounded-3xl shadow-2xl border border-white/50 hover:shadow-3xl transition-all duration-500 transform hover:-translate-y-3 hover:scale-105 relative overflow-hidden">
+              <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r ${stat.gradient}`}></div>
+              
+              <div className="flex items-start justify-between mb-6">
+                <div className={`p-4 rounded-2xl bg-gradient-to-r ${stat.gradient} shadow-xl group-hover:shadow-2xl transition-all duration-300 transform group-hover:rotate-6`}>
+                  <IconComponent className="text-3xl text-white" />
                 </div>
-                <div className={`p-4 rounded-2xl ${
-                  stat.color === 'green' ? 'bg-green-100' :
-                  stat.color === 'blue' ? 'bg-blue-100' :
-                  stat.color === 'yellow' ? 'bg-yellow-100' :
-                  'bg-purple-100'
-                }`}>
-                  <IconComponent className={`text-2xl ${
-                    stat.color === 'green' ? 'text-green-600' :
-                    stat.color === 'blue' ? 'text-blue-600' :
-                    stat.color === 'yellow' ? 'text-yellow-600' :
-                    'text-purple-600'
-                  }`} />
+                <div className={`px-3 py-1 rounded-full text-xs font-bold ${stat.bgColor} ${stat.trend === 'up' ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {stat.trend === 'up' ? '↗️' : '↘️'} {stat.change}
                 </div>
               </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-2 font-semibold uppercase tracking-wider">{stat.title}</p>
+                <p className="text-4xl font-bold text-gray-800 mb-3">{stat.value}</p>
+                <p className="text-sm text-gray-500 font-medium">{stat.description}</p>
+              </div>
+
+              <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-br from-gray-100/50 to-transparent rounded-full -mr-10 -mb-10"></div>
             </div>
           );
         })}
       </div>
 
-      {/* Módulos Financieros - Sección principal mejorada */}
-      <div className="bg-white rounded-2xl shadow-xl p-8">
-        <div className="mb-8">
-          <h3 className="text-3xl font-bold text-gray-800 mb-3">Módulos Financieros</h3>
-          <p className="text-gray-600 text-lg">Accede a todas las herramientas de gestión financiera empresarial</p>
+      {/* Gráfica Principal - Análisis Financiero Completo */}
+      <div className="bg-white/95 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-3xl font-bold text-gray-800 flex items-center">
+              <div className="w-4 h-4 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full mr-4"></div>
+              Análisis Financiero Integral
+            </h3>
+            <p className="text-gray-600 mt-2 text-lg">Ingresos, gastos, utilidad y ROI mensual</p>
+          </div>
+          <div className="flex space-x-3">
+            <button className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors">
+              <FaEye className="mr-2" />
+              Ver Detalle
+            </button>
+            <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
+              <FaDownload className="mr-2" />
+              Exportar
+            </button>
+          </div>
         </div>
 
-        {/* Filtros y búsqueda mejorados */}
-        <div className="mb-8 space-y-4">
-          {/* Barra de búsqueda */}
-          <div className="relative max-w-md">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar módulos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+        <ResponsiveContainer width="100%" height={450}>
+          <ComposedChart data={monthlyFinancialData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <defs>
+              <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+              </linearGradient>
+              <linearGradient id="colorUtilidad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="mes" tick={{fontSize:12, fill: '#6b7280'}} />
+            <YAxis yAxisId="left" tickFormatter={(v)=>`$${(v/1000).toLocaleString()}k`} tick={{fontSize:12, fill: '#6b7280'}} />
+            <YAxis yAxisId="right" orientation="right" tickFormatter={(v)=>`${v}%`} tick={{fontSize:12, fill: '#6b7280'}} />
+            <Tooltip 
+              formatter={(value, name) => {
+                if (name === 'roi') return [`${value}%`, 'ROI'];
+                return [`$${value.toLocaleString()}`, name];
+              }}
+              labelStyle={{ color: '#374151' }}
+              contentStyle={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                border: 'none', 
+                borderRadius: '16px', 
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)' 
+              }}
             />
-          </div>
+            <Area yAxisId="left" type="monotone" dataKey="ingresos" stroke="#10b981" fill="url(#colorIngresos)" strokeWidth={4} />
+            <Area yAxisId="left" type="monotone" dataKey="utilidad" stroke="#3b82f6" fill="url(#colorUtilidad)" strokeWidth={4} />
+            <Bar yAxisId="left" dataKey="gastos" fill="#ef4444" opacity={0.6} radius={[6, 6, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="roi" stroke="#f59e0b" strokeWidth={4} dot={{ fill: '#f59e0b', strokeWidth: 3, r: 6 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
 
-          {/* Filtros por categoría */}
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  selectedCategory === category.id
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.name} ({category.count})
-              </button>
-            ))}
+      {/* Segunda Fila de Gráficas */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Flujo de Caja */}
+        <div className="bg-white/95 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h4 className="text-2xl font-bold text-gray-800 flex items-center">
+                <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full mr-3"></div>
+                Flujo de Caja
+              </h4>
+              <p className="text-gray-600 mt-1">Operacional, inversión y financiamiento</p>
+            </div>
           </div>
+          
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="mes" tick={{fontSize:11, fill: '#6b7280'}} />
+              <YAxis tickFormatter={(v)=>`$${(v/1000).toLocaleString()}k`} tick={{fontSize:11, fill: '#6b7280'}} />
+              <Tooltip 
+                formatter={(value, name) => [`$${value.toLocaleString()}`, name]}
+                contentStyle={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                  border: 'none', 
+                  borderRadius: '12px', 
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)' 
+                }}
+              />
+              <Legend />
+              <Bar dataKey="operacional" stackId="a" fill="#10b981" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="inversion" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="financiamiento" stackId="a" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Grid de módulos mejorado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredModules.map((module, index) => {
-            const IconComponent = module.icon;
-            return (
-              <Link
-                key={index}
-                to={module.link}
-                className="group block"
+        {/* Distribución de Gastos */}
+        <div className="bg-white/95 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h4 className="text-2xl font-bold text-gray-800 flex items-center">
+                <div className="w-3 h-3 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full mr-3"></div>
+                Distribución de Gastos
+              </h4>
+              <p className="text-gray-600 mt-1">Breakdown por categorías</p>
+            </div>
+          </div>
+          
+          <ResponsiveContainer width="100%" height={350}>
+            <PieChart>
+              <Pie
+                data={expenseBreakdown}
+                dataKey="valor"
+                nameKey="categoria"
+                cx="50%"
+                cy="50%"
+                innerRadius={70}
+                outerRadius={120}
+                paddingAngle={8}
+                strokeWidth={3}
+                stroke="#ffffff"
               >
-                <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 hover:border-blue-300 relative overflow-hidden">
-                  {/* Fondo con gradiente sutil */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${module.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
-                  
-                  {/* Header del módulo */}
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`p-3 rounded-xl bg-gradient-to-r ${module.gradient} shadow-lg`}>
-                        <IconComponent className="text-2xl text-white" />
-                      </div>
-                      <div className="flex flex-col items-end space-y-1">
-                        {getPriorityIcon(module.priority)}
-                        {getStatusBadge(module.status)}
-                      </div>
+                {expenseBreakdown.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value, name) => [`$${value.toLocaleString()}`, name]}
+                contentStyle={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                  border: 'none', 
+                  borderRadius: '12px', 
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)' 
+                }}
+              />
+              <Legend 
+                verticalAlign="bottom" 
+                height={36}
+                iconType="circle"
+                wrapperStyle={{ paddingTop: '20px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Tercera Fila de Gráficas */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* KPIs Radar */}
+        <div className="bg-white/95 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
+          <div className="mb-6">
+            <h4 className="text-xl font-bold text-gray-800 flex items-center">
+              <div className="w-3 h-3 bg-gradient-to-r from-violet-400 to-purple-500 rounded-full mr-3"></div>
+              KPIs Clave
+            </h4>
+            <p className="text-gray-600 mt-1">Indicadores vs metas</p>
+          </div>
+          
+          <ResponsiveContainer width="100%" height={280}>
+            <RadarChart data={kpiData}>
+              <PolarGrid stroke="#e5e7eb" />
+              <PolarAngleAxis dataKey="indicador" tick={{fontSize:10, fill: '#6b7280'}} />
+              <PolarRadiusAxis domain={[0, 100]} tick={{fontSize:10, fill: '#6b7280'}} />
+              <Radar name="Actual" dataKey="valor" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} strokeWidth={3} />
+              <Radar name="Meta" dataKey="meta" stroke="#10b981" fill="transparent" strokeWidth={2} strokeDasharray="5 5" />
+              <Legend />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Métricas Adicionales */}
+        <div className="xl:col-span-2 bg-white/95 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
+          <div className="mb-8">
+            <h4 className="text-xl font-bold text-gray-800 flex items-center">
+              <div className="w-3 h-3 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full mr-3"></div>
+              Métricas Financieras Clave
+            </h4>
+            <p className="text-gray-600 mt-1">Indicadores operacionales y estratégicos</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {topMetrics.map((metric, index) => {
+              const IconComponent = metric.icon;
+              return (
+                <div key={index} className="p-6 rounded-2xl border border-gray-100 hover:shadow-lg transition-all duration-300 group">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 font-semibold uppercase tracking-wide">{metric.title}</p>
+                      <p className="text-3xl font-bold text-gray-800 mt-2">{metric.value}</p>
+                      <p className={`text-sm font-bold mt-1 ${metric.change.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {metric.change.startsWith('+') ? '↗️' : '↘️'} {metric.change}
+                      </p>
                     </div>
-
-                    <h4 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors duration-200">
-                      {module.title}
-                    </h4>
-                    <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-                      {module.description}
-                    </p>
-
-                    {/* Features preview */}
-                    <div className="space-y-2 mb-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Características clave:</p>
-                      <ul className="space-y-1">
-                        {module.features.slice(0, 2).map((feature, idx) => (
-                          <li key={idx} className="text-sm text-gray-600 flex items-center">
-                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Call to action */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-blue-600 group-hover:text-blue-700">
-                        {module.status === 'active' ? 'Acceder ahora' : 'Ver detalles'}
-                      </span>
-                      <div className="flex items-center space-x-1">
-                        {module.status === 'active' ? (
-                          <FaPlay className="text-blue-600 text-sm" />
-                        ) : (
-                          <FaEye className="text-gray-400 text-sm" />
-                        )}
-                      </div>
+                    <div className={`p-4 rounded-2xl ${metric.bgColor} group-hover:scale-110 transition-transform duration-300`}>
+                      <IconComponent className={`text-2xl ${metric.color}`} />
                     </div>
                   </div>
                 </div>
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Mensaje si no hay resultados */}
-        {filteredModules.length === 0 && (
-          <div className="text-center py-12">
-            <FaSearch className="mx-auto text-gray-400 text-4xl mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron módulos</h3>
-            <p className="text-gray-500">Intenta con diferentes términos de búsqueda o filtros</p>
+              );
+            })}
           </div>
-        )}
-      </div>
-
-      {/* Actividad reciente */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-6">Actividad Reciente</h3>
-        <div className="space-y-4">
-          {recentActivities.map((activity, index) => (
-            <div key={index} className="flex items-start space-x-3 p-4 rounded-xl hover:bg-gray-50 transition-colors duration-200">
-              <div className="mt-1">
-                {getActivityIcon(activity.type)}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-800 font-medium">{activity.message}</p>
-                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 
-      {/* Call to action final */}
-      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-8 text-center border border-indigo-100">
-        <h3 className="text-2xl font-bold text-gray-800 mb-3">¿Necesitas ayuda?</h3>
-        <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-          Nuestro equipo está aquí para ayudarte a aprovechar al máximo todas las funcionalidades del sistema
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            to="/dashboard/configuracion"
-            className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors duration-200 font-medium shadow-lg hover:shadow-xl"
-          >
-            Configurar Sistema
-          </Link>
-          <Link
-            to="/dashboard/menu-financiero"
-            className="px-8 py-3 border border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors duration-200 font-medium"
-          >
-            Ver Módulos Financieros
-          </Link>
+      {/* Footer con Resumen Ejecutivo */}
+      <div className="bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 rounded-3xl p-8 border-2 border-gray-200/50 shadow-xl">
+        <div className="text-center">
+          <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center justify-center">
+            <FaCheckCircle className="text-emerald-500 mr-3" />
+            Resumen Ejecutivo
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-emerald-600">+23.8%</div>
+              <div className="text-sm text-gray-600 mt-1">Crecimiento Ingresos</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">42.8%</div>
+              <div className="text-sm text-gray-600 mt-1">Margen Neto Final</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">95%</div>
+              <div className="text-sm text-gray-600 mt-1">Cumplimiento Metas</div>
+            </div>
+          </div>
+          <p className="text-gray-700 mt-6 max-w-3xl mx-auto leading-relaxed">
+            <strong>Performance excepcional</strong> durante 2024 con crecimiento sostenido en todas las métricas clave. 
+            La empresa mantiene una posición financiera sólida con excelentes indicadores de rentabilidad y liquidez.
+          </p>
         </div>
       </div>
     </div>
