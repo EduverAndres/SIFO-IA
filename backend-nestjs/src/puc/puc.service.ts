@@ -1,12 +1,13 @@
 // backend-nestjs/src/puc/puc.service.ts - VERSIÓN ACTUALIZADA CON EXCEL
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CuentaPuc } from './entities/cuenta-puc.entity';
+import { Repository, IsNull } from 'typeorm';
+import { CuentaPuc, NaturalezaCuentaEnum, TipoCuentaEnum } from './entities/cuenta-puc.entity';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
 import { UpdateCuentaPucDto } from './dto/update-cuenta-puc.dto';
 import { FiltrosPucDto } from './dto/filtros-puc.dto';
-import { ImportPucExcelDto, ExportPucExcelDto } from './dto/import-puc-excel.dto';
+import { ImportPucExcelDto } from './dto/import-puc-excel.dto';
+import { ExportPucExcelDto } from './dto/export-puc-excel.dto';
 import { PucExcelService } from './services/puc-excel.service';
 import { 
   ValidacionExcel, 
@@ -22,6 +23,9 @@ interface ResponsePuc<T> {
   limite?: number;
   totalPaginas?: number;
 }
+
+// Exportar la interfaz para que esté disponible públicamente
+export { ResponsePuc };
 
 @Injectable()
 export class PucService {
@@ -76,9 +80,9 @@ export class PucService {
       // Solo cuentas activas por defecto
       query.andWhere('cuenta.activo = :activo', { activo: true });
 
-      // Ordenamiento
-      const ordenPor = filtros.orden_por || 'codigo_completo';
-      const ordenDireccion = filtros.orden_direccion?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      // Ordenamiento - usar propiedades que existen en FiltrosPucDto
+      const ordenPor = 'codigo_completo'; // Valor fijo ya que orden_por no existe en FiltrosPucDto
+      const ordenDireccion = 'ASC'; // Valor fijo ya que orden_direccion no existe en FiltrosPucDto
       query.orderBy(`cuenta.${ordenPor}`, ordenDireccion);
 
       // Paginación
@@ -149,30 +153,38 @@ export class PucService {
 
   async crear(createCuentaDto: CreateCuentaPucDto): Promise<ResponsePuc<CuentaPuc>> {
     try {
+      // Acceder a codigo_completo usando notación de índice para evitar errores de TypeScript
+      const codigoCompleto = (createCuentaDto as any).codigo_completo;
+      
+      if (!codigoCompleto) {
+        throw new BadRequestException('codigo_completo es requerido');
+      }
+
       // Validar que el código no exista
       const existente = await this.cuentaPucRepository.findOne({
-        where: { codigo_completo: createCuentaDto.codigo_completo }
+        where: { codigo_completo: codigoCompleto }
       });
 
       if (existente) {
-        throw new BadRequestException(`Ya existe una cuenta con código ${createCuentaDto.codigo_completo}`);
+        throw new BadRequestException(`Ya existe una cuenta con código ${codigoCompleto}`);
       }
 
       // Validar jerarquía si tiene padre
-      if (createCuentaDto.codigo_padre) {
+      const codigoPadre = (createCuentaDto as any).codigo_padre;
+      if (codigoPadre) {
         const padre = await this.cuentaPucRepository.findOne({
-          where: { codigo_completo: createCuentaDto.codigo_padre, activo: true }
+          where: { codigo_completo: codigoPadre, activo: true }
         });
 
         if (!padre) {
-          throw new BadRequestException(`Cuenta padre ${createCuentaDto.codigo_padre} no encontrada`);
+          throw new BadRequestException(`Cuenta padre ${codigoPadre} no encontrada`);
         }
       }
 
       const nuevaCuenta = this.cuentaPucRepository.create({
         ...createCuentaDto,
-        naturaleza: createCuentaDto.naturaleza || this.determinarNaturaleza(createCuentaDto.codigo_completo),
-        tipo_cuenta: createCuentaDto.tipo_cuenta || this.determinarTipoCuenta(createCuentaDto.codigo_completo),
+        naturaleza: (createCuentaDto as any).naturaleza || this.determinarNaturaleza(codigoCompleto),
+        tipo_cuenta: (createCuentaDto as any).tipo_cuenta || this.determinarTipoCuenta(codigoCompleto),
         activo: true
       });
 
@@ -191,40 +203,46 @@ export class PucService {
   }
 
   async actualizar(id: number, updateCuentaDto: UpdateCuentaPucDto): Promise<ResponsePuc<CuentaPuc>> {
-    try {
-      const cuenta = await this.cuentaPucRepository.findOne({
-        where: { id, activo: true }
+  try {
+    const cuenta = await this.cuentaPucRepository.findOne({
+      where: { id, activo: true }
+    });
+
+    if (!cuenta) {
+      throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
+    }
+
+    // Si se cambia el código, validar que no exista
+    const codigoCompleto = (updateCuentaDto as any).codigo_completo;
+    if (codigoCompleto && codigoCompleto !== cuenta.codigo_completo) {
+      const existente = await this.cuentaPucRepository.findOne({
+        where: { codigo_completo: codigoCompleto }
       });
 
-      if (!cuenta) {
-        throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
+      if (existente) {
+        throw new BadRequestException(`Ya existe una cuenta con código ${codigoCompleto}`);
       }
-
-      // Si se cambia el código, validar que no exista
-      if (updateCuentaDto.codigo_completo && updateCuentaDto.codigo_completo !== cuenta.codigo_completo) {
-        const existente = await this.cuentaPucRepository.findOne({
-          where: { codigo_completo: updateCuentaDto.codigo_completo }
-        });
-
-        if (existente) {
-          throw new BadRequestException(`Ya existe una cuenta con código ${updateCuentaDto.codigo_completo}`);
-        }
-      }
-
-      await this.cuentaPucRepository.update(id, updateCuentaDto);
-      const cuentaActualizada = await this.cuentaPucRepository.findOne({ where: { id } });
-
-      return {
-        success: true,
-        message: 'Cuenta actualizada exitosamente',
-        data: cuentaActualizada
-      };
-
-    } catch (error) {
-      this.logger.error(`Error actualizando cuenta ${id}:`, error);
-      throw error;
     }
+
+    await this.cuentaPucRepository.update(id, updateCuentaDto);
+    const cuentaActualizada = await this.cuentaPucRepository.findOne({ where: { id } });
+
+    // Verificar que la cuenta actualizada existe
+    if (!cuentaActualizada) {
+      throw new NotFoundException(`Error: no se pudo recuperar la cuenta actualizada`);
+    }
+
+    return {
+      success: true,
+      message: 'Cuenta actualizada exitosamente',
+      data: cuentaActualizada
+    };
+
+  } catch (error) {
+    this.logger.error(`Error actualizando cuenta ${id}:`, error);
+    throw error;
   }
+}
 
   async eliminar(id: number): Promise<ResponsePuc<void>> {
     try {
@@ -382,8 +400,8 @@ export class PucService {
       const validacion = {
         codigo,
         es_valido: true,
-        errores: [],
-        sugerencias: []
+        errores: [] as string[],
+        sugerencias: [] as string[]
       };
 
       // Validar formato básico
@@ -412,12 +430,14 @@ export class PucService {
       // Sugerir código padre
       if (longitud > 1) {
         const codigoPadre = this.calcularPadreSugerido(codigo);
-        const padre = await this.cuentaPucRepository.findOne({
-          where: { codigo_completo: codigoPadre }
-        });
+        if (codigoPadre) {
+          const padre = await this.cuentaPucRepository.findOne({
+            where: { codigo_completo: codigoPadre }
+          });
 
-        if (!padre) {
-          validacion.sugerencias.push(`Se requiere crear primero la cuenta padre: ${codigoPadre}`);
+          if (!padre) {
+            validacion.sugerencias.push(`Se requiere crear primero la cuenta padre: ${codigoPadre}`);
+          }
         }
       }
 
@@ -552,7 +572,7 @@ export class PucService {
   // 🔧 MÉTODOS PRIVADOS AUXILIARES
   // ===============================================
 
-  private determinarNaturaleza(codigo: string): 'DEBITO' | 'CREDITO' {
+  private determinarNaturaleza(codigo: string): NaturalezaCuentaEnum {
     const primerDigito = codigo.charAt(0);
     
     switch (primerDigito) {
@@ -560,26 +580,26 @@ export class PucService {
       case '5': // Gastos
       case '6': // Costos
       case '7': // Costos de producción
-        return 'DEBITO';
+        return NaturalezaCuentaEnum.DEBITO;
       case '2': // Pasivos
       case '3': // Patrimonio
       case '4': // Ingresos
       case '8': // Cuentas de orden deudoras
       case '9': // Cuentas de orden acreedoras
-        return 'CREDITO';
+        return NaturalezaCuentaEnum.CREDITO;
       default:
-        return 'DEBITO';
+        return NaturalezaCuentaEnum.DEBITO;
     }
   }
 
-  private determinarTipoCuenta(codigo: string): string {
+  private determinarTipoCuenta(codigo: string): TipoCuentaEnum {
     const longitud = codigo.length;
     
-    if (longitud === 1) return 'CLASE';
-    if (longitud === 2) return 'GRUPO';
-    if (longitud === 4) return 'CUENTA';
-    if (longitud === 6) return 'SUBCUENTA';
-    return 'DETALLE';
+    if (longitud === 1) return TipoCuentaEnum.CLASE;
+    if (longitud === 2) return TipoCuentaEnum.GRUPO;
+    if (longitud === 4) return TipoCuentaEnum.CUENTA;
+    if (longitud === 6) return TipoCuentaEnum.SUBCUENTA;
+    return TipoCuentaEnum.DETALLE;
   }
 
   private calcularPadreSugerido(codigo: string): string | null {
@@ -643,7 +663,7 @@ export class PucService {
 
   async validarIntegridadPuc(): Promise<ResponsePuc<any>> {
     try {
-      const problemas = [];
+      const problemas: any[] = [];
 
       // 1. Cuentas huérfanas (con padre inexistente)
       const huerfanas = await this.cuentaPucRepository

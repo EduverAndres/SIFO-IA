@@ -96,6 +96,8 @@ npm run build
 ```
 
 ```
+
+```
 SIFO-IA
 ├─ backend-nestjs
 │  ├─ .prettierrc
@@ -165,17 +167,22 @@ SIFO-IA
 │  │     ├─ dto
 │  │     │  ├─ arbol-puc.dto.ts
 │  │     │  ├─ create-cuenta-puc.dto.ts
+│  │     │  ├─ export-puc-excel.dto.ts
 │  │     │  ├─ filtros-puc.dto.ts
+│  │     │  ├─ import-puc-excel.dto.ts
 │  │     │  ├─ importar-puc.dto.ts
 │  │     │  ├─ response-puc.dto.ts
 │  │     │  └─ update-cuenta-puc.dto.ts
 │  │     ├─ entities
 │  │     │  └─ cuenta-puc.entity.ts
 │  │     ├─ interfaces
+│  │     │  ├─ excel-row.interface.ts
 │  │     │  └─ puc.interface.ts
 │  │     ├─ puc.controller.ts
 │  │     ├─ puc.module.ts
-│  │     └─ puc.service.ts
+│  │     ├─ puc.service.ts
+│  │     └─ services
+│  │        └─ puc-excel.service.ts
 │  ├─ test
 │  │  ├─ app.e2e-spec.ts
 │  │  └─ jest-e2e.json
@@ -233,7 +240,6 @@ SIFO-IA
 │  │  │  ├─ Register.jsx
 │  │  │  ├─ SelectField.jsx
 │  │  │  └─ wi.sql
-│  │  ├─ config
 │  │  ├─ hooks
 │  │  │  ├─ usePuc.js
 │  │  │  └─ useSafeRender.js

@@ -10,9 +10,6 @@ import {
   FaFileTemplate,
   FaCheck,
   FaTimes,
-  FaEye,
-  FaFilter,
-  FaSort,
   FaTree,
   FaList,
   FaSearch,
@@ -22,9 +19,8 @@ import {
   FaInfoCircle,
   FaQuestion,
   FaBookOpen,
-  FaSync,
   FaFileAlt,
-  FaChartBar
+  
 } from 'react-icons/fa';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
