@@ -5,6 +5,7 @@ import PucTableView from './PucTableView';
 import ExportPucModal from './ExportPucModal';
 import { pucApi } from '../../api/pucApi';
 import { FaDownload, FaFileExcel, FaPlus, FaUpload } from 'react-icons/fa';
+import ExportPucModal from './ExportPucModal';
 
 const PucManager = () => {
   // Estados principales
