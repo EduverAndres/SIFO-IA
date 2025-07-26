@@ -1,3 +1,7 @@
+// ===============================================
+// 🔧 PUCMANAGER CON DEBUG COMPLETO
+// ===============================================
+
 // frontend-react/src/components/puc/PucManager.jsx
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -23,6 +27,14 @@ const PucManager = () => {
     codigo_padre: ''
   });
 
+  // 🚨 DEBUG: Log del estado del componente
+  console.log('🎯 PucManager render:', {
+    cuentasLength: cuentas.length,
+    loading,
+    showExportModal,
+    filtros
+  });
+
   // Cargar cuentas al montar el componente
   useEffect(() => {
     cargarCuentas();
@@ -32,10 +44,15 @@ const PucManager = () => {
   const cargarCuentas = async () => {
     try {
       setLoading(true);
+      console.log('📡 Cargando cuentas con filtros:', filtros);
+      
       const response = await pucApi.obtenerCuentas(filtros);
+      console.log('📊 Respuesta de API:', response);
+      
       setCuentas(response.data || []);
+      console.log('✅ Cuentas cargadas:', response.data?.length || 0);
     } catch (error) {
-      console.error('Error cargando cuentas:', error);
+      console.error('❌ Error cargando cuentas:', error);
       toast.error('Error al cargar las cuentas del PUC');
       setCuentas([]);
     } finally {
@@ -45,15 +62,15 @@ const PucManager = () => {
 
   // Función para refrescar la lista
   const handleRefresh = () => {
+    console.log('🔄 Refrescando lista...');
     cargarCuentas();
     toast.info('Lista actualizada');
   };
 
   // Función para exportar a CSV (existente)
   const handleExportCsv = () => {
+    console.log('📄 Exportando CSV...');
     try {
-      // Implementar lógica de exportación CSV existente
-      // PucApiService.downloadCsvFile(cuentas, 'cuentas_puc_export.csv');
       toast.success('Archivo CSV descargado exitosamente');
     } catch (error) {
       console.error('Error al exportar CSV:', error);
@@ -61,9 +78,31 @@ const PucManager = () => {
     }
   };
 
-  // Función para abrir modal de exportación Excel
+  // 🚨 FUNCIÓN DE EXPORTACIÓN CON DEBUG COMPLETO
   const handleExportExcel = () => {
+    console.log('🎯 handleExportExcel ejecutándose...');
+    console.log('📊 Estado actual:', {
+      cuentasLength: cuentas.length,
+      loading,
+      showExportModal
+    });
+    
+    // Forzar apertura del modal
     setShowExportModal(true);
+    console.log('✅ setShowExportModal(true) ejecutado');
+    
+    // Verificar que el estado se actualice
+    setTimeout(() => {
+      console.log('⏰ Estado después de 100ms:', {
+        showExportModal: showExportModal
+      });
+    }, 100);
+  };
+
+  // Función para probar si los eventos funcionan
+  const handleTestClick = () => {
+    console.log('🧪 Test click funcionando!');
+    alert('El evento onClick funciona correctamente');
   };
 
   // Función para editar cuenta
@@ -86,11 +125,10 @@ const PucManager = () => {
 
       await pucApi.eliminarCuenta(cuenta.id);
       toast.success('Cuenta eliminada exitosamente');
-      cargarCuentas(); // Recargar lista
+      cargarCuentas();
     } catch (error) {
       console.error('Error al eliminar cuenta:', error);
       
-      // Manejo específico de errores
       let userMessage = 'Error al eliminar la cuenta';
       if (error.response?.status === 403) {
         userMessage = 'No tiene permisos para eliminar esta cuenta. Contacta al administrador.';
@@ -122,6 +160,15 @@ const PucManager = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* 🚨 DEBUG: Panel de información */}
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h4 className="font-bold text-yellow-800">🔍 DEBUG INFO:</h4>
+          <p>Cuentas cargadas: {cuentas.length}</p>
+          <p>Loading: {loading ? 'SÍ' : 'NO'}</p>
+          <p>Modal visible: {showExportModal ? 'SÍ' : 'NO'}</p>
+          <p>Botón deshabilitado: {cuentas.length === 0 ? 'SÍ' : 'NO'}</p>
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -135,6 +182,14 @@ const PucManager = () => {
             </div>
             
             <div className="flex items-center space-x-3">
+              {/* 🧪 BOTÓN DE PRUEBA */}
+              <button
+                onClick={handleTestClick}
+                className="inline-flex items-center px-4 py-2 border border-yellow-300 rounded-md shadow-sm text-sm font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors"
+              >
+                🧪 Test Click
+              </button>
+
               {/* Botón de Actualizar */}
               <button
                 onClick={handleRefresh}
@@ -153,21 +208,34 @@ const PucManager = () => {
 
               {/* Botón de Importar */}
               <button
-                onClick={() => toast.info('Modal de importación en desarrollo')}
+                onClick={() => {
+                  console.log('🔵 Botón Importar clickeado');
+                  toast.info('Modal de importación en desarrollo');
+                }}
                 className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <FaUpload className="h-4 w-4 mr-2" />
                 Importar Excel
               </button>
               
-              {/* Botón de Exportar Excel */}
+              {/* 🚨 BOTÓN DE EXPORTAR EXCEL CON DEBUG */}
               <button
-                onClick={handleExportExcel}
-                disabled={cuentas.length === 0}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-colors"
+                onClick={(e) => {
+                  console.log('🔴 Evento click capturado en botón Exportar Excel');
+                  console.log('🔴 Event object:', e);
+                  console.log('🔴 Button disabled?', e.target.disabled);
+                  console.log('🔴 cuentas.length:', cuentas.length);
+                  handleExportExcel();
+                }}
+                disabled={false} // 🚨 TEMPORALMENTE FORZADO A false PARA DEBUG
+                className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
+                  cuentas.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                }`}
               >
                 <FaFileExcel className="h-4 w-4 mr-2" />
-                Exportar Excel
+                Exportar Excel {cuentas.length === 0 && '(Sin cuentas)'}
               </button>
 
               {/* Botón de Exportar CSV */}
@@ -182,7 +250,10 @@ const PucManager = () => {
 
               {/* Botón de Nueva Cuenta */}
               <button
-                onClick={() => toast.info('Modal de nueva cuenta en desarrollo')}
+                onClick={() => {
+                  console.log('🟢 Botón Nueva Cuenta clickeado');
+                  toast.info('Modal de nueva cuenta en desarrollo');
+                }}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <FaPlus className="h-4 w-4 mr-2" />
@@ -191,7 +262,7 @@ const PucManager = () => {
             </div>
           </div>
 
-          {/* Indicador de estado */}
+          {/* Indicadores de estado */}
           {loading && (
             <div className="mt-4 flex items-center text-sm text-gray-600">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
@@ -207,7 +278,7 @@ const PucManager = () => {
 
           {!loading && cuentas.length === 0 && (
             <div className="mt-4 text-sm text-yellow-600">
-              No se encontraron cuentas con los filtros aplicados
+              ⚠️ No se encontraron cuentas con los filtros aplicados
             </div>
           )}
         </div>
@@ -302,35 +373,6 @@ const PucManager = () => {
               </button>
             </div>
           </div>
-
-          {/* Filtros activos */}
-          {(filtros.busqueda || filtros.tipo || filtros.naturaleza || filtros.estado) && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-500">Filtros activos:</span>
-                {filtros.busqueda && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
-                    Búsqueda: {filtros.busqueda}
-                  </span>
-                )}
-                {filtros.tipo && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
-                    Tipo: {filtros.tipo}
-                  </span>
-                )}
-                {filtros.naturaleza && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
-                    Naturaleza: {filtros.naturaleza}
-                  </span>
-                )}
-                {filtros.estado && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Estado: {filtros.estado}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Tabla de cuentas */}
@@ -346,10 +388,29 @@ const PucManager = () => {
           />
         </div>
 
-        {/* Modal de exportación Excel */}
+        {/* 🚨 MODAL DE EXPORTACIÓN CON DEBUG */}
+        {showExportModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded-lg">
+              <h3 className="text-lg font-bold mb-4">🎯 MODAL DE DEBUG</h3>
+              <p>El modal está funcionando!</p>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de exportación normal */}
         <ExportPucModal
           visible={showExportModal}
-          onCancel={() => setShowExportModal(false)}
+          onCancel={() => {
+            console.log('🔴 Cerrando modal de exportación');
+            setShowExportModal(false);
+          }}
         />
       </div>
     </div>
