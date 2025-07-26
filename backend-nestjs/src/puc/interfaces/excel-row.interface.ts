@@ -51,6 +51,7 @@ export interface ResumenImportacion {
 }
 
 export interface ResultadoImportacion {
+  cuentas_procesadas: any;
   exito: boolean;
   mensaje: string;
   resumen: ResumenImportacion;
