@@ -651,6 +651,8 @@ export const pucUtils = {
     return ['1', '5', '6', '7', '8'].includes(clase) ? 'DEBITO' : 'CREDITO';
   },
 
+  
+
   // Validar formato de código PUC
   validarCodigo(codigo) {
     if (!codigo) return { valido: false, error: 'Código requerido' };
@@ -688,6 +690,121 @@ export const pucUtils = {
       default:
         return codigo;
     }
+  },
+  async validarArchivoExcel(archivo, opciones = {}) {
+    try {
+      console.log('📥 [PUC-API] Validando archivo Excel', { 
+        archivo: archivo.name, 
+        size: archivo.size,
+        type: archivo.type,
+        opciones 
+      });
+
+      // Validaciones del lado del cliente primero
+      const clientValidation = this.validarArchivoCliente(archivo);
+      if (!clientValidation.es_valido) {
+        return {
+          success: false,
+          data: clientValidation
+        };
+      }
+
+      // Preparar FormData para envío al servidor
+      const formData = new FormData();
+      formData.append('file', archivo); // ⚠️ IMPORTANTE: usar 'file', no 'archivo'
+      
+      // Añadir opciones de validación
+      Object.entries(opciones).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
+
+      // Headers para FormData (sin Content-Type)
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Hacer petición al endpoint correcto
+      const response = await fetch(`${API_BASE_URL}/puc/validar/excel`, {
+        method: 'POST',
+        body: formData,
+        headers: headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ [PUC-API] Validación completada', result);
+      
+      return {
+        success: true,
+        data: result
+      };
+
+    } catch (error) {
+      console.error('❌ [PUC-API] Error validando archivo Excel', error);
+      
+      // Retornar formato consistente en caso de error
+      return {
+        success: false,
+        data: {
+          es_valido: false,
+          errores: [error.message || 'Error desconocido al validar archivo'],
+          advertencias: [],
+          total_filas: 0
+        }
+      };
+    }
+  },
+
+  // ✅ MÉTODO HELPER: Validaciones del lado del cliente
+  validarArchivoCliente(archivo) {
+    const errores = [];
+    const advertencias = [];
+
+    // Validar que existe el archivo
+    if (!archivo) {
+      errores.push('No se ha seleccionado ningún archivo');
+      return { es_valido: false, errores, advertencias, total_filas: 0 };
+    }
+
+    // Validar tipo de archivo
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    
+    const fileExtension = archivo.name.toLowerCase();
+    const isValidType = allowedTypes.includes(archivo.type) || 
+                       fileExtension.endsWith('.xlsx') || 
+                       fileExtension.endsWith('.xls');
+
+    if (!isValidType) {
+      errores.push('El archivo debe ser un Excel válido (.xlsx o .xls)');
+    }
+
+    // Validar tamaño del archivo (máximo 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (archivo.size > maxSize) {
+      errores.push(`El archivo es demasiado grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`);
+    }
+
+    // Validar tamaño mínimo (al menos 1KB)
+    if (archivo.size < 1024) {
+      errores.push('El archivo parece estar vacío o corrupto');
+    }
+
+    return {
+      es_valido: errores.length === 0,
+      errores,
+      advertencias,
+      total_filas: 0 // Solo el servidor puede determinar esto
+    };
   }
 };
 
