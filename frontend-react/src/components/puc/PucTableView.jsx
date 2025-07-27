@@ -1,5 +1,8 @@
-// src/components/puc/PucTableView.jsx - VERSIÓN COMPLETA CON MANEJO DE ERRORES
-import React, { useState } from 'react';
+// ===============================================
+// 🔧 PucTableView.jsx - ARCHIVO COMPLETO CORREGIDO
+// ===============================================
+
+import React, { useState, useMemo } from 'react';
 import {
   FaPlus,
   FaEdit,
@@ -17,10 +20,17 @@ import {
   FaCode,
   FaExclamationTriangle,
   FaTimes,
+  FaSearch,
+  FaTree,
+  FaMoneyBill,
+  FaBuilding,
+  FaUser,
+  FaTag,
+  FaFlag
 } from 'react-icons/fa';
 
 const PucTableView = ({ 
-  cuentas, 
+  cuentas = [], // ✅ DEFAULT VALUE
   onEdit, 
   onDelete, 
   onCreateChild, 
@@ -28,19 +38,111 @@ const PucTableView = ({
   setFiltros,
   loading = false 
 }) => {
+  // ===============================================
+  // 🎯 ESTADOS LOCALES
+  // ===============================================
   const [sortField, setSortField] = useState('codigo');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [cuentaToDelete, setCuentaToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedCuentas, setSelectedCuentas] = useState(new Set());
   
-  // ✅ ESTADOS PARA MENSAJES DE ÉXITO Y ERROR
+  // Estados para mensajes
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Configurar ordenamiento
+  // ===============================================
+  // 🚨 VALIDACIÓN DEFENSIVA INICIAL
+  // ===============================================
+  const safeCuentas = Array.isArray(cuentas) ? cuentas : [];
+  
+  console.log('🎯 PucTableView render:', {
+    cuentasReceived: cuentas,
+    cuentasType: Array.isArray(cuentas) ? 'Array' : typeof cuentas,
+    safeCuentasLength: safeCuentas.length,
+    loading,
+    sortField,
+    sortDirection
+  });
+
+  // ✅ EARLY RETURN SI HAY PROBLEMAS CON LOS DATOS
+  if (!Array.isArray(cuentas)) {
+    console.error('❌ PucTableView recibió datos inválidos:', {
+      cuentas,
+      type: typeof cuentas,
+      isArray: Array.isArray(cuentas)
+    });
+    
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <FaExclamationTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-lg font-medium text-red-800 mb-2">Error en los datos</h3>
+        <p className="text-red-600 mb-4">
+          Los datos de cuentas no tienen el formato correcto.
+          <br />
+          <small className="text-red-500">
+            Tipo recibido: {typeof cuentas} | Esperado: Array
+          </small>
+        </p>
+        <div className="space-y-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mr-2"
+          >
+            Recargar página
+          </button>
+          <button
+            onClick={() => console.log('Datos recibidos:', cuentas)}
+            className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+          >
+            Debug en consola
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ===============================================
+  // 🔧 FUNCIONES DE UTILIDAD
+  // ===============================================
+
+  // Obtener información de nivel y jerarquía
+  const getCuentaLevel = (codigo) => {
+    if (!codigo) return 0;
+    const length = codigo.length;
+    if (length === 1) return 1; // Clase
+    if (length === 2) return 2; // Grupo
+    if (length === 4) return 3; // Cuenta
+    if (length === 6) return 4; // Subcuenta
+    return 5; // Auxiliar
+  };
+
+  const getCuentaType = (codigo) => {
+    if (!codigo) return 'DESCONOCIDO';
+    const length = codigo.length;
+    switch (length) {
+      case 1: return 'CLASE';
+      case 2: return 'GRUPO';
+      case 4: return 'CUENTA';
+      case 6: return 'SUBCUENTA';
+      default: return 'AUXILIAR';
+    }
+  };
+
+  const getSubcuentasCount = (codigo) => {
+    if (!codigo) return 0;
+    return safeCuentas.filter(cuenta => 
+      cuenta.codigo_padre === codigo
+    ).length;
+  };
+
+  // ===============================================
+  // 🔄 FUNCIONES DE ORDENAMIENTO
+  // ===============================================
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -50,347 +152,286 @@ const PucTableView = ({
     }
   };
 
-  // Ordenar cuentas
-  const sortedCuentas = [...cuentas].sort((a, b) => {
-    let aValue = a[sortField];
-    let bValue = b[sortField];
-    
-    if (typeof aValue === 'string') {
-      aValue = aValue.toLowerCase();
-      bValue = bValue.toLowerCase();
+  // ✅ ORDENAR CUENTAS CON VALIDACIÓN ROBUSTA
+  const sortedCuentas = useMemo(() => {
+    try {
+      return [...safeCuentas].sort((a, b) => {
+        // Validar que ambos objetos existen
+        if (!a || !b) return 0;
+        
+        let aValue = a[sortField] || '';
+        let bValue = b[sortField] || '';
+        
+        // Manejo especial para códigos (ordenamiento numérico)
+        if (sortField === 'codigo') {
+          aValue = aValue.toString();
+          bValue = bValue.toString();
+          
+          // Si ambos son numéricos, ordenar numéricamente
+          if (/^\d+$/.test(aValue) && /^\d+$/.test(bValue)) {
+            aValue = parseInt(aValue);
+            bValue = parseInt(bValue);
+          }
+        }
+        
+        // Convertir a string para comparación si es necesario
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        // Realizar comparación
+        let comparison = 0;
+        if (aValue > bValue) comparison = 1;
+        else if (aValue < bValue) comparison = -1;
+        
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    } catch (error) {
+      console.error('Error ordenando cuentas:', error);
+      return safeCuentas; // Retornar datos sin ordenar en caso de error
     }
-    
-    if (sortDirection === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
+  }, [safeCuentas, sortField, sortDirection]);
+
+  // ===============================================
+  // 🎛️ FUNCIONES DE PAGINACIÓN
+  // ===============================================
+
+  const currentPage = filtros?.page || 1;
+  const itemsPerPage = filtros?.limit || 50;
+  const totalItems = sortedCuentas.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentCuentas = sortedCuentas.slice(startIndex, endIndex);
+
+  const handlePageChange = (newPage) => {
+    if (setFiltros && newPage >= 1 && newPage <= totalPages) {
+      setFiltros(prev => ({
+        ...prev,
+        page: newPage
+      }));
     }
-  });
-
-  // ✅ FUNCIÓN PARA VERIFICAR SI UNA CUENTA TIENE SUBCUENTAS
-  const getSubcuentasCount = (codigoPadre) => {
-    return cuentas.filter(cuenta => cuenta.codigo_padre === codigoPadre).length;
   };
 
-  // ✅ FUNCIÓN PARA MOSTRAR MENSAJE DE ERROR
-  const showError = (message) => {
-    setErrorMessage(message);
-    setShowErrorMessage(true);
-    
-    // Ocultar mensaje después de 7 segundos (más tiempo para errores)
-    setTimeout(() => {
-      setShowErrorMessage(false);
-      setErrorMessage('');
-    }, 7000);
+  // ===============================================
+  // 🎯 FUNCIONES DE ACCIONES
+  // ===============================================
+
+  const handleEdit = (cuenta) => {
+    console.log('📝 Editando cuenta:', cuenta);
+    if (onEdit) {
+      onEdit(cuenta);
+    }
   };
 
-  // ✅ FUNCIÓN PARA MOSTRAR MENSAJE DE ÉXITO
-  const showSuccess = (message) => {
-    setSuccessMessage(message);
-    setShowSuccessMessage(true);
-    
-    // Ocultar mensaje después de 5 segundos
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-      setSuccessMessage('');
-    }, 5000);
-  };
-
-  // Manejar confirmación de eliminación
   const handleDeleteClick = (cuenta) => {
-    // ✅ VERIFICAR SI LA CUENTA TIENE SUBCUENTAS ANTES DE MOSTRAR EL MODAL
-    const subcuentasCount = getSubcuentasCount(cuenta.codigo);
-    
-    if (subcuentasCount > 0) {
-      // Mostrar error inmediatamente sin abrir el modal
-      showError(
-        `No se puede eliminar la cuenta "${cuenta.codigo} - ${cuenta.nombre}" porque tiene ${subcuentasCount} subcuenta${subcuentasCount > 1 ? 's' : ''} asociada${subcuentasCount > 1 ? 's' : ''}. Elimine primero las subcuentas.`
-      );
-      return;
-    }
-    
     setCuentaToDelete(cuenta);
     setShowDeleteModal(true);
   };
 
-  // ✅ EJECUTAR ELIMINACIÓN CON MANEJO MEJORADO DE ERRORES
-  const handleConfirmDelete = async () => {
-  if (!cuentaToDelete) return;
+  const handleDeleteConfirm = async () => {
+    if (!cuentaToDelete || !onDelete) return;
 
-  setDeleting(true);
-  try {
-    console.log('🗑️ [TABLE] Eliminando cuenta:', cuentaToDelete.codigo, 'ID:', cuentaToDelete.id);
-    
-    // 🚨 VERIFICACIÓN CRÍTICA: Asegúrate de que cuentaToDelete.id existe
-    if (!cuentaToDelete.id) {
-      throw new Error('La cuenta no tiene un ID válido');
+    try {
+      setDeleting(true);
+      await onDelete(cuentaToDelete.id);
+      setShowDeleteModal(false);
+      setCuentaToDelete(null);
+      showSuccess('Cuenta eliminada exitosamente');
+    } catch (error) {
+      showError('Error al eliminar la cuenta');
+    } finally {
+      setDeleting(false);
     }
-    
-    // Llamar a la función de eliminación del padre
-    const result = await onDelete(cuentaToDelete);
-    
-    console.log('✅ [TABLE] Cuenta eliminada exitosamente');
-    
-    // ✅ CERRAR MODAL Y MOSTRAR MENSAJE DE ÉXITO
-    setShowDeleteModal(false);
-    setCuentaToDelete(null);
-    
-    // Mostrar mensaje de éxito
-    showSuccess(`Cuenta ${cuentaToDelete.codigo} - ${cuentaToDelete.nombre} eliminada exitosamente`);
-    
-  } catch (error) {
-    console.error('💥 [TABLE] Error al eliminar cuenta:', error);
-    // ... resto del manejo de errores
-  } finally {
-    setDeleting(false);
-  }
-};
-
-
-  // Cancelar eliminación
-  const handleCancelDelete = () => {
-    setShowDeleteModal(false);
-    setCuentaToDelete(null);
   };
 
-  // ✅ FUNCIÓN PARA CERRAR MENSAJES MANUALMENTE
-  const handleCloseSuccessMessage = () => {
-    setShowSuccessMessage(false);
-    setSuccessMessage('');
+  const handleCreateChild = (cuenta) => {
+    console.log('👶 Creando subcuenta de:', cuenta);
+    if (onCreateChild) {
+      onCreateChild(cuenta);
+    }
   };
 
-  const handleCloseErrorMessage = () => {
-    setShowErrorMessage(false);
-    setErrorMessage('');
+  // Función para mostrar mensajes
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 3000);
   };
 
-  // Configuración de colores por tipo de cuenta
-  const getTipoCuentaColor = (tipo) => {
-    const colors = {
-      'CLASE': 'bg-purple-100 text-purple-800 border-purple-200',
-      'GRUPO': 'bg-blue-100 text-blue-800 border-blue-200',
-      'CUENTA': 'bg-green-100 text-green-800 border-green-200',
-      'SUBCUENTA': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      'AUXILIAR': 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-    return colors[tipo] || 'bg-gray-100 text-gray-800 border-gray-200';
+  const showError = (message) => {
+    setErrorMessage(message);
+    setShowErrorMessage(true);
+    setTimeout(() => setShowErrorMessage(false), 5000);
   };
 
-  // Configuración de colores por naturaleza
-  const getNaturalezaColor = (naturaleza) => {
-    return naturaleza === 'DEBITO' 
-      ? 'bg-red-100 text-red-800 border-red-200' 
-      : 'bg-blue-100 text-blue-800 border-blue-200';
-  };
+  // ===============================================
+  // 🎨 COMPONENTES DE UI
+  // ===============================================
 
-  // Componente de encabezado ordenable
-  const SortableHeader = ({ field, children }) => (
+  // Componente para headers ordenables
+  const SortableHeader = ({ field, children, className = "" }) => (
     <th 
-      className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors duration-200"
+      className={`px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors duration-200 ${className}`}
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center space-x-1">
         <span>{children}</span>
         {sortField === field ? (
-          sortDirection === 'asc' ? (
-            <FaSortUp className="text-blue-500" />
-          ) : (
+          sortDirection === 'asc' ? 
+            <FaSortUp className="text-blue-500" /> : 
             <FaSortDown className="text-blue-500" />
-          )
         ) : (
-          <FaSort className="text-gray-400" />
+          <FaSort className="opacity-30" />
         )}
       </div>
     </th>
   );
 
-  // ✅ COMPONENTE DE MENSAJE DE ÉXITO
-  const SuccessMessage = () => {
-    if (!showSuccessMessage) return null;
+  // Componente de mensajes de éxito
+  const SuccessMessage = () => showSuccessMessage && (
+    <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50 shadow-lg">
+      <div className="flex items-center">
+        <FaCheckCircle className="mr-2" />
+        <span>{successMessage}</span>
+        <button
+          onClick={() => setShowSuccessMessage(false)}
+          className="ml-4 text-green-500 hover:text-green-700"
+        >
+          <FaTimes />
+        </button>
+      </div>
+    </div>
+  );
 
-    return (
-      <div className="fixed top-4 right-4 z-50 animate-fadeIn">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-lg max-w-md">
-          <div className="flex items-center">
-            <FaCheckCircle className="text-green-500 mr-3 text-lg flex-shrink-0" />
-            <span className="text-green-700 font-medium flex-1">{successMessage}</span>
-            <button 
-              onClick={handleCloseSuccessMessage}
-              className="ml-3 text-green-400 hover:text-green-600 font-bold text-lg flex-shrink-0"
-            >
-              <FaTimes />
-            </button>
-          </div>
+  // Componente de mensajes de error
+  const ErrorMessage = () => showErrorMessage && (
+    <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50 shadow-lg">
+      <div className="flex items-center">
+        <FaExclamationTriangle className="mr-2" />
+        <span>{errorMessage}</span>
+        <button
+          onClick={() => setShowErrorMessage(false)}
+          className="ml-4 text-red-500 hover:text-red-700"
+        >
+          <FaTimes />
+        </button>
+      </div>
+    </div>
+  );
+
+  // Modal de confirmación de eliminación
+  const DeleteModal = () => showDeleteModal && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="flex items-center mb-4">
+          <FaExclamationTriangle className="text-red-500 text-xl mr-3" />
+          <h3 className="text-lg font-medium text-gray-900">Confirmar Eliminación</h3>
+        </div>
+        
+        <p className="text-gray-600 mb-6">
+          ¿Está seguro de que desea eliminar la cuenta{' '}
+          <strong>{cuentaToDelete?.codigo} - {cuentaToDelete?.nombre}</strong>?
+          <br />
+          <small className="text-red-600">Esta acción no se puede deshacer.</small>
+        </p>
+        
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={() => setShowDeleteModal(false)}
+            disabled={deleting}
+            className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleDeleteConfirm}
+            disabled={deleting}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 flex items-center"
+          >
+            {deleting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Eliminando...
+              </>
+            ) : (
+              <>
+                <FaTrash className="mr-2" />
+                Eliminar
+              </>
+            )}
+          </button>
         </div>
       </div>
-    );
-  };
-
-  // ✅ COMPONENTE DE MENSAJE DE ERROR
-  const ErrorMessage = () => {
-    if (!showErrorMessage) return null;
-
-    return (
-      <div className="fixed top-4 right-4 z-50 animate-fadeIn">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-lg max-w-lg">
-          <div className="flex items-start">
-            <FaExclamationTriangle className="text-red-500 mr-3 text-lg flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <div className="text-red-800 font-medium text-sm leading-relaxed">
-                {errorMessage}
-              </div>
-              <div className="mt-2 text-red-600 text-xs">
-                💡 Sugerencia: Elimine primero las subcuentas o contacte al administrador si el problema persiste.
-              </div>
-            </div>
-            <button 
-              onClick={handleCloseErrorMessage}
-              className="ml-3 text-red-400 hover:text-red-600 font-bold text-lg flex-shrink-0"
-            >
-              <FaTimes />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ✅ MODAL DE CONFIRMACIÓN MEJORADO CON INFORMACIÓN DE SUBCUENTAS
-  const DeleteConfirmationModal = () => {
-    if (!showDeleteModal || !cuentaToDelete) return null;
-
-    const subcuentasCount = getSubcuentasCount(cuentaToDelete.codigo);
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="flex-shrink-0">
-              <FaExclamationTriangle className="h-6 w-6 text-red-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Confirmar eliminación
-              </h3>
-            </div>
-          </div>
-          
-          <div className="mb-6">
-            <p className="text-sm text-gray-500 mb-3">
-              ¿Estás seguro de que deseas eliminar la siguiente cuenta?
-            </p>
-            
-            <div className="mt-2 p-4 bg-gray-50 rounded-md border">
-              <p className="text-sm font-medium text-gray-900">
-                {cuentaToDelete.codigo} - {cuentaToDelete.nombre}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {cuentaToDelete.tipo} • {cuentaToDelete.naturaleza} • {cuentaToDelete.estado}
-              </p>
-              {cuentaToDelete.descripcion && (
-                <p className="text-xs text-gray-600 mt-2 italic">
-                  "{cuentaToDelete.descripcion}"
-                </p>
-              )}
-              
-              {/* ✅ MOSTRAR INFORMACIÓN DE SUBCUENTAS */}
-              {subcuentasCount > 0 && (
-                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-xs text-yellow-800 font-medium">
-                    ⚠️ Esta cuenta tiene {subcuentasCount} subcuenta{subcuentasCount > 1 ? 's' : ''} asociada{subcuentasCount > 1 ? 's' : ''}
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            <p className="text-sm text-red-600 mt-3 font-medium">
-              ⚠️ Esta acción no se puede deshacer.
-            </p>
-          </div>
-          
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={handleCancelDelete}
-              disabled={deleting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-200"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmDelete}
-              disabled={deleting}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center space-x-2 transition-colors duration-200"
-            >
-              {deleting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Eliminando...</span>
-                </>
-              ) : (
-                <>
-                  <FaTrash />
-                  <span>Eliminar cuenta</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+    </div>
+  );
 
   // Componente de paginación
   const Pagination = () => {
-    const totalPages = Math.ceil(cuentas.length / filtros.limit);
-    const currentPage = filtros.page;
-    
     if (totalPages <= 1) return null;
-    
+
+    const getPageNumbers = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+
+      for (let i = Math.max(2, currentPage - delta); 
+           i <= Math.min(totalPages - 1, currentPage + delta); 
+           i++) {
+        range.push(i);
+      }
+
+      if (currentPage - delta > 2) {
+        rangeWithDots.push(1, '...');
+      } else {
+        rangeWithDots.push(1);
+      }
+
+      rangeWithDots.push(...range);
+
+      if (currentPage + delta < totalPages - 1) {
+        rangeWithDots.push('...', totalPages);
+      } else {
+        rangeWithDots.push(totalPages);
+      }
+
+      return rangeWithDots;
+    };
+
     return (
-      <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t">
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <span>Mostrando</span>
-          <select
-            value={filtros.limit}
-            onChange={(e) => setFiltros(prev => ({ ...prev, limit: parseInt(e.target.value), page: 1 }))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          >
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-          <span>de {cuentas.length} resultados</span>
-        </div>
-        
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => setFiltros(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-            disabled={currentPage === 1}
-            className="p-2 rounded text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FaChevronLeft />
-          </button>
+      <div className="bg-white px-6 py-4 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
+            <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de{' '}
+            <span className="font-medium">{totalItems}</span> cuentas
+          </div>
           
-          <div className="flex space-x-1">
-            {[...Array(Math.min(totalPages, 5))].map((_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="p-2 rounded text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FaChevronLeft />
+            </button>
+            
+            {getPageNumbers().map((pageNum, index) => {
+              if (pageNum === '...') {
+                return (
+                  <span key={index} className="px-3 py-2 text-gray-500">
+                    ...
+                  </span>
+                );
               }
               
               return (
                 <button
-                  key={pageNum}
-                  onClick={() => setFiltros(prev => ({ ...prev, page: pageNum }))}
-                  className={`px-3 py-1 rounded text-sm ${
+                  key={index}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors duration-200 ${
                     currentPage === pageNum
                       ? 'bg-blue-500 text-white'
                       : 'text-gray-700 hover:bg-gray-200'
@@ -400,54 +441,74 @@ const PucTableView = ({
                 </button>
               );
             })}
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FaChevronRight />
+            </button>
           </div>
-          
-          <button
-            onClick={() => setFiltros(prev => ({ ...prev, page: Math.min(totalPages, prev.page + 1) }))}
-            disabled={currentPage === totalPages}
-            className="p-2 rounded text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FaChevronRight />
-          </button>
         </div>
       </div>
     );
   };
 
+  // ===============================================
+  // 🎨 RENDER PRINCIPAL
+  // ===============================================
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Cargando cuentas...</span>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Cargando cuentas del PUC...</span>
+        </div>
       </div>
     );
   }
 
   return (
     <>
-      {/* ✅ MENSAJES DE ÉXITO Y ERROR */}
+      {/* Mensajes */}
       <SuccessMessage />
       <ErrorMessage />
       
-      <div className="overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Header de la tabla */}
         <div className="bg-white px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <FaList className="text-blue-600 text-lg" />
-              <h3 className="text-lg font-semibold text-gray-900">Vista de Lista</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Lista de Cuentas</h3>
             </div>
             
-            <div className="text-sm text-gray-500">
-              {sortedCuentas.length} cuenta{sortedCuentas.length !== 1 ? 's' : ''} encontrada{sortedCuentas.length !== 1 ? 's' : ''}
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-500">
+                {sortedCuentas.length} cuenta{sortedCuentas.length !== 1 ? 's' : ''} total{sortedCuentas.length !== 1 ? 'es' : ''}
+                {currentCuentas.length !== sortedCuentas.length && (
+                  <span className="ml-2 text-blue-600">
+                    ({currentCuentas.length} mostradas)
+                  </span>
+                )}
+              </div>
+              
+              {/* Indicador de ordenamiento activo */}
+              {sortField && (
+                <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  Ordenado por: {sortField} ({sortDirection === 'asc' ? '↑' : '↓'})
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Tabla */}
-        {sortedCuentas.length > 0 ? (
+        {currentCuentas.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <SortableHeader field="codigo">Código</SortableHeader>
@@ -459,92 +520,123 @@ const PucTableView = ({
                     Propiedades
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Jerarquía
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedCuentas.map((cuenta) => {
+                {currentCuentas.map((cuenta, index) => {
+                  // ✅ VALIDACIÓN DE CADA CUENTA
+                  if (!cuenta || typeof cuenta !== 'object') {
+                    console.warn(`⚠️ Cuenta inválida en índice ${index}:`, cuenta);
+                    return (
+                      <tr key={index} className="bg-red-50">
+                        <td colSpan="8" className="px-6 py-4 text-center text-red-600">
+                          Datos de cuenta inválidos
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const subcuentasCount = getSubcuentasCount(cuenta.codigo);
                   const tieneSubcuentas = subcuentasCount > 0;
-                  
+                  const nivel = getCuentaLevel(cuenta.codigo);
+                  const tipo = getCuentaType(cuenta.codigo);
+
                   return (
-                    <tr key={cuenta.id} className="hover:bg-gray-50 transition-colors duration-200">
+                    <tr 
+                      key={cuenta.id || index} 
+                      className="hover:bg-gray-50 transition-colors duration-200"
+                    >
                       {/* Código */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                            {cuenta.codigo}
+                          <span 
+                            className={`font-mono text-sm font-bold px-2 py-1 rounded ${
+                              nivel === 1 ? 'bg-purple-100 text-purple-800' :
+                              nivel === 2 ? 'bg-blue-100 text-blue-800' :
+                              nivel === 3 ? 'bg-green-100 text-green-800' :
+                              nivel === 4 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {cuenta.codigo || 'N/A'}
                           </span>
+                          
+                          {/* Indicador de jerarquía */}
                           {cuenta.codigo_padre && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 bg-gray-50 px-1 py-0.5 rounded">
                               ← {cuenta.codigo_padre}
                             </span>
                           )}
-                          {/* ✅ INDICADOR DE CUENTA PADRE */}
+                          
+                          {/* Indicador de subcuentas */}
                           {tieneSubcuentas && (
-                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full" title={`Tiene ${subcuentasCount} subcuenta${subcuentasCount > 1 ? 's' : ''}`}>
-                              📁 {subcuentasCount}
+                            <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full flex items-center">
+                              <FaTree className="mr-1" />
+                              {subcuentasCount}
                             </span>
                           )}
                         </div>
                       </td>
                       
-                      {/* Nombre y descripción */}
+                      {/* Nombre */}
                       <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-gray-900 flex items-center">
-                            {cuenta.nombre}
-                            {/* ✅ INDICADOR VISUAL DE CUENTA PADRE */}
-                            {tieneSubcuentas && (
-                              <span className="ml-2 text-xs text-yellow-600" title="Cuenta padre con subcuentas">
-                                👑
-                              </span>
-                            )}
-                          </div>
-                          {cuenta.descripcion && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs" title={cuenta.descripcion}>
-                              {cuenta.descripcion}
-                            </div>
-                          )}
-                          {cuenta.dinamica && (
-                            <div className="text-xs text-blue-600 italic truncate max-w-xs" title={cuenta.dinamica}>
-                              {cuenta.dinamica}
-                            </div>
-                          )}
+                        <div className="text-sm font-medium text-gray-900">
+                          {cuenta.nombre || 'Sin nombre'}
                         </div>
+                        {cuenta.descripcion && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {cuenta.descripcion}
+                          </div>
+                        )}
                       </td>
                       
-                      {/* Tipo de cuenta */}
+                      {/* Tipo */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getTipoCuentaColor(cuenta.tipo)}`}>
-                          {cuenta.tipo}
+                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${
+                          tipo === 'CLASE' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                          tipo === 'GRUPO' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                          tipo === 'CUENTA' ? 'bg-green-100 text-green-800 border-green-200' :
+                          tipo === 'SUBCUENTA' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                          'bg-gray-100 text-gray-800 border-gray-200'
+                        }`}>
+                          {tipo}
                         </span>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Nivel {cuenta.nivel}
-                        </div>
                       </td>
                       
                       {/* Naturaleza */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getNaturalezaColor(cuenta.naturaleza)}`}>
-                          {cuenta.naturaleza}
+                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${
+                          cuenta.naturaleza === 'DEBITO' 
+                            ? 'bg-green-100 text-green-800 border-green-200' 
+                            : 'bg-orange-100 text-orange-800 border-orange-200'
+                        }`}>
+                          {cuenta.naturaleza === 'DEBITO' ? (
+                            <FaMoneyBill className="mr-1" />
+                          ) : (
+                            <FaTag className="mr-1" />
+                          )}
+                          {cuenta.naturaleza || 'N/A'}
                         </span>
                       </td>
                       
                       {/* Estado */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${
+                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${
                           cuenta.estado === 'ACTIVA' 
-                            ? 'bg-green-100 text-green-800 border border-green-200' 
-                            : 'bg-red-100 text-red-800 border border-red-200'
+                            ? 'bg-green-100 text-green-800 border-green-200' 
+                            : 'bg-red-100 text-red-800 border-red-200'
                         }`}>
                           {cuenta.estado === 'ACTIVA' ? (
                             <FaCheckCircle className="mr-1" />
                           ) : (
                             <FaTimesCircle className="mr-1" />
                           )}
-                          {cuenta.estado}
+                          {cuenta.estado || 'N/A'}
                         </span>
                       </td>
                       
@@ -559,23 +651,33 @@ const PucTableView = ({
                           )}
                           {cuenta.requiere_tercero && (
                             <span className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full border border-blue-200">
-                              <FaInfo className="mr-1" />
+                              <FaUser className="mr-1" />
                               Tercero
                             </span>
                           )}
                           {cuenta.requiere_centro_costo && (
                             <span className="inline-flex items-center px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200">
-                              <FaCode className="mr-1" />
+                              <FaBuilding className="mr-1" />
                               C.Costo
                             </span>
                           )}
                           {cuenta.es_cuenta_niif && (
                             <span className="inline-flex items-center px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full border border-purple-200">
+                              <FaFlag className="mr-1" />
                               NIIF
-                              {cuenta.codigo_niif && (
-                                <span className="ml-1">({cuenta.codigo_niif})</span>
-                              )}
                             </span>
+                          )}
+                        </div>
+                      </td>
+                      
+                      {/* Jerarquía */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-xs text-gray-500">
+                          <div>Nivel: {nivel}</div>
+                          {tieneSubcuentas && (
+                            <div className="text-orange-600">
+                              {subcuentasCount} subcuenta{subcuentasCount > 1 ? 's' : ''}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -584,41 +686,36 @@ const PucTableView = ({
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => onCreateChild(cuenta.codigo)}
-                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors duration-200"
-                            title="Crear subcuenta"
-                          >
-                            <FaPlus className="text-sm" />
-                          </button>
-                          
-                          <button
-                            onClick={() => onEdit(cuenta)}
-                            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                            onClick={() => handleEdit(cuenta)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                             title="Editar cuenta"
                           >
-                            <FaEdit className="text-sm" />
+                            <FaEdit />
                           </button>
                           
-                          {/* ✅ BOTÓN DE ELIMINAR CON INDICADOR VISUAL */}
+                          <button
+                            onClick={() => handleCreateChild(cuenta)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                            title="Crear subcuenta"
+                            disabled={!cuenta.permite_movimiento}
+                          >
+                            <FaPlus />
+                          </button>
+                          
                           <button
                             onClick={() => handleDeleteClick(cuenta)}
-                            className={`p-2 rounded-lg transition-colors duration-200 ${
-                              tieneSubcuentas 
-                                ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-50' 
-                                : 'text-red-600 hover:text-red-900 hover:bg-red-50'
-                            }`}
-                            title={
-                              tieneSubcuentas 
-                                ? `No se puede eliminar: tiene ${subcuentasCount} subcuenta${subcuentasCount > 1 ? 's' : ''}`
-                                : 'Eliminar cuenta'
-                            }
-                            disabled={deleting}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                            title="Eliminar cuenta"
                           >
-                            {tieneSubcuentas ? (
-                              <span className="text-sm">🔒</span>
-                            ) : (
-                              <FaTrash className="text-sm" />
-                            )}
+                            <FaTrash />
+                          </button>
+                          
+                          <button
+                            onClick={() => console.log('Ver detalles:', cuenta)}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                            title="Ver detalles"
+                          >
+                            <FaEye />
                           </button>
                         </div>
                       </td>
@@ -627,44 +724,34 @@ const PucTableView = ({
                 })}
               </tbody>
             </table>
-            
-            {/* Paginación */}
-            <Pagination />
           </div>
         ) : (
           <div className="text-center py-12">
-            <FaList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron cuentas</h3>
+            <FaSearch className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay cuentas</h3>
             <p className="text-gray-500 mb-4">
-              Ajusta los filtros de búsqueda o crea nuevas cuentas.
+              {safeCuentas.length === 0 
+                ? 'No se han cargado cuentas del PUC.' 
+                : 'No se encontraron cuentas con los filtros aplicados.'
+              }
             </p>
+            {safeCuentas.length === 0 && (
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Recargar datos
+              </button>
+            )}
           </div>
         )}
 
-        {/* Información adicional */}
-        {sortedCuentas.length > 0 && (
-          <div className="bg-blue-50 px-6 py-3 border-t">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center space-x-4 text-gray-600">
-                <span>Ordenado por: <strong>{sortField}</strong> ({sortDirection === 'asc' ? 'Ascendente' : 'Descendente'})</span>
-              </div>
-              <div className="flex items-center space-x-4 text-blue-600">
-                <div className="flex items-center space-x-1">
-                  <FaInfo className="text-xs" />
-                  <span>Haz clic en los encabezados para ordenar</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-xs">🔒 = Cuenta padre</span>
-                  <span className="text-xs">👑 = Tiene subcuentas</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Paginación */}
+        <Pagination />
       </div>
 
-      {/* Modal de confirmación de eliminación */}
-      <DeleteConfirmationModal />
+      {/* Modal de eliminación */}
+      <DeleteModal />
     </>
   );
 };

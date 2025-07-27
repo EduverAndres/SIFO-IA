@@ -1,20 +1,41 @@
 // ===============================================
-// 🔧 PUCMANAGER CON DEBUG COMPLETO
+// 🔧 PucManager.jsx - ARCHIVO COMPLETO CORREGIDO
 // ===============================================
 
-// frontend-react/src/components/puc/PucManager.jsx
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import PucTableView from './PucTableView';
 import ExportPucModal from './ExportPucModal';
 import { pucApi } from '../../api/pucApi';
-import { FaDownload, FaFileExcel, FaPlus, FaUpload } from 'react-icons/fa';
+import { 
+  FaDownload, 
+  FaFileExcel, 
+  FaPlus, 
+  FaUpload, 
+  FaSearch,
+  FaFilter,
+  FaRefresh,
+  FaCog,
+  FaTree,
+  FaList,
+  FaChartBar
+} from 'react-icons/fa';
 
 const PucManager = () => {
-  // Estados principales
+  // ===============================================
+  // 🎯 ESTADOS PRINCIPALES
+  // ===============================================
   const [cuentas, setCuentas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Estados de modales
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  
+  // Estados de vista
+  const [vistaActual, setVistaActual] = useState('lista'); // 'lista', 'arbol', 'estadisticas'
   
   // Estados de filtros
   const [filtros, setFiltros] = useState({
@@ -23,38 +44,111 @@ const PucManager = () => {
     busqueda: '',
     tipo: '',
     naturaleza: '',
-    estado: '',
-    codigo_padre: ''
+    estado: 'ACTIVA',
+    codigo_padre: '',
+    solo_cuentas_movimiento: false,
+    incluir_inactivas: false
   });
 
-  // 🚨 DEBUG: Log del estado del componente
+  // Estados de búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // ===============================================
+  // 🚨 DEBUG Y LOGGING
+  // ===============================================
   console.log('🎯 PucManager render:', {
     cuentasLength: cuentas.length,
+    cuentasType: Array.isArray(cuentas) ? 'Array' : typeof cuentas,
     loading,
-    showExportModal,
-    filtros
+    error,
+    filtros,
+    vistaActual
   });
 
-  // Cargar cuentas al montar el componente
+  // ===============================================
+  // 🔄 EFECTOS
+  // ===============================================
+  
+  // Cargar cuentas al montar el componente y cuando cambien los filtros
   useEffect(() => {
     cargarCuentas();
   }, [filtros]);
 
-  // Función para cargar cuentas desde la API
+  // Efecto para búsqueda con debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm !== filtros.busqueda) {
+        setFiltros(prev => ({
+          ...prev,
+          busqueda: searchTerm,
+          page: 1 // Reset página al buscar
+        }));
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // ===============================================
+  // 🔧 FUNCIONES PRINCIPALES
+  // ===============================================
+
+  // ✅ FUNCIÓN CORREGIDA PARA CARGAR CUENTAS
   const cargarCuentas = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       console.log('📡 Cargando cuentas con filtros:', filtros);
       
       const response = await pucApi.obtenerCuentas(filtros);
-      console.log('📊 Respuesta de API:', response);
+      console.log('📊 Respuesta completa de API:', response);
+      console.log('📊 Tipo de response:', typeof response);
+      console.log('📊 response.data:', response.data);
+      console.log('📊 Tipo de response.data:', Array.isArray(response.data) ? 'Array' : typeof response.data);
       
-      setCuentas(response.data || []);
-      console.log('✅ Cuentas cargadas:', response.data?.length || 0);
+      // ✅ MANEJO DEFENSIVO DE LA RESPUESTA
+      let cuentasData = [];
+      
+      if (response && response.data) {
+        if (Array.isArray(response.data)) {
+          // Caso 1: response.data es directamente un array
+          cuentasData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          // Caso 2: estructura anidada { data: { data: [...] } }
+          cuentasData = response.data.data;
+        } else if (response.data.cuentas && Array.isArray(response.data.cuentas)) {
+          // Caso 3: { data: { cuentas: [...] } }
+          cuentasData = response.data.cuentas;
+        } else if (response.data.items && Array.isArray(response.data.items)) {
+          // Caso 4: { data: { items: [...] } }
+          cuentasData = response.data.items;
+        } else {
+          console.warn('⚠️ Estructura de datos inesperada:', response.data);
+          cuentasData = [];
+        }
+      } else if (Array.isArray(response)) {
+        // Caso 5: La respuesta directa es un array
+        cuentasData = response;
+      } else {
+        console.warn('⚠️ Respuesta inesperada de la API:', response);
+        cuentasData = [];
+      }
+      
+      console.log('✅ Cuentas procesadas:', cuentasData.length, cuentasData);
+      setCuentas(cuentasData);
+      
+      // Mostrar mensaje de éxito solo si hay datos
+      if (cuentasData.length > 0) {
+        toast.success(`${cuentasData.length} cuentas cargadas exitosamente`);
+      }
+      
     } catch (error) {
       console.error('❌ Error cargando cuentas:', error);
+      setError(error.message || 'Error al cargar las cuentas del PUC');
       toast.error('Error al cargar las cuentas del PUC');
-      setCuentas([]);
+      setCuentas([]); // ✅ IMPORTANTE: Siempre fallback a array vacío
     } finally {
       setLoading(false);
     }
@@ -63,254 +157,160 @@ const PucManager = () => {
   // Función para refrescar la lista
   const handleRefresh = () => {
     console.log('🔄 Refrescando lista...');
+    setError(null);
     cargarCuentas();
     toast.info('Lista actualizada');
   };
 
-  // Función para exportar a CSV (existente)
-  const handleExportCsv = () => {
-    console.log('📄 Exportando CSV...');
-    try {
-      toast.success('Archivo CSV descargado exitosamente');
-    } catch (error) {
-      console.error('Error al exportar CSV:', error);
-      toast.error('Error al exportar archivo CSV');
-    }
-  };
-
-  // 🚨 FUNCIÓN DE EXPORTACIÓN CON DEBUG COMPLETO
-  const handleExportExcel = () => {
-    console.log('🎯 handleExportExcel ejecutándose...');
-    console.log('📊 Estado actual:', {
-      cuentasLength: cuentas.length,
-      loading,
-      showExportModal
+  // Función para limpiar filtros
+  const limpiarFiltros = () => {
+    setFiltros({
+      page: 1,
+      limit: 50,
+      busqueda: '',
+      tipo: '',
+      naturaleza: '',
+      estado: 'ACTIVA',
+      codigo_padre: '',
+      solo_cuentas_movimiento: false,
+      incluir_inactivas: false
     });
-    
-    // Forzar apertura del modal
+    setSearchTerm('');
+    toast.info('Filtros limpiados');
+  };
+
+  // ===============================================
+  // 🎛️ HANDLERS DE FILTROS
+  // ===============================================
+
+  const handleFiltroChange = (campo, valor) => {
+    setFiltros(prev => ({
+      ...prev,
+      [campo]: valor,
+      page: 1 // Reset página al cambiar filtros
+    }));
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // ===============================================
+  // 🎯 HANDLERS DE ACCIONES
+  // ===============================================
+
+  const handleCreateCuenta = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleImportCuentas = () => {
+    setShowImportModal(true);
+  };
+
+  const handleExportCuentas = () => {
     setShowExportModal(true);
-    console.log('✅ setShowExportModal(true) ejecutado');
-    
-    // Verificar que el estado se actualice
-    setTimeout(() => {
-      console.log('⏰ Estado después de 100ms:', {
-        showExportModal: showExportModal
-      });
-    }, 100);
   };
 
-  // Función para probar si los eventos funcionan
-  const handleTestClick = () => {
-    console.log('🧪 Test click funcionando!');
-    alert('El evento onClick funciona correctamente');
+  const handleEditCuenta = (cuenta) => {
+    console.log('📝 Editar cuenta:', cuenta);
+    // TODO: Implementar modal de edición
+    toast.info(`Editando cuenta: ${cuenta.codigo} - ${cuenta.nombre}`);
   };
 
-  // Función para editar cuenta
-  const handleEdit = async (cuenta) => {
-    try {
-      console.log('Editando cuenta:', cuenta);
-      toast.info('Función de edición en desarrollo');
-    } catch (error) {
-      console.error('Error al editar cuenta:', error);
-      toast.error('Error al editar cuenta');
+  const handleDeleteCuenta = async (id) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar esta cuenta?')) {
+      return;
     }
-  };
 
-  // Función para eliminar cuenta
-  const handleDelete = async (cuenta) => {
     try {
-      if (!confirm(`¿Está seguro de eliminar la cuenta ${cuenta.codigo}?`)) {
-        return;
-      }
-
-      await pucApi.eliminarCuenta(cuenta.id);
+      await pucApi.eliminarCuenta(id);
       toast.success('Cuenta eliminada exitosamente');
-      cargarCuentas();
+      cargarCuentas(); // Recargar lista
     } catch (error) {
-      console.error('Error al eliminar cuenta:', error);
-      
-      let userMessage = 'Error al eliminar la cuenta';
-      if (error.response?.status === 403) {
-        userMessage = 'No tiene permisos para eliminar esta cuenta. Contacta al administrador.';
-      } else if (error.message.includes('subcuentas asociadas')) {
-        userMessage = `No se puede eliminar la cuenta ${cuenta.codigo} porque tiene subcuentas asociadas`;
-      } else if (error.message.includes('404') || error.message.includes('no encontrada')) {
-        userMessage = 'La cuenta no existe o ya fue eliminada';
-      } else if (error.message.includes('500')) {
-        userMessage = 'Error interno del servidor. Inténtalo más tarde.';
-      } else {
-        userMessage = `Error al eliminar la cuenta: ${error.message}`;
-      }
-      
-      toast.error(userMessage);
+      console.error('Error eliminando cuenta:', error);
+      toast.error('Error al eliminar la cuenta');
     }
   };
 
-  // Función para crear subcuenta
-  const handleCreateChild = async (codigoPadre) => {
-    try {
-      console.log('Creando subcuenta para:', codigoPadre);
-      toast.info('Función de crear subcuenta en desarrollo');
-    } catch (error) {
-      console.error('Error al crear subcuenta:', error);
-      toast.error('Error al crear subcuenta');
-    }
+  const handleCreateChild = (cuenta) => {
+    console.log('👶 Crear subcuenta de:', cuenta);
+    // TODO: Implementar modal de creación de subcuenta
+    toast.info(`Creando subcuenta de: ${cuenta.codigo} - ${cuenta.nombre}`);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 🚨 DEBUG: Panel de información */}
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h4 className="font-bold text-yellow-800">🔍 DEBUG INFO:</h4>
-          <p>Cuentas cargadas: {cuentas.length}</p>
-          <p>Loading: {loading ? 'SÍ' : 'NO'}</p>
-          <p>Modal visible: {showExportModal ? 'SÍ' : 'NO'}</p>
-          <p>Botón deshabilitado: {cuentas.length === 0 ? 'SÍ' : 'NO'}</p>
-        </div>
+  // ===============================================
+  // 🎨 COMPONENTES DE UI
+  // ===============================================
 
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Plan Único de Cuentas
-              </h1>
-              <p className="mt-2 text-gray-600">
-                Gestión completa del plan contable
-              </p>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              {/* 🧪 BOTÓN DE PRUEBA */}
-              <button
-                onClick={handleTestClick}
-                className="inline-flex items-center px-4 py-2 border border-yellow-300 rounded-md shadow-sm text-sm font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors"
-              >
-                🧪 Test Click
-              </button>
-
-              {/* Botón de Actualizar */}
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                ) : (
-                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                Actualizar
-              </button>
-
-              {/* Botón de Importar */}
-              <button
-                onClick={() => {
-                  console.log('🔵 Botón Importar clickeado');
-                  toast.info('Modal de importación en desarrollo');
-                }}
-                className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                <FaUpload className="h-4 w-4 mr-2" />
-                Importar Excel
-              </button>
-              
-              {/* 🚨 BOTÓN DE EXPORTAR EXCEL CON DEBUG */}
-              <button
-                onClick={(e) => {
-                  console.log('🔴 Evento click capturado en botón Exportar Excel');
-                  console.log('🔴 Event object:', e);
-                  console.log('🔴 Button disabled?', e.target.disabled);
-                  console.log('🔴 cuentas.length:', cuentas.length);
-                  handleExportExcel();
-                }}
-                disabled={false} // 🚨 TEMPORALMENTE FORZADO A false PARA DEBUG
-                className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
-                  cuentas.length === 0 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
-                }`}
-              >
-                <FaFileExcel className="h-4 w-4 mr-2" />
-                Exportar Excel {cuentas.length === 0 && '(Sin cuentas)'}
-              </button>
-
-              {/* Botón de Exportar CSV */}
-              <button
-                onClick={handleExportCsv}
-                disabled={cuentas.length === 0}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 transition-colors"
-              >
-                <FaDownload className="h-4 w-4 mr-2" />
-                Exportar CSV
-              </button>
-
-              {/* Botón de Nueva Cuenta */}
-              <button
-                onClick={() => {
-                  console.log('🟢 Botón Nueva Cuenta clickeado');
-                  toast.info('Modal de nueva cuenta en desarrollo');
-                }}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                <FaPlus className="h-4 w-4 mr-2" />
-                Nueva Cuenta
-              </button>
-            </div>
+  // Barra de búsqueda y filtros
+  const SearchAndFilters = () => (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+      {/* Barra de búsqueda principal */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por código o nombre..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
-
-          {/* Indicadores de estado */}
-          {loading && (
-            <div className="mt-4 flex items-center text-sm text-gray-600">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Cargando cuentas del PUC...
-            </div>
-          )}
-
-          {!loading && cuentas.length > 0 && (
-            <div className="mt-4 text-sm text-gray-600">
-              Se encontraron <span className="font-semibold text-gray-900">{cuentas.length}</span> cuentas
-            </div>
-          )}
-
-          {!loading && cuentas.length === 0 && (
-            <div className="mt-4 text-sm text-yellow-600">
-              ⚠️ No se encontraron cuentas con los filtros aplicados
-            </div>
-          )}
         </div>
 
-        {/* Filtros de búsqueda */}
-        <div className="bg-white rounded-lg shadow mb-6 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            {/* Búsqueda */}
-            <div className="lg:col-span-2">
-              <label htmlFor="busqueda" className="block text-sm font-medium text-gray-700 mb-1">
-                Búsqueda
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 rounded-lg border transition-colors duration-200 ${
+              showFilters 
+                ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <FaFilter className="mr-2" />
+            Filtros
+          </button>
+
+          <button
+            onClick={limpiarFiltros}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+
+      {/* Panel de filtros expandible */}
+      {showFilters && (
+        <div className="border-t border-gray-200 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Filtro Estado */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Estado
               </label>
-              <input
-                type="text"
-                id="busqueda"
-                value={filtros.busqueda}
-                onChange={(e) => setFiltros(prev => ({ ...prev, busqueda: e.target.value, page: 1 }))}
-                placeholder="Código o nombre..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-              />
+              <select
+                value={filtros.estado}
+                onChange={(e) => handleFiltroChange('estado', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="ACTIVA">Activa</option>
+                <option value="INACTIVA">Inactiva</option>
+              </select>
             </div>
 
-            {/* Tipo */}
+            {/* Filtro Tipo */}
             <div>
-              <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tipo
               </label>
               <select
-                id="tipo"
                 value={filtros.tipo}
-                onChange={(e) => setFiltros(prev => ({ ...prev, tipo: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                onChange={(e) => handleFiltroChange('tipo', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todos</option>
                 <option value="CLASE">Clase</option>
@@ -321,16 +321,15 @@ const PucManager = () => {
               </select>
             </div>
 
-            {/* Naturaleza */}
+            {/* Filtro Naturaleza */}
             <div>
-              <label htmlFor="naturaleza" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Naturaleza
               </label>
               <select
-                id="naturaleza"
                 value={filtros.naturaleza}
-                onChange={(e) => setFiltros(prev => ({ ...prev, naturaleza: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                onChange={(e) => handleFiltroChange('naturaleza', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todas</option>
                 <option value="DEBITO">Débito</option>
@@ -338,81 +337,244 @@ const PucManager = () => {
               </select>
             </div>
 
-            {/* Estado */}
+            {/* Filtro Límite */}
             <div>
-              <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">
-                Estado
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mostrar
               </label>
               <select
-                id="estado"
-                value={filtros.estado}
-                onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value, page: 1 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                value={filtros.limit}
+                onChange={(e) => handleFiltroChange('limit', parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Todos</option>
-                <option value="ACTIVA">Activa</option>
-                <option value="INACTIVA">Inactiva</option>
+                <option value={25}>25 por página</option>
+                <option value={50}>50 por página</option>
+                <option value={100}>100 por página</option>
+                <option value={200}>200 por página</option>
               </select>
             </div>
+          </div>
 
-            {/* Botón limpiar filtros */}
-            <div className="flex items-end">
-              <button
-                onClick={() => setFiltros({
-                  page: 1,
-                  limit: 50,
-                  busqueda: '',
-                  tipo: '',
-                  naturaleza: '',
-                  estado: '',
-                  codigo_padre: ''
-                })}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                Limpiar
-              </button>
-            </div>
+          {/* Checkboxes adicionales */}
+          <div className="flex flex-wrap gap-4 mt-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filtros.solo_cuentas_movimiento}
+                onChange={(e) => handleFiltroChange('solo_cuentas_movimiento', e.target.checked)}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Solo cuentas de movimiento</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filtros.incluir_inactivas}
+                onChange={(e) => handleFiltroChange('incluir_inactivas', e.target.checked)}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Incluir cuentas inactivas</span>
+            </label>
           </div>
         </div>
+      )}
+    </div>
+  );
 
-        {/* Tabla de cuentas */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <PucTableView
-            cuentas={cuentas}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onCreateChild={handleCreateChild}
-            filtros={filtros}
-            setFiltros={setFiltros}
-            loading={loading}
-          />
+  // Botones de acción principal
+  const ActionButtons = () => (
+    <div className="flex flex-wrap gap-2">
+      <button
+        onClick={handleRefresh}
+        disabled={loading}
+        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+      >
+        <FaRefresh className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+        Refrescar
+      </button>
+
+      <button
+        onClick={handleCreateCuenta}
+        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+      >
+        <FaPlus className="mr-2" />
+        Nueva Cuenta
+      </button>
+
+      <button
+        onClick={handleImportCuentas}
+        className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
+      >
+        <FaUpload className="mr-2" />
+        Importar
+      </button>
+
+      <button
+        onClick={handleExportCuentas}
+        className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200"
+      >
+        <FaDownload className="mr-2" />
+        Exportar
+      </button>
+    </div>
+  );
+
+  // Selector de vista
+  const ViewSelector = () => (
+    <div className="flex bg-gray-100 rounded-lg p-1">
+      <button
+        onClick={() => setVistaActual('lista')}
+        className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+          vistaActual === 'lista'
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        <FaList className="mr-2" />
+        Lista
+      </button>
+      
+      <button
+        onClick={() => setVistaActual('arbol')}
+        className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+          vistaActual === 'arbol'
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        <FaTree className="mr-2" />
+        Árbol
+      </button>
+      
+      <button
+        onClick={() => setVistaActual('estadisticas')}
+        className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+          vistaActual === 'estadisticas'
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        <FaChartBar className="mr-2" />
+        Estadísticas
+      </button>
+    </div>
+  );
+
+  // ===============================================
+  // 🎨 RENDER PRINCIPAL
+  // ===============================================
+
+  return (
+    <div className="space-y-6">
+      {/* Header Principal */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Plan Único de Cuentas</h1>
+          <p className="text-gray-600 mt-1">
+            Gestión y administración del PUC empresarial
+          </p>
         </div>
-
-        {/* 🚨 MODAL DE EXPORTACIÓN CON DEBUG */}
-        {showExportModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded-lg">
-              <h3 className="text-lg font-bold mb-4">🎯 MODAL DE DEBUG</h3>
-              <p>El modal está funcionando!</p>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de exportación normal */}
-        <ExportPucModal
-          visible={showExportModal}
-          onCancel={() => {
-            console.log('🔴 Cerrando modal de exportación');
-            setShowExportModal(false);
-          }}
-        />
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <ViewSelector />
+          <ActionButtons />
+        </div>
       </div>
+
+      {/* Búsqueda y Filtros */}
+      <SearchAndFilters />
+
+      {/* Mensaje de Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error al cargar datos</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+            </div>
+            <div className="ml-auto">
+              <button
+                onClick={handleRefresh}
+                className="bg-red-100 text-red-800 px-3 py-1 rounded text-sm hover:bg-red-200"
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contenido Principal según Vista */}
+      {vistaActual === 'lista' && (
+        <PucTableView 
+          cuentas={Array.isArray(cuentas) ? cuentas : []} 
+          filtros={filtros}
+          setFiltros={setFiltros}
+          loading={loading}
+          onEdit={handleEditCuenta}
+          onDelete={handleDeleteCuenta}
+          onCreateChild={handleCreateChild}
+        />
+      )}
+
+      {vistaActual === 'arbol' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Vista de Árbol</h3>
+          <p className="text-gray-500">Vista de árbol jerárquico en desarrollo...</p>
+        </div>
+      )}
+
+      {vistaActual === 'estadisticas' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Estadísticas del PUC</h3>
+          <p className="text-gray-500">Panel de estadísticas en desarrollo...</p>
+        </div>
+      )}
+
+      {/* Modales */}
+      {showExportModal && (
+        <ExportPucModal 
+          visible={showExportModal}
+          onCancel={() => setShowExportModal(false)}
+        />
+      )}
+
+      {/* TODO: Agregar modales de creación e importación */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Crear Nueva Cuenta</h3>
+            <p className="text-gray-500 mb-4">Modal de creación en desarrollo...</p>
+            <button
+              onClick={() => setShowCreateModal(false)}
+              className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Importar Cuentas</h3>
+            <p className="text-gray-500 mb-4">Modal de importación en desarrollo...</p>
+            <button
+              onClick={() => setShowImportModal(false)}
+              className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
