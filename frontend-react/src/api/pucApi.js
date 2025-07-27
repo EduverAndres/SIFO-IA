@@ -3,7 +3,8 @@
 // ===============================================
 
 // Configuración base de la API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
+const API_BASE_URL = 'https://sifo-ia-main.onrender.com/api/v1';
+
 
 // ===============================================
 // 🛠️ UTILIDADES DE CONFIGURACIÓN
