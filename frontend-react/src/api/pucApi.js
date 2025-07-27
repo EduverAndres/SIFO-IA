@@ -322,7 +322,7 @@ export const pucApi = {
       });
 
       // Hacer petición al servidor para validación completa
-      const response = await makeRequest('/puc/validar-excel', {
+      const response = await makeRequest('/puc/validar/excel', {
         method: 'POST',
         body: formData,
         headers: getFormDataHeaders()
