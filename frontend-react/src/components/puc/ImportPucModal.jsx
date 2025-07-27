@@ -1,4 +1,7 @@
-// src/components/puc/ImportPucModal.jsx - ACTUALIZADO PARA EL BACKEND
+// ===============================================
+// 🔧 ImportPucModal.jsx - MODAL DE IMPORTACIÓN CORREGIDO
+// ===============================================
+
 import React, { useState } from 'react';
 import {
   FaFileImport,
@@ -7,48 +10,48 @@ import {
   FaCheckCircle,
   FaExclamationTriangle,
   FaDownload,
-  FaFlag,
-  FaBuilding,
+  FaUpload,
   FaFileExcel,
-  FaEye
+  FaEye,
+  FaCogs,
+  FaSpinner
 } from 'react-icons/fa';
-import Modal from '../Modal';
-import Button from '../Button';
 import { pucApi } from '../../api/pucApi';
 
-const ImportPucModal = ({ show, onClose, onImport, loading }) => {
-  // 🔥 DEBUG: Verificar props
-  console.log('🎯 ImportPucModal renderizado:', { show, onClose, onImport, loading });
-  
-  const [importType, setImportType] = useState('excel'); // 'excel' o 'estandar'
+const ImportPucModal = ({ isOpen, onClose, onImportSuccess }) => {
+  // ===============================================
+  // 🎯 ESTADOS
+  // ===============================================
   const [file, setFile] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStep, setImportStep] = useState('upload'); // 'upload', 'validate', 'import', 'complete'
+  const [importResult, setImportResult] = useState(null);
+  
+  // Opciones de importación
   const [importOptions, setImportOptions] = useState({
     sobreescribir: false,
     validar_jerarquia: true,
     importar_saldos: true,
-    importar_fiscal: true,
+    importar_fiscal: false,
     hoja: 'PUC',
     fila_inicio: 3
   });
 
-  const handleImportEstandar = async () => {
-    try {
-      const result = await pucApi.importarPucEstandar(importOptions);
-      if (result.data.exito) {
-        onImport && onImport(result.data);
-        onClose();
-      }
-    } catch (error) {
-      console.error('Error al importar PUC estándar:', error);
-      alert('Error al importar PUC estándar: ' + error.message);
-    }
-  };
+  // ===============================================
+  // 🔧 FUNCIONES DE MANEJO DE ARCHIVOS
+  // ===============================================
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
+      console.log('📁 Archivo seleccionado:', {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type
+      });
+
       // Validar tipo de archivo
       const allowedTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -65,8 +68,14 @@ const ImportPucModal = ({ show, onClose, onImport, loading }) => {
       
       setFile(selectedFile);
       setValidationResult(null);
+      setImportStep('upload');
+      setImportResult(null);
     }
   };
+
+  // ===============================================
+  // 🔍 FUNCIONES DE VALIDACIÓN
+  // ===============================================
 
   const handleValidateFile = async () => {
     if (!file) {
@@ -75,16 +84,44 @@ const ImportPucModal = ({ show, onClose, onImport, loading }) => {
     }
 
     setIsValidating(true);
+    setValidationResult(null);
+    
     try {
+      console.log('🔍 Iniciando validación de archivo...');
+      
+      // ✅ USAR EL MÉTODO CORREGIDO
       const result = await pucApi.validarArchivoExcel(file, importOptions);
-      setValidationResult(result.data);
+      
+      console.log('✅ Resultado de validación:', result);
+      
+      if (result.success) {
+        setValidationResult(result.data);
+        setImportStep('validate');
+      } else {
+        setValidationResult(result.data);
+        setImportStep('validate');
+      }
+      
     } catch (error) {
-      console.error('Error validando archivo:', error);
-      alert('Error al validar archivo: ' + error.message);
+      console.error('❌ Error validando archivo:', error);
+      
+      // Crear resultado de error para mostrar en UI
+      setValidationResult({
+        es_valido: false,
+        errores: [error.message || 'Error desconocido al validar archivo'],
+        advertencias: [],
+        total_filas: 0
+      });
+      setImportStep('validate');
+      
     } finally {
       setIsValidating(false);
     }
   };
+
+  // ===============================================
+  // 📥 FUNCIONES DE IMPORTACIÓN
+  // ===============================================
 
   const handleImportFile = async () => {
     if (!file) {
@@ -92,523 +129,566 @@ const ImportPucModal = ({ show, onClose, onImport, loading }) => {
       return;
     }
 
+    // Verificar validación previa
+    if (!validationResult || !validationResult.es_valido) {
+      if (!window.confirm('El archivo no ha sido validado o tiene errores. ¿Deseas continuar con la importación?')) {
+        return;
+      }
+    }
+
+    setIsImporting(true);
+    setImportStep('import');
+    
     try {
+      console.log('📥 Iniciando importación...');
+      
       const result = await pucApi.importarDesdeExcel(file, importOptions);
       
-      if (result.data.exito) {
-        onImport && onImport(result.data);
-        onClose();
+      console.log('✅ Resultado de importación:', result);
+      
+      if (result.success || result.data?.exito) {
+        setImportResult(result.data || result);
+        setImportStep('complete');
+        
+        // Notificar al componente padre del éxito
+        if (onImportSuccess) {
+          onImportSuccess(result.data || result);
+        }
+        
+        // Auto-cerrar modal después de 3 segundos
+        setTimeout(() => {
+          handleClose();
+        }, 3000);
+        
       } else {
-        alert('Error durante la importación: ' + result.data.mensaje);
+        throw new Error(result.data?.mensaje || result.message || 'Error durante la importación');
       }
+      
     } catch (error) {
-      console.error('Error importando archivo:', error);
+      console.error('❌ Error importando archivo:', error);
       alert('Error al importar archivo: ' + error.message);
+      setImportStep('validate'); // Volver al paso anterior
+      
+    } finally {
+      setIsImporting(false);
     }
   };
 
-  const downloadTemplate = async () => {
+  // ===============================================
+  // 🎛️ FUNCIONES DE CONTROL
+  // ===============================================
+
+  const handleClose = () => {
+    // Reset de todos los estados
+    setFile(null);
+    setValidationResult(null);
+    setIsValidating(false);
+    setIsImporting(false);
+    setImportStep('upload');
+    setImportResult(null);
+    setImportOptions({
+      sobreescribir: false,
+      validar_jerarquia: true,
+      importar_saldos: true,
+      importar_fiscal: false,
+      hoja: 'PUC',
+      fila_inicio: 3
+    });
+    
+    onClose();
+  };
+
+  const handleDownloadTemplate = async () => {
     try {
-      await pucApi.descargarTemplate(true);
+      await pucApi.descargarTemplate(true); // Con ejemplos
     } catch (error) {
       console.error('Error descargando template:', error);
       alert('Error al descargar template: ' + error.message);
     }
   };
 
-  const resetImport = () => {
+  const handleStartOver = () => {
     setFile(null);
     setValidationResult(null);
+    setImportStep('upload');
+    setImportResult(null);
   };
 
-  const pucEstandarInfo = [
-    { clase: '1', nombre: 'ACTIVOS', descripcion: 'Recursos controlados por la empresa', naturaleza: 'DÉBITO' },
-    { clase: '2', nombre: 'PASIVOS', descripcion: 'Obligaciones de la empresa', naturaleza: 'CRÉDITO' },
-    { clase: '3', nombre: 'PATRIMONIO', descripcion: 'Capital y utilidades', naturaleza: 'CRÉDITO' },
-    { clase: '4', nombre: 'INGRESOS', descripcion: 'Aumentos en los beneficios económicos', naturaleza: 'CRÉDITO' },
-    { clase: '5', nombre: 'GASTOS', descripcion: 'Disminuciones en los beneficios económicos', naturaleza: 'DÉBITO' },
-    { clase: '6', nombre: 'COSTOS', descripcion: 'Costos asociados con la producción', naturaleza: 'DÉBITO' },
-  ];
+  // ===============================================
+  // 🎨 COMPONENTES DE UI
+  // ===============================================
 
-  return (
-    <Modal
-      show={show}
-      onClose={onClose}
-      title="Importar Plan Único de Cuentas"
-      maxWidth="4xl"
-    >
-      <div className="space-y-6">
-        {/* Selector de tipo de importación */}
-        <div className="flex space-x-4 p-1 bg-gray-100 rounded-lg">
-          <button
-            onClick={() => setImportType('excel')}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-              importType === 'excel'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <FaFileExcel className="text-green-500" />
-              <span>Importar desde Excel</span>
-            </div>
-          </button>
-          <button
-            onClick={() => setImportType('estandar')}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-              importType === 'estandar'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <FaFlag className="text-yellow-500" />
-              <span>PUC Estándar Colombia</span>
-            </div>
-          </button>
-        </div>
-
-        {/* Contenido según el tipo seleccionado */}
-        {importType === 'excel' ? (
-          <div className="space-y-6">
-            {/* Importación desde Excel */}
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                <FaFileExcel className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Importar desde archivo Excel
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Sube tu archivo Excel con el plan de cuentas. Usa nuestro template para mejor compatibilidad.
-              </p>
-            </div>
-
-            {/* Descargar plantilla */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <FaDownload className="text-yellow-500 mr-3" />
-                  <div>
-                    <h4 className="text-sm font-medium text-yellow-800">Template recomendado</h4>
-                    <p className="text-sm text-yellow-700">
-                      Descarga la plantilla oficial con ejemplos y formato correcto
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  onClick={downloadTemplate}
-                  className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300"
-                  icon={FaDownload}
-                  size="sm"
-                >
-                  Descargar Template
-                </Button>
-              </div>
-            </div>
-
-            {/* Selección de archivo */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Seleccionar archivo Excel
-              </label>
-              <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-gray-400 transition-colors duration-200">
-                <div className="space-y-1 text-center">
-                  <FaFileExcel className="mx-auto h-12 w-12 text-green-400" />
-                  <div className="flex text-sm text-gray-600">
-                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                      <span>Subir archivo Excel</span>
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={handleFileChange}
-                        className="sr-only"
-                      />
-                    </label>
-                    <p className="pl-1">o arrastra y suelta</p>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Solo archivos Excel (.xlsx, .xls) hasta 10MB
-                  </p>
-                </div>
-              </div>
-              
-              {file && (
-                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <FaCheckCircle className="text-green-500 mr-2" />
-                      <span className="text-sm text-green-800">
-                        {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                      </span>
-                    </div>
-                    <button
-                      onClick={resetImport}
-                      className="text-red-500 hover:text-red-700 text-sm"
-                    >
-                      <FaTimes />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Opciones de importación */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium text-gray-700">Opciones de importación:</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="flex items-center space-x-3 cursor-pointer group p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.sobreescribir}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, sobreescribir: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">
-                      Sobreescribir existentes
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      Actualizar cuentas que ya existan
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-center space-x-3 cursor-pointer group p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.validar_jerarquia}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, validar_jerarquia: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">
-                      Validar jerarquía
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      Verificar estructura antes de importar
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-center space-x-3 cursor-pointer group p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.importar_saldos}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, importar_saldos: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">
-                      Importar saldos
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      Incluir saldos iniciales y finales
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-center space-x-3 cursor-pointer group p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.importar_fiscal}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, importar_fiscal: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">
-                      Importar info fiscal
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      F350, F300, exógena, etc.
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Configuración avanzada */}
-              <div className="border-t pt-4">
-                <h5 className="text-sm font-medium text-gray-700 mb-3">Configuración avanzada:</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Nombre de la hoja
-                    </label>
-                    <input
-                      type="text"
-                      value={importOptions.hoja}
-                      onChange={(e) => setImportOptions(prev => ({ ...prev, hoja: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="PUC"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Fila de inicio de datos
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={importOptions.fila_inicio}
-                      onChange={(e) => setImportOptions(prev => ({ ...prev, fila_inicio: parseInt(e.target.value) || 3 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Resultado de validación */}
-            {validationResult && (
-              <div className={`rounded-lg p-4 ${
-                validationResult.es_valido 
-                  ? 'bg-green-50 border border-green-200' 
-                  : 'bg-red-50 border border-red-200'
-              }`}>
-                <div className="flex items-center mb-3">
-                  {validationResult.es_valido ? (
-                    <>
-                      <FaCheckCircle className="text-green-500 mr-2" />
-                      <h4 className="text-sm font-medium text-green-800">
-                        Archivo válido para importación
-                      </h4>
-                    </>
-                  ) : (
-                    <>
-                      <FaExclamationTriangle className="text-red-500 mr-2" />
-                      <h4 className="text-sm font-medium text-red-800">
-                        Errores encontrados en el archivo
-                      </h4>
-                    </>
-                  )}
-                </div>
-
-                <div className="text-sm space-y-2">
-                  <p className={validationResult.es_valido ? 'text-green-700' : 'text-red-700'}>
-                    Total de filas: {validationResult.total_filas} | 
-                    Válidas: {validationResult.filas_validas} | 
-                    Errores: {validationResult.errores?.length || 0}
-                  </p>
-
-                  {validationResult.errores && validationResult.errores.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-red-700 font-medium mb-1">Errores encontrados:</p>
-                      <div className="max-h-32 overflow-y-auto">
-                        {validationResult.errores.slice(0, 5).map((error, index) => (
-                          <p key={index} className="text-xs text-red-600">
-                            Fila {error.fila}: {error.error}
-                          </p>
-                        ))}
-                        {validationResult.errores.length > 5 && (
-                          <p className="text-xs text-red-600 italic">
-                            ... y {validationResult.errores.length - 5} errores más
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {validationResult.advertencias && validationResult.advertencias.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-yellow-700 font-medium mb-1">Advertencias:</p>
-                      <div className="max-h-20 overflow-y-auto">
-                        {validationResult.advertencias.slice(0, 3).map((advertencia, index) => (
-                          <p key={index} className="text-xs text-yellow-600">{advertencia}</p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <Button
-                onClick={onClose}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-              >
-                Cancelar
-              </Button>
-
-              {file && !validationResult && (
-                <Button
-                  onClick={handleValidateFile}
-                  disabled={isValidating}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  icon={isValidating ? null : FaEye}
-                >
-                  {isValidating ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      <span>Validando...</span>
-                    </div>
-                  ) : (
-                    'Validar Archivo'
-                  )}
-                </Button>
-              )}
-
-              {validationResult && (
-                <>
-                  <Button
-                    onClick={handleValidateFile}
-                    disabled={isValidating}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    icon={FaEye}
-                  >
-                    Validar de nuevo
-                  </Button>
-                  
-                  <Button
-                    onClick={handleImportFile}
-                    disabled={!validationResult.es_valido || loading}
-                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                    icon={loading ? null : FaFileImport}
-                  >
-                    {loading ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        <span>Importando...</span>
-                      </div>
-                    ) : (
-                      'Importar Datos'
-                    )}
-                  </Button>
-                </>
-              )}
-            </div>
+  // Paso 1: Subida de archivo
+  const renderUploadStep = () => (
+    <div className="space-y-6">
+      {/* Información general */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <FaInfoCircle className="text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
+          <div className="text-sm text-blue-700">
+            <p className="font-medium mb-2">Instrucciones de importación:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>El archivo debe estar en formato Excel (.xlsx o .xls)</li>
+              <li>La hoja debe llamarse "PUC" o usar el nombre especificado</li>
+              <li>Los datos deben comenzar en la fila especificada (por defecto fila 3)</li>
+              <li>Se recomienda validar el archivo antes de importar</li>
+            </ul>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Importación PUC estándar */}
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
-                <FaBuilding className="h-8 w-8 text-yellow-600" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Plan Único de Cuentas - Colombia
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Importa la estructura básica del PUC establecido por la normativa colombiana.
-                Incluye las clases, grupos y cuentas principales según el Decreto 2650 de 1993.
-              </p>
-            </div>
+        </div>
+      </div>
 
-            {/* Vista previa de las clases */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                <FaInfoCircle className="mr-2 text-blue-500" />
-                Clases que se importarán:
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pucEstandarInfo.map((clase) => (
-                  <div key={clase.clase} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                    <span className="font-mono text-lg font-bold text-gray-800 bg-gray-100 w-8 h-8 rounded flex items-center justify-center">
-                      {clase.clase}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{clase.nombre}</p>
-                      <p className="text-xs text-gray-500 truncate">{clase.descripcion}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      clase.naturaleza === 'DÉBITO' 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {clase.naturaleza}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Información importante */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex">
-                <FaInfoCircle className="text-blue-400 mt-0.5 mr-3" />
-                <div>
-                  <h4 className="text-sm font-medium text-blue-800">Información importante:</h4>
-                  <ul className="mt-2 text-sm text-blue-700 list-disc list-inside space-y-1">
-                    <li>Se importarán aproximadamente 25-30 cuentas básicas</li>
-                    <li>No se sobrescribirán cuentas existentes con el mismo código</li>
-                    <li>Incluye estructura jerárquica completa (Clase → Grupo → Cuenta)</li>
-                    <li>Podrás personalizar las cuentas después de la importación</li>
-                    <li>Es recomendable hacer esto en un PUC vacío o nuevo</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Opciones de importación estándar */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-700">Opciones de importación:</h4>
-              <div className="space-y-2">
-                <label className="flex items-center space-x-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.sobreescribir}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, sobreescribir: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                      Sobrescribir cuentas existentes
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      Actualizar cuentas que ya existan con el mismo código
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-center space-x-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={importOptions.validar_jerarquia}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, validar_jerarquia: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                      Validar jerarquía
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      Verificar que la estructura jerárquica sea correcta antes de importar
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
-              <Button
-                onClick={onClose}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleImportEstandar}
-                disabled={loading}
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                icon={loading ? null : FaFileImport}
-              >
-                {loading ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    <span>Importando...</span>
-                  </div>
-                ) : (
-                  'Importar PUC Estándar'
-                )}
-              </Button>
+      {/* Selector de archivo */}
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+        <FaFileExcel className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <p className="text-gray-600 mb-4">
+          Arrastra un archivo Excel aquí o haz clic para seleccionar
+        </p>
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileChange}
+          className="hidden"
+          id="file-upload"
+        />
+        <label
+          htmlFor="file-upload"
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors"
+        >
+          <FaUpload className="mr-2" />
+          Seleccionar archivo
+        </label>
+        
+        {file && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+            <div className="flex items-center justify-center">
+              <FaFileExcel className="text-green-600 mr-2" />
+              <span className="text-sm font-medium text-green-800">
+                {file.name}
+              </span>
+              <span className="text-xs text-green-600 ml-2">
+                ({(file.size / 1024 / 1024).toFixed(2)} MB)
+              </span>
             </div>
           </div>
         )}
       </div>
-    </Modal>
+
+      {/* Opciones de importación */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-3">Opciones de importación:</h4>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Checkboxes principales */}
+          <div className="space-y-2">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={importOptions.sobreescribir}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, sobreescribir: e.target.checked }))}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Sobreescribir cuentas existentes</span>
+            </label>
+            
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={importOptions.validar_jerarquia}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, validar_jerarquia: e.target.checked }))}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Validar jerarquía de cuentas</span>
+            </label>
+            
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={importOptions.importar_saldos}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, importar_saldos: e.target.checked }))}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Importar saldos</span>
+            </label>
+            
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={importOptions.importar_fiscal}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, importar_fiscal: e.target.checked }))}
+                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Importar información fiscal</span>
+            </label>
+          </div>
+
+          {/* Configuración avanzada */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Nombre de la hoja
+              </label>
+              <input
+                type="text"
+                value={importOptions.hoja}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, hoja: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                placeholder="PUC"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Fila de inicio de datos
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={importOptions.fila_inicio}
+                onChange={(e) => setImportOptions(prev => ({ ...prev, fila_inicio: parseInt(e.target.value) || 3 }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="flex justify-between">
+        <button
+          onClick={handleDownloadTemplate}
+          className="flex items-center px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+        >
+          <FaDownload className="mr-2" />
+          Descargar Template
+        </button>
+        
+        <div className="space-x-2">
+          <button
+            onClick={handleValidateFile}
+            disabled={!file || isValidating}
+            className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isValidating ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" />
+                Validando...
+              </>
+            ) : (
+              <>
+                <FaEye className="mr-2" />
+                Validar Archivo
+              </>
+            )}
+          </button>
+          
+          <button
+            onClick={handleImportFile}
+            disabled={!file || isImporting}
+            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isImporting ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <FaFileImport className="mr-2" />
+                Importar Directamente
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Paso 2: Resultado de validación
+  const renderValidationStep = () => (
+    <div className="space-y-6">
+      {/* Resultado de validación */}
+      <div className={`rounded-lg p-4 ${
+        validationResult?.es_valido 
+          ? 'bg-green-50 border border-green-200' 
+          : 'bg-red-50 border border-red-200'
+      }`}>
+        <div className="flex items-center mb-3">
+          {validationResult?.es_valido ? (
+            <>
+              <FaCheckCircle className="text-green-500 mr-2" />
+              <h4 className="text-sm font-medium text-green-800">
+                ✅ Archivo válido para importación
+              </h4>
+            </>
+          ) : (
+            <>
+              <FaExclamationTriangle className="text-red-500 mr-2" />
+              <h4 className="text-sm font-medium text-red-800">
+                ❌ Errores encontrados en el archivo
+              </h4>
+            </>
+          )}
+        </div>
+
+        <div className="text-sm space-y-2">
+          <p className={validationResult?.es_valido ? 'text-green-700' : 'text-red-700'}>
+            Total de filas detectadas: <strong>{validationResult?.total_filas || 0}</strong>
+          </p>
+
+          {/* Errores */}
+          {validationResult?.errores && validationResult.errores.length > 0 && (
+            <div>
+              <p className="font-medium text-red-800 mb-1">Errores:</p>
+              <ul className="list-disc list-inside space-y-1 text-red-700">
+                {validationResult.errores.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Advertencias */}
+          {validationResult?.advertencias && validationResult.advertencias.length > 0 && (
+            <div>
+              <p className="font-medium text-yellow-800 mb-1">Advertencias:</p>
+              <ul className="list-disc list-inside space-y-1 text-yellow-700">
+                {validationResult.advertencias.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Información del archivo */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Información del archivo:</h4>
+        <div className="text-sm text-gray-600 space-y-1">
+          <p><strong>Nombre:</strong> {file?.name}</p>
+          <p><strong>Tamaño:</strong> {file ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</p>
+          <p><strong>Hoja a procesar:</strong> {importOptions.hoja}</p>
+          <p><strong>Fila de inicio:</strong> {importOptions.fila_inicio}</p>
+        </div>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="flex justify-between">
+        <button
+          onClick={handleStartOver}
+          className="flex items-center px-4 py-2 text-gray-600 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          <FaTimes className="mr-2" />
+          Cambiar Archivo
+        </button>
+        
+        <div className="space-x-2">
+          <button
+            onClick={handleValidateFile}
+            disabled={isValidating}
+            className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isValidating ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" />
+                Validando...
+              </>
+            ) : (
+              <>
+                <FaEye className="mr-2" />
+                Revalidar
+              </>
+            )}
+          </button>
+          
+          <button
+            onClick={handleImportFile}
+            disabled={isImporting}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              validationResult?.es_valido
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-orange-600 text-white hover:bg-orange-700'
+            }`}
+          >
+            {isImporting ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <FaFileImport className="mr-2" />
+                {validationResult?.es_valido ? 'Proceder con Importación' : 'Importar con Errores'}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Paso 3: Importación en progreso
+  const renderImportStep = () => (
+    <div className="space-y-6 text-center">
+      <div className="py-8">
+        <FaSpinner className="animate-spin mx-auto h-12 w-12 text-blue-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          Importando archivo...
+        </h3>
+        <p className="text-gray-600">
+          Por favor espera mientras procesamos el archivo Excel.
+        </p>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-700">
+          ⏳ Este proceso puede tomar unos minutos dependiendo del tamaño del archivo.
+        </p>
+      </div>
+    </div>
+  );
+
+  // Paso 4: Importación completada
+  const renderCompleteStep = () => (
+    <div className="space-y-6">
+      {/* Resultado exitoso */}
+      <div className="text-center py-6">
+        <FaCheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
+        <h3 className="text-xl font-semibold text-green-800 mb-2">
+          ¡Importación Completada!
+        </h3>
+        <p className="text-gray-600">
+          El archivo se ha procesado exitosamente.
+        </p>
+      </div>
+
+      {/* Resumen de resultados */}
+      {importResult && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-green-800 mb-3">Resumen de importación:</h4>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-green-700">
+                <strong>Procesadas:</strong> {importResult.resumen?.total_procesadas || 0}
+              </p>
+              <p className="text-green-700">
+                <strong>Insertadas:</strong> {importResult.resumen?.insertadas || 0}
+              </p>
+            </div>
+            <div>
+              <p className="text-green-700">
+                <strong>Actualizadas:</strong> {importResult.resumen?.actualizadas || 0}
+              </p>
+              <p className="text-green-700">
+                <strong>Errores:</strong> {importResult.resumen?.errores || 0}
+              </p>
+            </div>
+          </div>
+
+          {importResult.resumen?.errores > 0 && (
+            <div className="mt-3 pt-3 border-t border-green-300">
+              <p className="text-sm font-medium text-red-800 mb-1">Errores detectados:</p>
+              <ul className="list-disc list-inside text-sm text-red-700">
+                {(importResult.errores || []).slice(0, 5).map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+                {(importResult.errores || []).length > 5 && (
+                  <li>... y {(importResult.errores || []).length - 5} errores más</li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mensaje de cierre automático */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+        <p className="text-sm text-blue-700">
+          ℹ️ Esta ventana se cerrará automáticamente en unos segundos...
+        </p>
+      </div>
+
+      {/* Botón para cerrar manualmente */}
+      <div className="text-center">
+        <button
+          onClick={handleClose}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  );
+
+  // ===============================================
+  // 🎨 RENDER PRINCIPAL
+  // ===============================================
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center">
+            <FaFileImport className="text-blue-600 text-xl mr-3" />
+            <h2 className="text-xl font-semibold text-gray-900">
+              Importar PUC desde Excel
+            </h2>
+          </div>
+          <button
+            onClick={handleClose}
+            disabled={isImporting}
+            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+          >
+            <FaTimes className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Progress Indicator */}
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex space-x-4">
+              <span className={`flex items-center ${
+                importStep === 'upload' ? 'text-blue-600 font-medium' : 
+                ['validate', 'import', 'complete'].includes(importStep) ? 'text-green-600' : 'text-gray-400'
+              }`}>
+                <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 text-xs">1</span>
+                Subir
+              </span>
+              <span className={`flex items-center ${
+                importStep === 'validate' ? 'text-blue-600 font-medium' : 
+                ['import', 'complete'].includes(importStep) ? 'text-green-600' : 'text-gray-400'
+              }`}>
+                <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 text-xs">2</span>
+                Validar
+              </span>
+              <span className={`flex items-center ${
+                importStep === 'import' ? 'text-blue-600 font-medium' : 
+                importStep === 'complete' ? 'text-green-600' : 'text-gray-400'
+              }`}>
+                <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 text-xs">3</span>
+                Importar
+              </span>
+              <span className={`flex items-center ${
+                importStep === 'complete' ? 'text-green-600 font-medium' : 'text-gray-400'
+              }`}>
+                <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 text-xs">4</span>
+                Completar
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {importStep === 'upload' && renderUploadStep()}
+          {importStep === 'validate' && renderValidationStep()}
+          {importStep === 'import' && renderImportStep()}
+          {importStep === 'complete' && renderCompleteStep()}
+        </div>
+      </div>
+    </div>
   );
 };
 

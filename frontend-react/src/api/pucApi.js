@@ -1,5 +1,5 @@
 // ===============================================
-// 🔧 pucApi.js - ARCHIVO COMPLETO CON MANEJO DE ERRORES
+// 🔧 pucApi.js - CORREGIDO CON MÉTODO validarArchivoExcel
 // ===============================================
 
 // Configuración base de la API
@@ -51,6 +51,18 @@ const getAuthHeaders = () => {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
+
+// Función helper para obtener headers para FormData (sin Content-Type)
+const getFormDataHeaders = () => {
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+  const headers = {};
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -132,7 +144,7 @@ const makeRequest = async (url, options = {}, retries = 2) => {
   
   // Configuración por defecto
   const defaultOptions = {
-    headers: getAuthHeaders(),
+    headers: options.headers || getAuthHeaders(),
     timeout: 30000, // 30 segundos
     ...options
   };
@@ -254,70 +266,6 @@ export const pucApi = {
     }
   },
 
-  // Obtener cuenta por ID
-  async obtenerCuentaPorId(id) {
-    try {
-      apiLog('info', `Obteniendo cuenta ID: ${id}`);
-      const response = await makeRequest(`/puc/cuentas/${id}`);
-      apiLog('success', 'Cuenta obtenida exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error obteniendo cuenta ${id}`, error);
-      throw error;
-    }
-  },
-
-  // Obtener árbol jerárquico
-  async obtenerArbol(codigoPadre = null, incluirInactivas = false) {
-    try {
-      const params = new URLSearchParams();
-      if (codigoPadre) params.append('codigo_padre', codigoPadre);
-      if (incluirInactivas) params.append('incluir_inactivas', 'true');
-
-      const endpoint = `/puc/arbol${params.toString() ? `?${params.toString()}` : ''}`;
-      
-      apiLog('info', `Obteniendo árbol PUC`, { codigoPadre, incluirInactivas });
-      const response = await makeRequest(endpoint);
-      
-      // Asegurar formato consistente
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
-      };
-
-      apiLog('success', `Árbol obtenido: ${processedResponse.data.length} nodos`);
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo árbol', error);
-      return { success: false, data: [], error: error.message };
-    }
-  },
-
-  // Buscar cuentas
-  async buscarCuentas(termino, limite = 50, soloActivas = true) {
-    try {
-      const params = new URLSearchParams({
-        q: termino,
-        limite: limite.toString(),
-        solo_activas: soloActivas.toString()
-      });
-
-      apiLog('info', `Buscando cuentas: "${termino}"`);
-      const response = await makeRequest(`/puc/buscar?${params.toString()}`);
-      
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
-      };
-
-      apiLog('success', `${processedResponse.data.length} cuentas encontradas`);
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', `Error buscando "${termino}"`, error);
-      return { success: false, data: [], error: error.message };
-    }
-  },
-
   // Obtener estadísticas
   async obtenerEstadisticas() {
     try {
@@ -338,110 +286,115 @@ export const pucApi = {
   },
 
   // ===============================================
-  // ✏️ MÉTODOS DE MODIFICACIÓN
+  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
   // ===============================================
 
-  // Crear nueva cuenta
-  async crearCuenta(datosCuenta) {
+  // ✅ MÉTODO AGREGADO: Validar archivo Excel antes de importar
+  async validarArchivoExcel(archivo, opciones = {}) {
     try {
-      apiLog('info', 'Creando nueva cuenta', datosCuenta);
+      apiLog('info', 'Validando archivo Excel', { 
+        archivo: archivo.name, 
+        size: archivo.size,
+        type: archivo.type,
+        opciones 
+      });
+
+      // Validaciones del lado del cliente primero
+      const clientValidation = this.validarArchivoCliente(archivo);
+      if (!clientValidation.es_valido) {
+        return {
+          success: false,
+          data: clientValidation
+        };
+      }
+
+      // Preparar FormData para envío
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      formData.append('accion', 'validar');
       
-      const response = await makeRequest('/puc/cuentas', {
+      // Añadir opciones de validación
+      Object.entries(opciones).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
+
+      // Hacer petición al servidor para validación completa
+      const response = await makeRequest('/puc/validar-excel', {
         method: 'POST',
-        body: JSON.stringify(datosCuenta)
+        body: formData,
+        headers: getFormDataHeaders()
       });
 
-      apiLog('success', 'Cuenta creada exitosamente');
+      apiLog('success', 'Validación completada', response);
       return response;
+
     } catch (error) {
-      apiLog('error', 'Error creando cuenta', error);
-      throw error;
-    }
-  },
-
-  // Actualizar cuenta existente
-  async actualizarCuenta(id, datosCuenta) {
-    try {
-      apiLog('info', `Actualizando cuenta ${id}`, datosCuenta);
+      apiLog('error', 'Error validando archivo Excel', error);
       
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(datosCuenta)
-      });
-
-      apiLog('success', 'Cuenta actualizada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error actualizando cuenta ${id}`, error);
-      throw error;
-    }
-  },
-
-  // Eliminar cuenta
-  async eliminarCuenta(id) {
-    try {
-      apiLog('info', `Eliminando cuenta ${id}`);
-      
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'DELETE'
-      });
-
-      apiLog('success', 'Cuenta eliminada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error eliminando cuenta ${id}`, error);
-      throw error;
-    }
-  },
-
-  // ===============================================
-  // 📊 MÉTODOS DE REPORTES
-  // ===============================================
-
-  // Reporte por clase
-  async reportePorClase(incluirSaldos = false) {
-    try {
-      const params = incluirSaldos ? '?incluir_saldos=true' : '';
-      
-      apiLog('info', `Generando reporte por clase`, { incluirSaldos });
-      const response = await makeRequest(`/puc/reportes/por-clase${params}`);
-      
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
+      // Retornar formato consistente en caso de error
+      return {
+        success: false,
+        data: {
+          es_valido: false,
+          errores: [error.message || 'Error desconocido al validar archivo'],
+          advertencias: [],
+          total_filas: 0
+        }
       };
-
-      apiLog('success', 'Reporte por clase generado');
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', 'Error generando reporte por clase', error);
-      return { success: false, data: [], error: error.message };
     }
   },
 
-  // Reporte de jerarquía completa
-  async reporteJerarquiaCompleta(formato = 'json') {
-    try {
-      const params = `?formato=${formato}`;
-      
-      apiLog('info', `Generando reporte de jerarquía`, { formato });
-      const response = await makeRequest(`/puc/reportes/jerarquia-completa${params}`);
+  // ✅ MÉTODO HELPER: Validaciones del lado del cliente
+  validarArchivoCliente(archivo) {
+    const errores = [];
+    const advertencias = [];
 
-      apiLog('success', 'Reporte de jerarquía generado');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error generando reporte de jerarquía', error);
-      throw error;
+    // Validar que existe el archivo
+    if (!archivo) {
+      errores.push('No se ha seleccionado ningún archivo');
+      return { es_valido: false, errores, advertencias, total_filas: 0 };
     }
+
+    // Validar tipo de archivo
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    
+    const fileExtension = archivo.name.toLowerCase();
+    const isValidType = allowedTypes.includes(archivo.type) || 
+                       fileExtension.endsWith('.xlsx') || 
+                       fileExtension.endsWith('.xls');
+
+    if (!isValidType) {
+      errores.push('El archivo debe ser un Excel válido (.xlsx o .xls)');
+    }
+
+    // Validar tamaño del archivo (máximo 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (archivo.size > maxSize) {
+      errores.push(`El archivo es demasiado grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`);
+    }
+
+    // Validar tamaño mínimo (al menos 1KB)
+    if (archivo.size < 1024) {
+      errores.push('El archivo parece estar vacío o corrupto');
+    }
+
+    // Advertencias sobre el nombre del archivo
+    if (!fileExtension.includes('puc')) {
+      advertencias.push('Se recomienda que el nombre del archivo contenga "PUC" para facilitar identificación');
+    }
+
+    return {
+      es_valido: errores.length === 0,
+      errores,
+      advertencias,
+      total_filas: 0 // Solo el servidor puede determinar esto
+    };
   },
-
-  // ===============================================
-  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
-  // ===============================================
-
-  // ===============================================
-  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
-  // ===============================================
 
   // Importar desde Excel
   async importarDesdeExcel(archivo, opciones = {}) {
@@ -452,7 +405,7 @@ export const pucApi = {
       // Añadir opciones de importación
       Object.entries(opciones).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          formData.append(key, value);
+          formData.append(key, String(value));
         }
       });
 
@@ -465,10 +418,7 @@ export const pucApi = {
       const response = await makeRequest('/puc/importar/excel', {
         method: 'POST',
         body: formData,
-        headers: {
-          // No incluir Content-Type para FormData
-          'Authorization': getAuthHeaders().Authorization
-        }
+        headers: getFormDataHeaders()
       });
 
       apiLog('success', 'Importación completada', response);
@@ -485,7 +435,7 @@ export const pucApi = {
       const params = new URLSearchParams();
       Object.entries(opciones).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value);
+          params.append(key, String(value));
         }
       });
 
@@ -588,39 +538,58 @@ export const pucApi = {
   },
 
   // ===============================================
-  // 🔧 MÉTODOS DE MANTENIMIENTO
+  // ✏️ MÉTODOS DE MODIFICACIÓN
   // ===============================================
 
-  // Recalcular jerarquía
-  async recalcularJerarquia() {
+  // Crear nueva cuenta
+  async crearCuenta(datosCuenta) {
     try {
-      apiLog('info', 'Recalculando jerarquía PUC');
+      apiLog('info', 'Creando nueva cuenta', datosCuenta);
       
-      const response = await makeRequest('/puc/mantenimiento/recalcular-jerarquia', {
-        method: 'POST'
+      const response = await makeRequest('/puc/cuentas', {
+        method: 'POST',
+        body: JSON.stringify(datosCuenta)
       });
 
-      apiLog('success', 'Jerarquía recalculada exitosamente');
+      apiLog('success', 'Cuenta creada exitosamente');
       return response;
     } catch (error) {
-      apiLog('error', 'Error recalculando jerarquía', error);
+      apiLog('error', 'Error creando cuenta', error);
       throw error;
     }
   },
 
-  // Validar integridad del PUC
-  async validarIntegridad() {
+  // Actualizar cuenta existente
+  async actualizarCuenta(id, datosCuenta) {
     try {
-      apiLog('info', 'Validando integridad del PUC');
+      apiLog('info', `Actualizando cuenta ${id}`, datosCuenta);
       
-      const response = await makeRequest('/puc/mantenimiento/validar-integridad', {
-        method: 'POST'
+      const response = await makeRequest(`/puc/cuentas/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(datosCuenta)
       });
 
-      apiLog('success', 'Validación de integridad completada');
+      apiLog('success', 'Cuenta actualizada exitosamente');
       return response;
     } catch (error) {
-      apiLog('error', 'Error validando integridad', error);
+      apiLog('error', `Error actualizando cuenta ${id}`, error);
+      throw error;
+    }
+  },
+
+  // Eliminar cuenta
+  async eliminarCuenta(id) {
+    try {
+      apiLog('info', `Eliminando cuenta ${id}`);
+      
+      const response = await makeRequest(`/puc/cuentas/${id}`, {
+        method: 'DELETE'
+      });
+
+      apiLog('success', 'Cuenta eliminada exitosamente');
+      return response;
+    } catch (error) {
+      apiLog('error', `Error eliminando cuenta ${id}`, error);
       throw error;
     }
   },
@@ -653,153 +622,6 @@ export const pucApi = {
       apiLog('error', 'Error obteniendo información', error);
       throw error;
     }
-  },
-
-  // ===============================================
-  // 📋 MÉTODOS ESPECÍFICOS PARA COMPONENTES
-  // ===============================================
-
-  // Método auxiliar para obtener opciones de clase
-  async obtenerClases() {
-    try {
-      const response = await this.reportePorClase(false);
-      const clases = response.data.map(clase => ({
-        value: clase.codigo_clase,
-        label: `${clase.codigo_clase} - ${this.obtenerNombreClase(clase.codigo_clase)}`,
-        total_cuentas: clase.total_cuentas
-      }));
-
-      apiLog('success', `${clases.length} clases obtenidas para selector`);
-      return clases;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo clases', error);
-      return [];
-    }
-  },
-
-  // Método auxiliar para obtener cuenta por código
-  async obtenerCuentaPorCodigo(codigo) {
-    try {
-      const response = await this.obtenerCuentas({ codigo_completo: codigo });
-      const cuenta = response.data.length > 0 ? response.data[0] : null;
-      
-      if (cuenta) {
-        apiLog('success', `Cuenta encontrada: ${codigo}`);
-      } else {
-        apiLog('warning', `Cuenta no encontrada: ${codigo}`);
-      }
-      
-      return cuenta;
-    } catch (error) {
-      apiLog('error', `Error obteniendo cuenta por código ${codigo}`, error);
-      return null;
-    }
-  },
-
-  // Método auxiliar para verificar si existe una cuenta
-  async existeCuenta(codigo) {
-    try {
-      const cuenta = await this.obtenerCuentaPorCodigo(codigo);
-      return cuenta !== null;
-    } catch (error) {
-      apiLog('error', `Error verificando existencia de cuenta ${codigo}`, error);
-      return false;
-    }
-  },
-
-  // Método auxiliar para obtener el path completo de una cuenta
-  async obtenerPathCuenta(codigo) {
-    try {
-      const path = [];
-      let codigoActual = codigo;
-      
-      while (codigoActual && codigoActual.length > 0) {
-        const cuenta = await this.obtenerCuentaPorCodigo(codigoActual);
-        if (cuenta) {
-          path.unshift(cuenta);
-          codigoActual = cuenta.codigo_padre;
-        } else {
-          break;
-        }
-      }
-      
-      apiLog('success', `Path obtenido para ${codigo}: ${path.length} niveles`);
-      return path;
-    } catch (error) {
-      apiLog('error', `Error obteniendo path de cuenta ${codigo}`, error);
-      return [];
-    }
-  },
-
-  // ===============================================
-  // 🔄 MÉTODOS DE IMPORTACIÓN ESPECIALES
-  // ===============================================
-
-  // Método para importar PUC estándar (simulado por ahora)
-  async importarPucEstandar(opciones = {}) {
-    try {
-      apiLog('info', 'Importando PUC estándar', opciones);
-      
-      // Simular delay de importación
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const resultado = {
-        success: true,
-        data: {
-          exito: true,
-          mensaje: 'PUC estándar importado exitosamente',
-          resumen: {
-            total_procesadas: 25,
-            insertadas: 25,
-            actualizadas: 0,
-            errores: 0,
-            omitidas: 0
-          },
-          errores: [],
-          advertencias: []
-        }
-      };
-
-      apiLog('success', 'PUC estándar importado exitosamente');
-      return resultado;
-    } catch (error) {
-      apiLog('error', 'Error importando PUC estándar', error);
-      throw error;
-    }
-  },
-
-  // Método para obtener versión del PUC
-  async obtenerVersionPuc() {
-    try {
-      const response = await this.obtenerEstadisticas();
-      const version = {
-        version: '1.0',
-        fecha_actualizacion: new Date().toISOString(),
-        total_cuentas: response.data.total || 0
-      };
-
-      apiLog('success', 'Versión PUC obtenida', version);
-      return version;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo versión PUC', error);
-      return null;
-    }
-  },
-
-  // Método auxiliar para obtener nombre de clase
-  obtenerNombreClase(codigoClase) {
-    const clases = {
-      '1': 'ACTIVOS',
-      '2': 'PASIVOS', 
-      '3': 'PATRIMONIO',
-      '4': 'INGRESOS',
-      '5': 'GASTOS',
-      '6': 'COSTOS',
-      '7': 'COSTOS DE PRODUCCIÓN',
-      '8': 'CUENTAS DE ORDEN DEUDORAS',
-      '9': 'CUENTAS DE ORDEN ACREEDORAS'
-    };
-    return clases[codigoClase] || `CLASE ${codigoClase}`;
   }
 };
 
@@ -866,61 +688,7 @@ export const pucUtils = {
       default:
         return codigo;
     }
-  },
-
-  // Obtener código padre
-  obtenerCodigoPadre(codigo) {
-    if (!codigo || codigo.length <= 1) return null;
-    
-    const longitud = codigo.length;
-    if (longitud === 2) return codigo.substring(0, 1); // Grupo -> Clase
-    if (longitud === 4) return codigo.substring(0, 2); // Cuenta -> Grupo
-    if (longitud === 6) return codigo.substring(0, 4); // Subcuenta -> Cuenta
-    if (longitud >= 8) return codigo.substring(0, 6); // Auxiliar -> Subcuenta
-    
-    return null;
-  },
-
-  // Validar jerarquía
-  validarJerarquia(codigo, codigoPadre) {
-    if (!codigo) return { valido: false, error: 'Código requerido' };
-    
-    const padreEsperado = this.obtenerCodigoPadre(codigo);
-    
-    if (!padreEsperado && codigoPadre) {
-      return { valido: false, error: 'Las cuentas de clase no deben tener padre' };
-    }
-    
-    if (padreEsperado && padreEsperado !== codigoPadre) {
-      return { valido: false, error: `Código padre debe ser: ${padreEsperado}` };
-    }
-    
-    return { valido: true };
   }
-};
-
-// ===============================================
-// 🚨 MANEJO GLOBAL DE ERRORES DE API
-// ===============================================
-
-// Interceptor global para errores de autenticación
-const originalFetch = window.fetch;
-window.fetch = async (...args) => {
-  const response = await originalFetch(...args);
-  
-  // Si es 401, limpiar tokens y redirigir al login
-  if (response.status === 401 && args[0].includes('/api/v1/')) {
-    apiLog('warning', 'Token expirado, limpiando sesión');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('authToken');
-    
-    // Redirigir al login si no estamos ya ahí
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
-    }
-  }
-  
-  return response;
 };
 
 // Export por defecto
