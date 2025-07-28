@@ -6,48 +6,15 @@ export const pucApi = {
   // 📋 MÉTODOS CRUD BÁSICOS - ACTUALIZADO
   // ===============================================
 
-  // Obtener lista de cuentas con filtros
   async obtenerCuentas(filtros = {}) {
-    try {
-      // Construir query parameters
-      const params = new URLSearchParams();
-      
-      // Añadir filtros válidos
-      Object.entries(filtros).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value);
-        }
-      });
-
-      const queryString = params.toString();
-      const endpoint = `/puc/cuentas${queryString ? `?${queryString}` : ''}`;
-      
-      apiLog('info', `Obteniendo cuentas con filtros:`, filtros);
-      
-      const response = await makeRequest(endpoint);
-      
-      // ✅ VALIDACIÓN Y NORMALIZACIÓN DE RESPUESTA
-      let processedResponse = response;
-      
-      // Verificar estructura de respuesta
-      if (response && typeof response === 'object') {
-        if (response.success !== undefined) {
-          // Formato: { success: true, data: [...] }
-          processedResponse = response;
-        } else if (Array.isArray(response)) {
-          // Formato directo: [...]
-          processedResponse = {
-            success: true,
-            data: response
-          };
-        } else if (response.data) {
-          // Formato: { data: [...] }
-          processedResponse = {
-            success: true,
-            data: response.data
-          };
-        }
+    const params = new URLSearchParams();
+    Object.entries(filtros).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        params.append(key, value);
       }
+    });
+    return await api.get(`/puc/cuentas?${params.toString()}`);
+  },
 
   async obtenerCuentaPorId(id) {
     return await api.get(`/puc/cuentas/${id}`);
@@ -228,9 +195,14 @@ export const pucApi = {
       if (value !== null && value !== undefined) {
         formData.append(key, value.toString());
       }
+    });
 
-      apiLog('success', `${processedResponse.data?.length || 0} cuentas obtenidas`);
-      return processedResponse;
+    return await api.post('/puc/validar/excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 
   async importarDesdeExcel(file, opciones = {}) {
     const formData = new FormData();
@@ -307,18 +279,24 @@ export const pucApi = {
       const fecha = new Date().toISOString().split('T')[0];
       fileName = `puc_export_${fecha}.xlsx`;
     }
+    
+    link.download = fileName;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    return { 
+      success: true, 
+      message: 'Archivo descargado exitosamente',
+      fileName: fileName
+    };
   },
 
-  // Obtener estadísticas
-  async obtenerEstadisticas() {
-    try {
-      apiLog('info', 'Obteniendo estadísticas PUC');
-      const response = await makeRequest('/puc/estadisticas');
-      
-      const processedResponse = response.success !== undefined ? response : {
-        success: true,
-        data: response
-      };
+  async descargarTemplate(conEjemplos = true) {
+    const params = new URLSearchParams();
+    params.append('con_ejemplos', conEjemplos.toString());
 
     const response = await api.get(`/puc/exportar/template?${params.toString()}`, {
       responseType: 'blob',
@@ -348,319 +326,21 @@ export const pucApi = {
   },
 
   // ===============================================
-  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
+  // 🔧 MÉTODOS DE MANTENIMIENTO
   // ===============================================
 
-  // ✅ MÉTODO AGREGADO: Validar archivo Excel antes de importar
-  async validarArchivoExcel(archivo, opciones = {}) {
-    try {
-      apiLog('info', 'Validando archivo Excel', { 
-        archivo: archivo.name, 
-        size: archivo.size,
-        type: archivo.type,
-        opciones 
-      });
-
-      // Validaciones del lado del cliente primero
-      const clientValidation = this.validarArchivoCliente(archivo);
-      if (!clientValidation.es_valido) {
-        return {
-          success: false,
-          data: clientValidation
-        };
-      }
-
-      // Preparar FormData para envío
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      formData.append('accion', 'validar');
-      
-      // Añadir opciones de validación
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, String(value));
-        }
-      });
-
-      // Hacer petición al servidor para validación completa
-      const response = await makeRequest('/puc/validar/excel', {
-        method: 'POST',
-        body: formData,
-        headers: getFormDataHeaders()
-      });
-
-      apiLog('success', 'Validación completada', response);
-      return response;
-
-    } catch (error) {
-      apiLog('error', 'Error validando archivo Excel', error);
-      
-      // Retornar formato consistente en caso de error
-      return {
-        success: false,
-        data: {
-          es_valido: false,
-          errores: [error.message || 'Error desconocido al validar archivo'],
-          advertencias: [],
-          total_filas: 0
-        }
-      };
-    }
+  async recalcularJerarquia() {
+    return await api.post('/puc/mantenimiento/recalcular-jerarquia');
   },
 
-  // ✅ MÉTODO HELPER: Validaciones del lado del cliente
-  validarArchivoCliente(archivo) {
-    const errores = [];
-    const advertencias = [];
-
-    // Validar que existe el archivo
-    if (!archivo) {
-      errores.push('No se ha seleccionado ningún archivo');
-      return { es_valido: false, errores, advertencias, total_filas: 0 };
-    }
-
-    // Validar tipo de archivo
-    const allowedTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel'
-    ];
-    
-    const fileExtension = archivo.name.toLowerCase();
-    const isValidType = allowedTypes.includes(archivo.type) || 
-                       fileExtension.endsWith('.xlsx') || 
-                       fileExtension.endsWith('.xls');
-
-    if (!isValidType) {
-      errores.push('El archivo debe ser un Excel válido (.xlsx o .xls)');
-    }
-
-    // Validar tamaño del archivo (máximo 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (archivo.size > maxSize) {
-      errores.push(`El archivo es demasiado grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`);
-    }
-
-    // Validar tamaño mínimo (al menos 1KB)
-    if (archivo.size < 1024) {
-      errores.push('El archivo parece estar vacío o corrupto');
-    }
-
-    // Advertencias sobre el nombre del archivo
-    if (!fileExtension.includes('puc')) {
-      advertencias.push('Se recomienda que el nombre del archivo contenga "PUC" para facilitar identificación');
-    }
-
-    return {
-      es_valido: errores.length === 0,
-      errores,
-      advertencias,
-      total_filas: 0 // Solo el servidor puede determinar esto
-    };
-  },
-
-  // Importar desde Excel
-  async importarDesdeExcel(archivo, opciones = {}) {
-    try {
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      
-      // Añadir opciones de importación
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, String(value));
-        }
-      });
-
-      apiLog('info', 'Importando archivo Excel', { 
-        archivo: archivo.name, 
-        size: archivo.size,
-        opciones 
-      });
-
-      const response = await makeRequest('/puc/importar/excel', {
-        method: 'POST',
-        body: formData,
-        headers: getFormDataHeaders()
-      });
-
-      apiLog('success', 'Importación completada', response);
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error en importación', error);
-      throw error;
-    }
-  },
-
-  // Exportar a Excel
-  async exportarAExcel(opciones = {}) {
-    try {
-      const params = new URLSearchParams();
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, String(value));
-        }
-      });
-
-      const queryString = params.toString();
-      const endpoint = `/puc/exportar/excel${queryString ? `?${queryString}` : ''}`;
-
-      apiLog('info', 'Exportando a Excel', opciones);
-
-      // Para exportación, necesitamos manejar blob
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      // Obtener el blob del archivo
-      const blob = await response.blob();
-      
-      // Crear nombre del archivo
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let fileName = 'puc_export.xlsx';
-      
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (fileNameMatch) {
-          fileName = fileNameMatch[1].replace(/['"]/g, '');
-        }
-      }
-
-      // Crear URL temporal y descargar
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      apiLog('success', 'Archivo exportado exitosamente', { fileName });
-      
-      return { 
-        success: true, 
-        message: 'Archivo exportado exitosamente',
-        fileName: fileName
-      };
-    } catch (error) {
-      apiLog('error', 'Error exportando a Excel', error);
-      throw error;
-    }
-  },
-
-  // Descargar template de importación
-  async descargarTemplate(conEjemplos = false) {
-    try {
-      const params = conEjemplos ? '?con_ejemplos=true' : '';
-      const endpoint = `/puc/exportar/template${params}`;
-
-      apiLog('info', 'Descargando template', { conEjemplos });
-
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      const fileName = `template_puc_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      apiLog('success', 'Template descargado', { fileName });
-
-      return { 
-        success: true, 
-        message: 'Template descargado exitosamente',
-        fileName: fileName
-      };
-    } catch (error) {
-      apiLog('error', 'Error descargando template', error);
-      throw error;
-    }
-  },
-
-  // ===============================================
-  // ✏️ MÉTODOS DE MODIFICACIÓN
-  // ===============================================
-
-  // Crear nueva cuenta
-  async crearCuenta(datosCuenta) {
-    try {
-      apiLog('info', 'Creando nueva cuenta', datosCuenta);
-      
-      const response = await makeRequest('/puc/cuentas', {
-        method: 'POST',
-        body: JSON.stringify(datosCuenta)
-      });
-
-      apiLog('success', 'Cuenta creada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error creando cuenta', error);
-      throw error;
-    }
-  },
-
-  // Actualizar cuenta existente
-  async actualizarCuenta(id, datosCuenta) {
-    try {
-      apiLog('info', `Actualizando cuenta ${id}`, datosCuenta);
-      
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(datosCuenta)
-      });
-
-      apiLog('success', 'Cuenta actualizada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error actualizando cuenta ${id}`, error);
-      throw error;
-    }
-  },
-
-  // Eliminar cuenta
-  async eliminarCuenta(id) {
-    try {
-      apiLog('info', `Eliminando cuenta ${id}`);
-      
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'DELETE'
-      });
-
-      apiLog('success', 'Cuenta eliminada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error eliminando cuenta ${id}`, error);
-      throw error;
-    }
+  async validarIntegridad() {
+    return await api.post('/puc/mantenimiento/validar-integridad');
   },
 
   // ===============================================
   // 🎯 MÉTODOS DE UTILIDAD
   // ===============================================
 
-  // Test de conectividad
   async test() {
     return await api.get('/puc/test');
   },
@@ -671,10 +351,12 @@ export const pucApi = {
 
   async obtenerClases() {
     try {
-      apiLog('info', 'Probando conectividad PUC API');
-      const response = await makeRequest('/puc/test');
-      apiLog('success', 'Test de conectividad exitoso');
-      return response;
+      const response = await this.reportePorClase(false);
+      return response.data.map(clase => ({
+        value: clase.codigo_clase,
+        label: `${clase.codigo_clase} - ${this.obtenerNombreClase(clase.codigo_clase)}`,
+        total_cuentas: clase.total_cuentas
+      }));
     } catch (error) {
       console.error('Error obteniendo clases:', error);
       return [];
@@ -755,13 +437,15 @@ export const pucApi = {
 
   async obtenerVersionPuc() {
     try {
-      apiLog('info', 'Obteniendo información de la API');
-      const response = await makeRequest('/puc');
-      apiLog('success', 'Información obtenida');
-      return response;
+      const response = await this.obtenerEstadisticas();
+      return {
+        version: '1.0',
+        fecha_actualizacion: new Date().toISOString(),
+        total_cuentas: response.data.total || 0
+      };
     } catch (error) {
-      apiLog('error', 'Error obteniendo información', error);
-      throw error;
+      console.error('Error obteniendo versión PUC:', error);
+      return null;
     }
   },
 
@@ -802,8 +486,6 @@ export const pucUtils = {
     return ['1', '5', '6', '7', '8'].includes(clase) ? 'DEBITO' : 'CREDITO';
   },
 
-  
-
   // Validar formato de código PUC
   validarCodigo(codigo) {
     if (!codigo) return { valido: false, error: 'Código requerido' };
@@ -826,133 +508,37 @@ export const pucUtils = {
   // Formatear código para mostrar
   formatearCodigo(codigo) {
     if (!codigo) return '';
-    
-    // Agregar puntos para mejor legibilidad según nivel
-    const longitud = codigo.length;
-    switch (longitud) {
-      case 4: // 1234 -> 12.34
-        return `${codigo.substring(0, 2)}.${codigo.substring(2)}`;
-      case 6: // 123456 -> 12.34.56
-        return `${codigo.substring(0, 2)}.${codigo.substring(2, 4)}.${codigo.substring(4)}`;
-      case 8: // 12345678 -> 12.34.56.78
-        return `${codigo.substring(0, 2)}.${codigo.substring(2, 4)}.${codigo.substring(4, 6)}.${codigo.substring(6)}`;
-      default:
-        return codigo;
-    }
+    return codigo.toString().padStart(Math.max(codigo.length, 6), '0');
   },
-  async validarArchivoExcel(archivo, opciones = {}) {
-    try {
-      console.log('📥 [PUC-API] Validando archivo Excel', { 
-        archivo: archivo.name, 
-        size: archivo.size,
-        type: archivo.type,
-        opciones 
-      });
 
-      // Validaciones del lado del cliente primero
-      const clientValidation = this.validarArchivoCliente(archivo);
-      if (!clientValidation.es_valido) {
-        return {
-          success: false,
-          data: clientValidation
-        };
-      }
-
-      // Preparar FormData para envío al servidor
-      const formData = new FormData();
-      formData.append('file', archivo); // ⚠️ IMPORTANTE: usar 'file', no 'archivo'
-      
-      // Añadir opciones de validación
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, String(value));
-        }
-      });
-
-      // Headers para FormData (sin Content-Type)
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
-      const headers = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      // Hacer petición al endpoint correcto
-      const response = await fetch(`${API_BASE_URL}/puc/validar/excel`, {
-        method: 'POST',
-        body: formData,
-        headers: headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ [PUC-API] Validación completada', result);
-      
-      return {
-        success: true,
-        data: result
-      };
-
-    } catch (error) {
-      console.error('❌ [PUC-API] Error validando archivo Excel', error);
-      
-      // Retornar formato consistente en caso de error
-      return {
-        success: false,
-        data: {
-          es_valido: false,
-          errores: [error.message || 'Error desconocido al validar archivo'],
-          advertencias: [],
-          total_filas: 0
-        }
-      };
+  // Formatear saldo
+  formatearSaldo(saldo, mostrarSigno = true) {
+    if (saldo === null || saldo === undefined) return '-';
+    
+    const numero = parseFloat(saldo);
+    if (isNaN(numero)) return '-';
+    
+    const formatoMoneda = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 2
+    });
+    
+    if (mostrarSigno) {
+      return formatoMoneda.format(numero);
+    } else {
+      return formatoMoneda.format(Math.abs(numero));
     }
   },
 
-  // ✅ MÉTODO HELPER: Validaciones del lado del cliente
-  validarArchivoCliente(archivo) {
-    const errores = [];
-    const advertencias = [];
-
-    // Validar que existe el archivo
-    if (!archivo) {
-      errores.push('No se ha seleccionado ningún archivo');
-      return { es_valido: false, errores, advertencias, total_filas: 0 };
-    }
-
-    // Validar tipo de archivo
-    const allowedTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel'
-    ];
-    
-    const fileExtension = archivo.name.toLowerCase();
-    const isValidType = allowedTypes.includes(archivo.type) || 
-                       fileExtension.endsWith('.xlsx') || 
-                       fileExtension.endsWith('.xls');
-
-    if (!isValidType) {
-      errores.push('El archivo debe ser un Excel válido (.xlsx o .xls)');
-    }
-
-    // Validar tamaño del archivo (máximo 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (archivo.size > maxSize) {
-      errores.push(`El archivo es demasiado grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`);
-    }
-
-    // Validar tamaño mínimo (al menos 1KB)
-    if (archivo.size < 1024) {
-      errores.push('El archivo parece estar vacío o corrupto');
-    }
-
-    return {
-      es_valido: errores.length === 0,
-      errores,
-      advertencias,
-      total_filas: 0 // Solo el servidor puede determinar esto
+  // Obtener descripción de nivel
+  obtenerDescripcionNivel(nivel) {
+    const niveles = {
+      1: 'Clase',
+      2: 'Grupo',
+      3: 'Cuenta',
+      4: 'Subcuenta',
+      5: 'Detalle'
     };
     return niveles[nivel] || 'Desconocido';
   },
@@ -1111,5 +697,4 @@ export const pucUtils = {
   }
 };
 
-// Export por defecto
 export default pucApi;

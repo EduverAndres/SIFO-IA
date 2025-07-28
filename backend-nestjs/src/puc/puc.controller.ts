@@ -29,7 +29,6 @@ import {
   ApiProduces
 } from '@nestjs/swagger';
 
-import type { Multer } from 'multer';
 import { PucService } from './puc.service';
 import { PucExcelService } from './services/puc-excel.service';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
@@ -82,53 +81,41 @@ export class PucController {
   }
 
   @Get('estadisticas')
-@ApiOperation({ summary: 'Obtener estadísticas generales del PUC' })
-@ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
-async obtenerEstadisticas(): Promise<any> {
-  console.log('📊 GET /api/v1/puc/estadisticas');
-  const resultado = await this.pucService.obtenerEstadisticas();
-  
-  // ✅ El servicio ya devuelve la estructura { success: true, data: {...} }
-  console.log('📊 Estadísticas response:', resultado);
-  return resultado;
-}
+  @ApiOperation({ summary: 'Obtener estadísticas generales del PUC' })
+  @ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
+  async obtenerEstadisticas(): Promise<any> {
+    console.log('📊 GET /api/v1/puc/estadisticas');
+    return await this.pucService.obtenerEstadisticas();
+  }
 
-@Get('cuentas')
-@ApiOperation({ summary: 'Obtener lista de cuentas PUC con filtros' })
-@ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente', type: [ResponsePucDto] })
-async obtenerCuentas(@Query() filtros: FiltrosPucDto): Promise<any> {
-  console.log('📋 GET /api/v1/puc/cuentas - filtros:', filtros);
-  const resultado = await this.pucService.obtenerCuentas(filtros);
-  
-  // ✅ El servicio ya devuelve la estructura { success: true, data: [...] }
-  console.log('📋 Cuentas response:', { 
-    success: resultado.success, 
-    dataLength: resultado.data?.length, 
-    dataType: Array.isArray(resultado.data) ? 'Array' : typeof resultado.data 
-  });
-  return resultado;
-}
+  // ===============================================
+  // 🌳 ENDPOINTS DE ÁRBOL JERÁRQUICO
+  // ===============================================
 
-@Get('arbol')
-@ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas PUC' })
-@ApiQuery({ name: 'codigo_padre', required: false, type: String, description: 'Código de la cuenta padre para filtrar' })
-@ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
-@ApiResponse({ status: 200, description: 'Árbol jerárquico obtenido exitosamente' })
-async obtenerArbol(
-  @Query('codigo_padre') codigoPadre?: string,
-  @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
-): Promise<any> {
-  console.log(`🌳 GET /api/v1/puc/arbol - padre: ${codigoPadre}, inactivas: ${incluirInactivas}`);
-  const resultado = await this.pucService.obtenerArbol(codigoPadre, incluirInactivas);
-  
-  // ✅ El servicio ya devuelve la estructura { success: true, data: [...] }
-  console.log('🌳 Árbol response:', { 
-    success: resultado.success, 
-    dataLength: resultado.data?.length, 
-    dataType: Array.isArray(resultado.data) ? 'Array' : typeof resultado.data 
-  });
-  return resultado;
-}
+  @Get('arbol')
+  @ApiOperation({ summary: 'Obtener árbol jerárquico de cuentas PUC' })
+  @ApiQuery({ name: 'codigo_padre', required: false, type: String, description: 'Código de la cuenta padre para filtrar' })
+  @ApiQuery({ name: 'incluir_inactivas', required: false, type: Boolean, description: 'Incluir cuentas inactivas', default: false })
+  @ApiResponse({ status: 200, description: 'Árbol jerárquico obtenido exitosamente' })
+  async obtenerArbol(
+    @Query('codigo_padre') codigoPadre?: string,
+    @Query('incluir_inactivas', new DefaultValuePipe(false), ParseBoolPipe) incluirInactivas: boolean = false
+  ): Promise<any> {
+    console.log(`🌳 GET /api/v1/puc/arbol - padre: ${codigoPadre}, inactivas: ${incluirInactivas}`);
+    return await this.pucService.obtenerArbol(codigoPadre, incluirInactivas);
+  }
+
+  // ===============================================
+  // 📋 ENDPOINTS CRUD DE CUENTAS
+  // ===============================================
+
+  @Get('cuentas')
+  @ApiOperation({ summary: 'Obtener lista de cuentas PUC con filtros' })
+  @ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente', type: [ResponsePucDto] })
+  async obtenerCuentas(@Query() filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
+    console.log('📋 GET /api/v1/puc/cuentas - filtros:', filtros);
+    return await this.pucService.obtenerCuentas(filtros);
+  }
 
   @Post('cuentas')
   @ApiOperation({ summary: 'Crear nueva cuenta PUC' })
@@ -311,7 +298,7 @@ async obtenerArbol(
   })
   @ApiResponse({ status: 400, description: 'Archivo inválido o errores de validación' })
   async validarExcel(
-    @UploadedFile() file: any,
+    @UploadedFile() file: Express.Multer.File,
     @Body() opciones: ValidarExcelDto
   ): Promise<ResultadoValidacionDto> {
     console.log('🔍 POST /api/v1/puc/validar/excel - archivo:', file?.originalname);
@@ -398,7 +385,7 @@ async obtenerArbol(
   @ApiResponse({ status: 400, description: 'Archivo inválido o errores de importación' })
   @HttpCode(HttpStatus.OK)
   async importarExcel(
-    @UploadedFile() file: any,
+    @UploadedFile() file: Express.Multer.File,
     @Body() opciones: ImportPucExcelDto
   ): Promise<ResultadoImportacionDto> {
     console.log('📥 POST /api/v1/puc/importar/excel - archivo:', file?.originalname);
