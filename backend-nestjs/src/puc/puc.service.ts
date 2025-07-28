@@ -1,4 +1,4 @@
-// backend-nestjs/src/puc/puc.service.ts - TIPOS CORREGIDOS
+// backend-nestjs/src/puc/puc.service.ts - SIN CAMPO NOMBRE
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -33,10 +33,10 @@ export class PucService {
     try {
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
-      // Aplicar filtros
+      // Aplicar filtros - USAR DESCRIPCION EN LUGAR DE NOMBRE
       if (filtros.busqueda) {
         query.andWhere(
-          '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.nombre ILIKE :busqueda)',
+          '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.descripcion ILIKE :busqueda)',
           { busqueda: `%${filtros.busqueda}%` }
         );
       }
@@ -183,45 +183,46 @@ export class PucService {
   }
 
   async eliminarCuenta(id: number): Promise<void> {
-  try {
-    const cuenta = await this.cuentaPucRepository.findOne({
-      where: { id, activo: true }
-    });
+    try {
+      const cuenta = await this.cuentaPucRepository.findOne({
+        where: { id, activo: true }
+      });
 
-    if (!cuenta) {
-      throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
+      if (!cuenta) {
+        throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
+      }
+
+      // Verificar que no tenga subcuentas
+      const subcuentas = await this.cuentaPucRepository.count({
+        where: { codigo_padre: cuenta.codigo_completo, activo: true }
+      });
+
+      if (subcuentas > 0) {
+        throw new BadRequestException(
+          `No se puede eliminar la cuenta ${cuenta.codigo_completo} porque tiene ${subcuentas} subcuentas`
+        );
+      }
+
+      // ✅ ELIMINACIÓN FÍSICA REAL
+      this.logger.log(`🗑️ Eliminando físicamente cuenta: ${cuenta.codigo_completo} - ${cuenta.descripcion}`);
+      
+      await this.cuentaPucRepository.delete(id);
+
+      this.logger.log(`✅ Cuenta eliminada físicamente: ${cuenta.codigo_completo}`);
+
+    } catch (error) {
+      this.logger.error(`❌ Error eliminando cuenta ${id}:`, error);
+      throw error;
     }
-
-    // Verificar que no tenga subcuentas
-    const subcuentas = await this.cuentaPucRepository.count({
-      where: { codigo_padre: cuenta.codigo_completo, activo: true }
-    });
-
-    if (subcuentas > 0) {
-      throw new BadRequestException(
-        `No se puede eliminar la cuenta ${cuenta.codigo_completo} porque tiene ${subcuentas} subcuentas`
-      );
-    }
-
-    // ✅ ELIMINACIÓN FÍSICA REAL
-    this.logger.log(`🗑️ Eliminando físicamente cuenta: ${cuenta.codigo_completo} - ${cuenta.nombre}`);
-    
-    await this.cuentaPucRepository.delete(id);
-
-    this.logger.log(`✅ Cuenta eliminada físicamente: ${cuenta.codigo_completo}`);
-
-  } catch (error) {
-    this.logger.error(`❌ Error eliminando cuenta ${id}:`, error);
-    throw error;
   }
-}
 
   async buscarCuentas(termino: string, limite: number, soloActivas: boolean): Promise<ResponsePucDto[]> {
     try {
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
+      // BUSCAR EN DESCRIPCION EN LUGAR DE NOMBRE
       query.where(
-        '(cuenta.codigo_completo ILIKE :termino OR cuenta.nombre ILIKE :termino)',
+        '(cuenta.codigo_completo ILIKE :termino OR cuenta.descripcion ILIKE :termino)',
         { termino: `%${termino}%` }
       );
 
@@ -575,7 +576,7 @@ export class PucService {
         valido: esValido && !existe && padreExiste,
         existe,
         nivel,
-        padre_requerido: padreRequerido || undefined, // Convertir null a undefined
+        padre_requerido: padreRequerido || undefined,
         padre_existe: padreExiste,
         sugerencias
       };
@@ -620,38 +621,43 @@ export class PucService {
   // 🔧 MÉTODOS PRIVADOS AUXILIARES
   // ===============================================
 
-  private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
-    return {
-      id: cuenta.id,
-      codigo_completo: cuenta.codigo_completo,
-      nombre: cuenta.nombre,
-      naturaleza: cuenta.naturaleza,
-      tipo_cuenta: cuenta.tipo_cuenta,
-      estado: cuenta.estado,
-      nivel: cuenta.nivel,
-      acepta_movimientos: cuenta.acepta_movimientos,
-      codigo_padre: cuenta.codigo_padre || undefined, // Convertir null a undefined
-      saldo_inicial: cuenta.saldo_inicial || 0,
-      saldo_final: cuenta.saldo_final || 0,
-      codigo_clase: cuenta.codigo_clase || undefined, // Convertir null a undefined
-      codigo_grupo: cuenta.codigo_grupo || undefined, // Convertir null a undefined
-      codigo_cuenta: cuenta.codigo_cuenta || undefined, // Convertir null a undefined
-      codigo_subcuenta: cuenta.codigo_subcuenta || undefined, // Convertir null a undefined
-      codigo_detalle: cuenta.codigo_detalle || undefined, // Convertir null a undefined
-      activo: cuenta.activo,
-      fecha_creacion: cuenta.fecha_creacion,
-      fecha_modificacion: cuenta.fecha_modificacion,
-      // Campos adicionales opcionales - convertir null a undefined
-      movimientos_debito: cuenta.movimientos_debito,
-      movimientos_credito: cuenta.movimientos_credito,
-      centro_costos: cuenta.centro_costos || undefined,
-      aplica_f350: cuenta.aplica_f350,
-      aplica_f300: cuenta.aplica_f300,
-      aplica_exogena: cuenta.aplica_exogena,
-      aplica_ica: cuenta.aplica_ica,
-      aplica_dr110: cuenta.aplica_dr110
-    };
-  }
+// En puc.service.ts - Método mapearAResponseDto corregido
+private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
+  return {
+    id: cuenta.id,
+    codigo_completo: cuenta.codigo_completo,
+    descripcion: cuenta.descripcion || undefined,
+    naturaleza: cuenta.naturaleza,
+    tipo_cuenta: cuenta.tipo_cuenta,
+    estado: cuenta.estado,
+    nivel: cuenta.nivel,
+    tipo_cta: cuenta.tipo_cta,                    // AGREGADO
+    acepta_movimientos: cuenta.acepta_movimientos,
+    requiere_tercero: cuenta.requiere_tercero,    // AGREGADO
+    requiere_centro_costo: cuenta.requiere_centro_costo, // AGREGADO
+    es_cuenta_niif: cuenta.es_cuenta_niif,        // AGREGADO
+    codigo_padre: cuenta.codigo_padre || undefined,
+    saldo_inicial: cuenta.saldo_inicial || 0,
+    saldo_final: cuenta.saldo_final || 0,
+    codigo_clase: cuenta.codigo_clase || undefined,
+    codigo_grupo: cuenta.codigo_grupo || undefined,
+    codigo_cuenta: cuenta.codigo_cuenta || undefined,
+    codigo_subcuenta: cuenta.codigo_subcuenta || undefined,
+    codigo_detalle: cuenta.codigo_detalle || undefined,
+    activo: cuenta.activo,
+    fecha_creacion: cuenta.fecha_creacion,
+    fecha_modificacion: cuenta.fecha_modificacion,
+    movimientos_debito: cuenta.movimientos_debito,
+    movimientos_credito: cuenta.movimientos_credito,
+    centro_costos: cuenta.centro_costos || undefined,
+    aplica_f350: cuenta.aplica_f350,
+    aplica_f300: cuenta.aplica_f300,
+    aplica_exogena: cuenta.aplica_exogena,
+    aplica_ica: cuenta.aplica_ica,
+    aplica_dr110: cuenta.aplica_dr110
+  };
+}
+
 
   private determinarNaturaleza(codigo: string): NaturalezaCuentaEnum {
     const primerDigito = codigo.charAt(0);

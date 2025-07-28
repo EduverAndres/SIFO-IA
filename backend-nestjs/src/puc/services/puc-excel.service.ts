@@ -1,4 +1,4 @@
-// backend-nestjs/src/puc/services/puc-excel.service.ts
+// backend-nestjs/src/puc/services/puc-excel.service.ts - COMPLETAMENTE CORREGIDO
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,7 +13,7 @@ import {
 } from '../interfaces/excel-row.interface';
 import { TipoCuentaEnum, NaturalezaCuentaEnum, EstadoCuentaEnum } from '../entities/cuenta-puc.entity';
 
-// Mapeo de columnas actualizado basado en la estructura exacta del archivo
+// Mapeo de columnas actualizado SIN CAMPO NOMBRE
 interface ExcelColumnMapping {
   saldo_inicial: number;      // Columna 0 (A)
   saldo_final: number;        // Columna 1 (B)
@@ -23,7 +23,7 @@ interface ExcelColumnMapping {
   codigo_subcuenta: number;   // Columna 5 (F)
   codigo_detalle: number;     // Columna 6 (G)
   id_movimiento: number;      // Columna 7 (H) - I.D.
-  nombre: number;             // Columna 8 (I) - DESCRIPCION
+  descripcion: number;        // Columna 8 (I) - DESCRIPCION (CAMBIADO DE 'nombre')
   tipo_om: number;            // Columna 9 (J) - TC$/OM
   centro_costos: number;      // Columna 10 (K)
   movimientos_debito: number; // Columna 11 (L)
@@ -40,12 +40,11 @@ interface ExcelColumnMapping {
   aplica_ica: number;         // Columna 22 (W) - ICA
   aplica_dr110: number;       // Columna 23 (X) - DR(110)
   conciliacion_fiscal: number;// Columna 24 (Y) - Conciliacion Fiscal
-  // Columnas 25 (Z) y 26 (AA) están vacías en el template
 }
 
 interface FilaProcesada {
   codigo_completo: string;
-  nombre: string;
+  descripcion: string;        // CAMBIADO DE 'nombre' A 'descripcion'
   codigo_clase: string | null;
   codigo_grupo: string | null;
   codigo_cuenta: string | null;
@@ -81,7 +80,7 @@ interface FilaProcesada {
 export class PucExcelService {
   private readonly logger = new Logger(PucExcelService.name);
 
-  // Mapeo actualizado basado en la estructura real del archivo
+  // Mapeo actualizado SIN NOMBRE
   private readonly COLUMN_MAPPING: ExcelColumnMapping = {
     saldo_inicial: 0,
     saldo_final: 1,
@@ -91,7 +90,7 @@ export class PucExcelService {
     codigo_subcuenta: 5,
     codigo_detalle: 6,
     id_movimiento: 7,
-    nombre: 8,
+    descripcion: 8,        // CAMBIADO DE 'nombre' A 'descripcion'
     tipo_om: 9,
     centro_costos: 10,
     movimientos_debito: 11,
@@ -201,394 +200,389 @@ export class PucExcelService {
   }
 
   // ===============================================
-  // 📤 MÉTODOS DE EXPORTACIÓN
+  // 📤 MÉTODOS DE EXPORTACIÓN CORREGIDOS
   // ===============================================
 
-  // ===============================================
-// 🎯 MÉTODO EXPORTAR A EXCEL COMPLETO Y CORREGIDO
-// ===============================================
+  async exportarAExcel(opciones: ExportPucExcelDto): Promise<Buffer> {
+    try {
+      this.logger.log('🔄 Iniciando exportación de PUC a Excel con opciones:', opciones);
 
-async exportarAExcel(opciones: ExportPucExcelDto): Promise<Buffer> {
-  try {
-    this.logger.log('🔄 Iniciando exportación de PUC a Excel con opciones:', opciones);
+      // 1. Validar que las opciones sean coherentes
+      this.validarOpcionesExportacion(opciones);
 
-    // 1. Validar que las opciones sean coherentes
-    this.validarOpcionesExportacion(opciones);
+      // 2. Obtener cuentas con filtros aplicados
+      const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
-    // 2. Obtener cuentas con filtros aplicados
-    const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
-
-    // Aplicar filtros según las opciones
-    if (opciones.filtro_estado) {
-      query.andWhere('cuenta.estado = :estado', { estado: opciones.filtro_estado });
-    }
-
-    if (opciones.filtro_tipo) {
-      query.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: opciones.filtro_tipo });
-    }
-
-    if (opciones.filtro_clase) {
-      // Filtrar por clase usando codigo_completo que empiece con la clase
-      query.andWhere('cuenta.codigo_completo LIKE :clase', { clase: `${opciones.filtro_clase}%` });
-    }
-
-    if (opciones.solo_movimientos) {
-      // Solo cuentas que acepten movimientos Y que tengan movimientos reales
-      query.andWhere('cuenta.acepta_movimientos = :acepta', { acepta: true });
-      query.andWhere('(cuenta.movimientos_debito > 0 OR cuenta.movimientos_credito > 0)');
-    }
-
-    if (!opciones.incluir_inactivas) {
-      query.andWhere('cuenta.estado != :inactivo', { inactivo: EstadoCuentaEnum.INACTIVA });
-    }
-
-    // Ordenar por código completo para mantener jerarquía
-    query.orderBy('cuenta.codigo_completo', 'ASC');
-    const cuentas = await query.getMany();
-
-    if (cuentas.length === 0) {
-      throw new BadRequestException('No se encontraron cuentas para exportar con los filtros especificados');
-    }
-
-    this.logger.log(`📊 Procesando ${cuentas.length} cuentas para exportación`);
-
-    // 3. Generar datos Excel usando la misma estructura del template
-    const datos = this.generarDatosTemplate(false); // Headers sin ejemplos
-    const cols = datos[0].length;
-
-    // 4. Procesar cada cuenta manteniendo formato exacto del template
-    for (const cuenta of cuentas) {
-      const fila = Array(cols).fill('');
-
-      // COLUMNAS A y B - SALDOS (Solo si está habilitado)
-      if (opciones.incluir_saldos) {
-        fila[this.COLUMN_MAPPING.saldo_inicial] = this.formatearNumero(cuenta.saldo_inicial);
-        fila[this.COLUMN_MAPPING.saldo_final] = this.formatearNumero(cuenta.saldo_final);
+      // Aplicar filtros según las opciones
+      if (opciones.filtro_estado) {
+        query.andWhere('cuenta.estado = :estado', { estado: opciones.filtro_estado });
       }
 
-      // COLUMNAS C-G - JERARQUÍA (se establece según el nivel de la cuenta)
-      this.establecerJerarquiaExportacion(fila, cuenta);
-
-      // COLUMNA H - I.D. (marca X si acepta movimientos)
-      fila[this.COLUMN_MAPPING.id_movimiento] = cuenta.acepta_movimientos ? 'X' : '';
-
-      // COLUMNA I - DESCRIPCION (nombre de la cuenta)
-      fila[this.COLUMN_MAPPING.nombre] = cuenta.nombre || '';
-
-      // COLUMNA J - TC$/OM (Tipo OM)
-      fila[this.COLUMN_MAPPING.tipo_om] = cuenta.tipo_om || '';
-
-      // COLUMNA K - Centro de Costos
-      fila[this.COLUMN_MAPPING.centro_costos] = cuenta.centro_costos || '';
-
-      // COLUMNAS L y M - MOVIMIENTOS (Solo si está habilitado)
-      if (opciones.incluir_movimientos) {
-        fila[this.COLUMN_MAPPING.movimientos_debito] = this.formatearNumero(cuenta.movimientos_debito);
-        fila[this.COLUMN_MAPPING.movimientos_credito] = this.formatearNumero(cuenta.movimientos_credito);
+      if (opciones.filtro_tipo) {
+        query.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: opciones.filtro_tipo });
       }
 
-      // COLUMNA N - Tipo/Cta (D para detalle, G para grupo)
-      fila[this.COLUMN_MAPPING.tipo_cta] = cuenta.tipo_cta || (cuenta.acepta_movimientos ? 'D' : 'G');
-
-      // COLUMNA O - NL (Nivel)
-      fila[this.COLUMN_MAPPING.nivel] = cuenta.nivel?.toString() || '';
-
-      // COLUMNAS P-S - CÓDIGOS ADICIONALES
-      fila[this.COLUMN_MAPPING.codigo_at] = cuenta.codigo_at || '';
-      fila[this.COLUMN_MAPPING.codigo_ct] = cuenta.codigo_ct || '';
-      fila[this.COLUMN_MAPPING.codigo_cc] = cuenta.codigo_cc || '';
-      fila[this.COLUMN_MAPPING.codigo_ti] = cuenta.codigo_ti || '';
-
-      // COLUMNAS T-Y - DATOS FISCALES (Solo si está habilitado)
-      if (opciones.incluir_fiscal) {
-        fila[this.COLUMN_MAPPING.aplica_f350] = cuenta.aplica_f350 ? 'X' : '';
-        fila[this.COLUMN_MAPPING.aplica_f300] = cuenta.aplica_f300 ? 'X' : '';
-        fila[this.COLUMN_MAPPING.aplica_exogena] = cuenta.aplica_exogena ? 'X' : '';
-        fila[this.COLUMN_MAPPING.aplica_ica] = cuenta.aplica_ica ? 'X' : '';
-        fila[this.COLUMN_MAPPING.aplica_dr110] = cuenta.aplica_dr110 ? 'X' : '';
-        fila[this.COLUMN_MAPPING.conciliacion_fiscal] = cuenta.conciliacion_fiscal || '';
+      if (opciones.filtro_clase) {
+        // Filtrar por clase usando codigo_completo que empiece con la clase
+        query.andWhere('cuenta.codigo_completo LIKE :clase', { clase: `${opciones.filtro_clase}%` });
       }
 
-      // Las columnas Z y AA quedan vacías como en el template
+      if (opciones.solo_movimientos) {
+        // Solo cuentas que acepten movimientos Y que tengan movimientos reales
+        query.andWhere('cuenta.acepta_movimientos = :acepta', { acepta: true });
+        query.andWhere('(cuenta.movimientos_debito > 0 OR cuenta.movimientos_credito > 0)');
+      }
 
-      datos.push(fila);
+      if (!opciones.incluir_inactivas) {
+        query.andWhere('cuenta.estado != :inactivo', { inactivo: EstadoCuentaEnum.INACTIVA });
+      }
+
+      // Ordenar por código completo para mantener jerarquía
+      query.orderBy('cuenta.codigo_completo', 'ASC');
+      const cuentas = await query.getMany();
+
+      if (cuentas.length === 0) {
+        throw new BadRequestException('No se encontraron cuentas para exportar con los filtros especificados');
+      }
+
+      this.logger.log(`📊 Procesando ${cuentas.length} cuentas para exportación`);
+
+      // 3. Generar datos Excel usando la misma estructura del template
+      const datos = this.generarDatosTemplate(false); // Headers sin ejemplos
+      const cols = datos[0].length;
+
+      // 4. Procesar cada cuenta manteniendo formato exacto del template
+      for (const cuenta of cuentas) {
+        const fila = Array(cols).fill('');
+
+        // COLUMNAS A y B - SALDOS (Solo si está habilitado)
+        if (opciones.incluir_saldos) {
+          fila[this.COLUMN_MAPPING.saldo_inicial] = this.formatearNumero(cuenta.saldo_inicial);
+          fila[this.COLUMN_MAPPING.saldo_final] = this.formatearNumero(cuenta.saldo_final);
+        }
+
+        // COLUMNAS C-G - JERARQUÍA (se establece según el nivel de la cuenta)
+        this.establecerJerarquiaExportacion(fila, cuenta);
+
+        // COLUMNA H - I.D. (marca X si acepta movimientos)
+        fila[this.COLUMN_MAPPING.id_movimiento] = cuenta.acepta_movimientos ? 'X' : '';
+
+        // COLUMNA I - DESCRIPCION (CORREGIDO: usar descripcion en lugar de nombre)
+        fila[this.COLUMN_MAPPING.descripcion] = cuenta.descripcion || '';
+
+        // COLUMNA J - TC$/OM (Tipo OM)
+        fila[this.COLUMN_MAPPING.tipo_om] = cuenta.tipo_om || '';
+
+        // COLUMNA K - Centro de Costos
+        fila[this.COLUMN_MAPPING.centro_costos] = cuenta.centro_costos || '';
+
+        // COLUMNAS L y M - MOVIMIENTOS (Solo si está habilitado)
+        if (opciones.incluir_movimientos) {
+          fila[this.COLUMN_MAPPING.movimientos_debito] = this.formatearNumero(cuenta.movimientos_debito);
+          fila[this.COLUMN_MAPPING.movimientos_credito] = this.formatearNumero(cuenta.movimientos_credito);
+        }
+
+        // COLUMNA N - Tipo/Cta (D para detalle, G para grupo)
+        fila[this.COLUMN_MAPPING.tipo_cta] = cuenta.tipo_cta || (cuenta.acepta_movimientos ? 'D' : 'G');
+
+        // COLUMNA O - NL (Nivel)
+        fila[this.COLUMN_MAPPING.nivel] = cuenta.nivel?.toString() || '';
+
+        // COLUMNAS P-S - CÓDIGOS ADICIONALES
+        fila[this.COLUMN_MAPPING.codigo_at] = cuenta.codigo_at || '';
+        fila[this.COLUMN_MAPPING.codigo_ct] = cuenta.codigo_ct || '';
+        fila[this.COLUMN_MAPPING.codigo_cc] = cuenta.codigo_cc || '';
+        fila[this.COLUMN_MAPPING.codigo_ti] = cuenta.codigo_ti || '';
+
+        // COLUMNAS T-Y - DATOS FISCALES (Solo si está habilitado)
+        if (opciones.incluir_fiscal) {
+          fila[this.COLUMN_MAPPING.aplica_f350] = cuenta.aplica_f350 ? 'X' : '';
+          fila[this.COLUMN_MAPPING.aplica_f300] = cuenta.aplica_f300 ? 'X' : '';
+          fila[this.COLUMN_MAPPING.aplica_exogena] = cuenta.aplica_exogena ? 'X' : '';
+          fila[this.COLUMN_MAPPING.aplica_ica] = cuenta.aplica_ica ? 'X' : '';
+          fila[this.COLUMN_MAPPING.aplica_dr110] = cuenta.aplica_dr110 ? 'X' : '';
+          fila[this.COLUMN_MAPPING.conciliacion_fiscal] = cuenta.conciliacion_fiscal || '';
+        }
+
+        // Las columnas Z y AA quedan vacías como en el template
+        datos.push(fila);
+      }
+
+      // 5. Crear workbook con formato Excel
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(datos, { 
+        dateNF: 'yyyy-mm-dd',
+        cellStyles: true
+      });
+
+      // 6. Aplicar formato similar al template
+      this.aplicarFormatoWorksheet(worksheet, datos.length, cols);
+
+      // 7. Agregar hoja principal
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'PUC');
+
+      // 8. Agregar hoja de resumen si se solicita
+      if (opciones.incluir_resumen) {
+        const resumen = this.generarDatosResumen(cuentas, opciones);
+        const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+        XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen');
+      }
+
+      this.logger.log(`✅ Exportación completada: ${cuentas.length} cuentas exportadas`);
+
+      return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    } catch (error) {
+      this.logger.error(`❌ Error en exportación: ${error.message}`, error.stack);
+      throw new BadRequestException(`Error al exportar PUC: ${error.message}`);
     }
-
-    // 5. Crear workbook con formato Excel
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.aoa_to_sheet(datos, { 
-      dateNF: 'yyyy-mm-dd',
-      cellStyles: true
-    });
-
-    // 6. Aplicar formato similar al template
-    this.aplicarFormatoWorksheet(worksheet, datos.length, cols);
-
-    // 7. Agregar hoja principal
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'PUC');
-
-    // 8. Agregar hoja de resumen si se solicita
-    if (opciones.incluir_resumen) {
-      const resumen = this.generarDatosResumen(cuentas, opciones);
-      const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
-      XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen');
-    }
-
-    this.logger.log(`✅ Exportación completada: ${cuentas.length} cuentas exportadas`);
-
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-  } catch (error) {
-    this.logger.error(`❌ Error en exportación: ${error.message}`, error.stack);
-    throw new BadRequestException(`Error al exportar PUC: ${error.message}`);
   }
-}
 
-/**
- * Establece la jerarquía en las columnas C-G según el nivel de la cuenta
- */
-private establecerJerarquiaExportacion(fila: string[], cuenta: CuentaPuc): void {
-  // Limpiar todas las columnas de jerarquía primero
-  fila[this.COLUMN_MAPPING.codigo_clase] = '';
-  fila[this.COLUMN_MAPPING.codigo_grupo] = '';
-  fila[this.COLUMN_MAPPING.codigo_cuenta] = '';
-  fila[this.COLUMN_MAPPING.codigo_subcuenta] = '';
-  fila[this.COLUMN_MAPPING.codigo_detalle] = '';
+  /**
+   * Establece la jerarquía en las columnas C-G según el nivel de la cuenta
+   */
+  private establecerJerarquiaExportacion(fila: string[], cuenta: CuentaPuc): void {
+    // Limpiar todas las columnas de jerarquía primero
+    fila[this.COLUMN_MAPPING.codigo_clase] = '';
+    fila[this.COLUMN_MAPPING.codigo_grupo] = '';
+    fila[this.COLUMN_MAPPING.codigo_cuenta] = '';
+    fila[this.COLUMN_MAPPING.codigo_subcuenta] = '';
+    fila[this.COLUMN_MAPPING.codigo_detalle] = '';
 
-  // Establecer el código en la columna correspondiente al nivel
-  const codigo = cuenta.codigo_completo || '';
-  
-  switch (cuenta.nivel) {
-    case 1: // Clase - Columna C
+    // Establecer el código en la columna correspondiente al nivel
+    const codigo = cuenta.codigo_completo || '';
+    
+    switch (cuenta.nivel) {
+      case 1: // Clase - Columna C
+        fila[this.COLUMN_MAPPING.codigo_clase] = codigo;
+        break;
+      case 2: // Grupo - Columna D
+        fila[this.COLUMN_MAPPING.codigo_grupo] = codigo;
+        break;
+      case 3: // Cuenta - Columna E
+        fila[this.COLUMN_MAPPING.codigo_cuenta] = codigo;
+        break;
+      case 4: // Subcuenta - Columna F
+        fila[this.COLUMN_MAPPING.codigo_subcuenta] = codigo;
+        break;
+      case 5: // Detalle - Columna G
+        fila[this.COLUMN_MAPPING.codigo_detalle] = codigo;
+        break;
+      default:
+        // Si no tiene nivel definido, intentar determinar por longitud del código
+        this.establecerJerarquiaPorLongitud(fila, codigo);
+    }
+  }
+
+  /**
+   * Método auxiliar para establecer jerarquía basado en longitud del código
+   */
+  private establecerJerarquiaPorLongitud(fila: string[], codigo: string): void {
+    if (!codigo) return;
+
+    const longitud = codigo.length;
+    
+    if (longitud === 1) {
       fila[this.COLUMN_MAPPING.codigo_clase] = codigo;
-      break;
-    case 2: // Grupo - Columna D
+    } else if (longitud === 2) {
       fila[this.COLUMN_MAPPING.codigo_grupo] = codigo;
-      break;
-    case 3: // Cuenta - Columna E
+    } else if (longitud === 4) {
       fila[this.COLUMN_MAPPING.codigo_cuenta] = codigo;
-      break;
-    case 4: // Subcuenta - Columna F
+    } else if (longitud === 6) {
       fila[this.COLUMN_MAPPING.codigo_subcuenta] = codigo;
-      break;
-    case 5: // Detalle - Columna G
+    } else if (longitud >= 8) {
       fila[this.COLUMN_MAPPING.codigo_detalle] = codigo;
-      break;
-    default:
-      // Si no tiene nivel definido, intentar determinar por longitud del código
-      this.establecerJerarquiaPorLongitud(fila, codigo);
-  }
-}
-
-/**
- * Método auxiliar para establecer jerarquía basado en longitud del código
- */
-private establecerJerarquiaPorLongitud(fila: string[], codigo: string): void {
-  if (!codigo) return;
-
-  const longitud = codigo.length;
-  
-  if (longitud === 1) {
-    fila[this.COLUMN_MAPPING.codigo_clase] = codigo;
-  } else if (longitud === 2) {
-    fila[this.COLUMN_MAPPING.codigo_grupo] = codigo;
-  } else if (longitud === 4) {
-    fila[this.COLUMN_MAPPING.codigo_cuenta] = codigo;
-  } else if (longitud === 6) {
-    fila[this.COLUMN_MAPPING.codigo_subcuenta] = codigo;
-  } else if (longitud >= 8) {
-    fila[this.COLUMN_MAPPING.codigo_detalle] = codigo;
-  } else {
-    // Por defecto, colocar en cuenta
-    fila[this.COLUMN_MAPPING.codigo_cuenta] = codigo;
-  }
-}
-
-/**
- * Formatear números para exportación (mantener consistencia con template)
- */
-private formatearNumero(valor: number | null | undefined): string {
-  if (valor === null || valor === undefined || valor === 0) {
-    return '';
-  }
-  return valor.toString();
-}
-
-/**
- * Aplicar formato básico al worksheet
- */
-private aplicarFormatoWorksheet(worksheet: any, filas: number, columnas: number): void {
-  // Configurar anchos de columna
-  const anchos = [
-    { wch: 12 }, // A - Saldo Inicial
-    { wch: 12 }, // B - Saldo Final
-    { wch: 6 },  // C - Clase
-    { wch: 8 },  // D - Grupo
-    { wch: 10 }, // E - Cuenta
-    { wch: 12 }, // F - Subcuenta
-    { wch: 14 }, // G - Detalle
-    { wch: 8 },  // H - I.D.
-    { wch: 40 }, // I - Descripción
-    { wch: 10 }, // J - TC$/OM
-    { wch: 15 }, // K - Centro Costos
-    { wch: 12 }, // L - Débitos
-    { wch: 12 }, // M - Créditos
-    { wch: 8 },  // N - Tipo/Cta
-    { wch: 6 },  // O - NL
-    { wch: 8 },  // P - AT
-    { wch: 8 },  // Q - CT
-    { wch: 8 },  // R - CC
-    { wch: 8 },  // S - TI
-    { wch: 8 },  // T - F350
-    { wch: 8 },  // U - F300
-    { wch: 10 }, // V - Exógena
-    { wch: 8 },  // W - ICA
-    { wch: 10 }, // X - DR(110)
-    { wch: 18 }, // Y - Conciliación Fiscal
-    { wch: 8 },  // Z - Vacía
-    { wch: 8 }   // AA - Vacía
-  ];
-
-  worksheet['!cols'] = anchos.slice(0, columnas);
-
-  // Congelar primera fila (headers)
-  if (filas > 1) {
-    worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
-  }
-}
-
-/**
- * Validar opciones de exportación
- */
-private validarOpcionesExportacion(opciones: ExportPucExcelDto): void {
-  // Validar que al menos una opción de contenido esté habilitada
-  if (!opciones.incluir_saldos && !opciones.incluir_movimientos && !opciones.incluir_fiscal) {
-    // Si no se especifica nada, habilitar saldos por defecto
-    opciones.incluir_saldos = true;
+    } else {
+      // Por defecto, colocar en cuenta
+      fila[this.COLUMN_MAPPING.codigo_cuenta] = codigo;
+    }
   }
 
-  // Validar filtro de clase
-  if (opciones.filtro_clase && !/^[1-9]$/.test(opciones.filtro_clase)) {
-    throw new BadRequestException('El filtro de clase debe ser un dígito del 1 al 9');
+  /**
+   * Formatear números para exportación (mantener consistencia con template)
+   */
+  private formatearNumero(valor: number | null | undefined): string {
+    if (valor === null || valor === undefined || valor === 0) {
+      return '';
+    }
+    return valor.toString();
   }
 
-  // Advertir sobre inconsistencias
-  if (opciones.solo_movimientos && !opciones.incluir_movimientos) {
-    this.logger.warn('⚠️ Inconsistencia: solo_movimientos=true pero incluir_movimientos=false');
+  /**
+   * Aplicar formato básico al worksheet
+   */
+  private aplicarFormatoWorksheet(worksheet: any, filas: number, columnas: number): void {
+    // Configurar anchos de columna
+    const anchos = [
+      { wch: 12 }, // A - Saldo Inicial
+      { wch: 12 }, // B - Saldo Final
+      { wch: 6 },  // C - Clase
+      { wch: 8 },  // D - Grupo
+      { wch: 10 }, // E - Cuenta
+      { wch: 12 }, // F - Subcuenta
+      { wch: 14 }, // G - Detalle
+      { wch: 8 },  // H - I.D.
+      { wch: 40 }, // I - Descripción
+      { wch: 10 }, // J - TC$/OM
+      { wch: 15 }, // K - Centro Costos
+      { wch: 12 }, // L - Débitos
+      { wch: 12 }, // M - Créditos
+      { wch: 8 },  // N - Tipo/Cta
+      { wch: 6 },  // O - NL
+      { wch: 8 },  // P - AT
+      { wch: 8 },  // Q - CT
+      { wch: 8 },  // R - CC
+      { wch: 8 },  // S - TI
+      { wch: 8 },  // T - F350
+      { wch: 8 },  // U - F300
+      { wch: 10 }, // V - Exógena
+      { wch: 8 },  // W - ICA
+      { wch: 10 }, // X - DR(110)
+      { wch: 18 }, // Y - Conciliación Fiscal
+      { wch: 8 },  // Z - Vacía
+      { wch: 8 }   // AA - Vacía
+    ];
+
+    worksheet['!cols'] = anchos.slice(0, columnas);
+
+    // Congelar primera fila (headers)
+    if (filas > 1) {
+      worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+    }
   }
-}
 
-/**
- * Generar datos de resumen para hoja adicional
- */
-private generarDatosResumen(cuentas: CuentaPuc[], opciones: ExportPucExcelDto): string[][] {
-  // Inicializar el array con tipo explícito
-  const resumen: string[][] = [];
-  
-  // Título
-  resumen.push(['RESUMEN DE EXPORTACION PUC']);
-  resumen.push(['']);
-  
-  // Información general
-  const fecha = new Date().toLocaleString('es-CO');
-  resumen.push(['Fecha de exportacion:', fecha]);
-  resumen.push(['Total de cuentas exportadas:', cuentas.length.toString()]);
-  resumen.push(['']);
+  /**
+   * Validar opciones de exportación
+   */
+  private validarOpcionesExportacion(opciones: ExportPucExcelDto): void {
+    // Validar que al menos una opción de contenido esté habilitada
+    if (!opciones.incluir_saldos && !opciones.incluir_movimientos && !opciones.incluir_fiscal) {
+      // Si no se especifica nada, habilitar saldos por defecto
+      opciones.incluir_saldos = true;
+    }
 
-  // Distribución por nivel
-  resumen.push(['DISTRIBUCION POR NIVEL:']);
-  const porNivel = this.agruparPorNivel(cuentas);
-  Object.entries(porNivel).forEach(([nivel, cantidad]) => {
-    const nombreNivel = this.obtenerNombreNivel(parseInt(nivel));
-    resumen.push([`Nivel ${nivel} (${nombreNivel}):`, cantidad.toString()]);
-  });
-  resumen.push(['']);
+    // Validar filtro de clase
+    if (opciones.filtro_clase && !/^[1-9]$/.test(opciones.filtro_clase)) {
+      throw new BadRequestException('El filtro de clase debe ser un dígito del 1 al 9');
+    }
 
-  // Distribución por estado
-  resumen.push(['DISTRIBUCION POR ESTADO:']);
-  const porEstado = this.agruparPorEstado(cuentas);
-  Object.entries(porEstado).forEach(([estado, cantidad]) => {
-    resumen.push([`${estado}:`, cantidad.toString()]);
-  });
-  resumen.push(['']);
+    // Advertir sobre inconsistencias
+    if (opciones.solo_movimientos && !opciones.incluir_movimientos) {
+      this.logger.warn('⚠️ Inconsistencia: solo_movimientos=true pero incluir_movimientos=false');
+    }
+  }
 
-  // Totales si se incluyeron saldos
-  if (opciones.incluir_saldos) {
-    resumen.push(['TOTALES:']);
-    const totales = this.calcularTotales(cuentas);
-    resumen.push(['Total Saldo Inicial:', totales.saldoInicial.toLocaleString('es-CO')]);
-    resumen.push(['Total Saldo Final:', totales.saldoFinal.toLocaleString('es-CO')]);
+  /**
+   * Generar datos de resumen para hoja adicional
+   */
+  private generarDatosResumen(cuentas: CuentaPuc[], opciones: ExportPucExcelDto): string[][] {
+    // Inicializar el array con tipo explícito
+    const resumen: string[][] = [];
+    
+    // Título
+    resumen.push(['RESUMEN DE EXPORTACION PUC']);
     resumen.push(['']);
+    
+    // Información general
+    const fecha = new Date().toLocaleString('es-CO');
+    resumen.push(['Fecha de exportacion:', fecha]);
+    resumen.push(['Total de cuentas exportadas:', cuentas.length.toString()]);
+    resumen.push(['']);
+
+    // Distribución por nivel
+    resumen.push(['DISTRIBUCION POR NIVEL:']);
+    const porNivel = this.agruparPorNivel(cuentas);
+    Object.entries(porNivel).forEach(([nivel, cantidad]) => {
+      const nombreNivel = this.obtenerNombreNivel(parseInt(nivel));
+      resumen.push([`Nivel ${nivel} (${nombreNivel}):`, cantidad.toString()]);
+    });
+    resumen.push(['']);
+
+    // Distribución por estado
+    resumen.push(['DISTRIBUCION POR ESTADO:']);
+    const porEstado = this.agruparPorEstado(cuentas);
+    Object.entries(porEstado).forEach(([estado, cantidad]) => {
+      resumen.push([`${estado}:`, cantidad.toString()]);
+    });
+    resumen.push(['']);
+
+    // Totales si se incluyeron saldos
+    if (opciones.incluir_saldos) {
+      resumen.push(['TOTALES:']);
+      const totales = this.calcularTotales(cuentas);
+      resumen.push(['Total Saldo Inicial:', totales.saldoInicial.toLocaleString('es-CO')]);
+      resumen.push(['Total Saldo Final:', totales.saldoFinal.toLocaleString('es-CO')]);
+      resumen.push(['']);
+    }
+
+    // Opciones aplicadas
+    resumen.push(['OPCIONES DE EXPORTACION:']);
+    resumen.push(['Incluir saldos:', opciones.incluir_saldos ? 'SI' : 'NO']);
+    resumen.push(['Incluir movimientos:', opciones.incluir_movimientos ? 'SI' : 'NO']);
+    resumen.push(['Incluir informacion fiscal:', opciones.incluir_fiscal ? 'SI' : 'NO']);
+    resumen.push(['Solo con movimientos:', opciones.solo_movimientos ? 'SI' : 'NO']);
+    resumen.push(['Incluir inactivas:', opciones.incluir_inactivas ? 'SI' : 'NO']);
+
+    if (opciones.filtro_estado) {
+      resumen.push(['Filtro estado:', opciones.filtro_estado]);
+    }
+    if (opciones.filtro_tipo) {
+      resumen.push(['Filtro tipo:', opciones.filtro_tipo]);
+    }
+    if (opciones.filtro_clase) {
+      resumen.push(['Filtro clase:', opciones.filtro_clase]);
+    }
+
+    return resumen;
   }
 
-  // Opciones aplicadas
-  resumen.push(['OPCIONES DE EXPORTACION:']);
-  resumen.push(['Incluir saldos:', opciones.incluir_saldos ? 'SI' : 'NO']);
-  resumen.push(['Incluir movimientos:', opciones.incluir_movimientos ? 'SI' : 'NO']);
-  resumen.push(['Incluir informacion fiscal:', opciones.incluir_fiscal ? 'SI' : 'NO']);
-  resumen.push(['Solo con movimientos:', opciones.solo_movimientos ? 'SI' : 'NO']);
-  resumen.push(['Incluir inactivas:', opciones.incluir_inactivas ? 'SI' : 'NO']);
-
-  if (opciones.filtro_estado) {
-    resumen.push(['Filtro estado:', opciones.filtro_estado]);
-  }
-  if (opciones.filtro_tipo) {
-    resumen.push(['Filtro tipo:', opciones.filtro_tipo]);
-  }
-  if (opciones.filtro_clase) {
-    resumen.push(['Filtro clase:', opciones.filtro_clase]);
+  /**
+   * Métodos auxiliares para resumen con tipos explícitos
+   */
+  private agruparPorNivel(cuentas: CuentaPuc[]): Record<string, number> {
+    const agrupado: Record<string, number> = {};
+    
+    cuentas.forEach(cuenta => {
+      const nivel = cuenta.nivel?.toString() || '0';
+      agrupado[nivel] = (agrupado[nivel] || 0) + 1;
+    });
+    
+    return agrupado;
   }
 
-  return resumen;
-}
+  private agruparPorEstado(cuentas: CuentaPuc[]): Record<string, number> {
+    const agrupado: Record<string, number> = {};
+    
+    cuentas.forEach(cuenta => {
+      const estado = cuenta.estado || 'DESCONOCIDO';
+      agrupado[estado] = (agrupado[estado] || 0) + 1;
+    });
+    
+    return agrupado;
+  }
 
-/**
- * Métodos auxiliares para resumen con tipos explícitos
- */
-private agruparPorNivel(cuentas: CuentaPuc[]): Record<string, number> {
-  const agrupado: Record<string, number> = {};
-  
-  cuentas.forEach(cuenta => {
-    const nivel = cuenta.nivel?.toString() || '0';
-    agrupado[nivel] = (agrupado[nivel] || 0) + 1;
-  });
-  
-  return agrupado;
-}
+  private calcularTotales(cuentas: CuentaPuc[]): { saldoInicial: number; saldoFinal: number } {
+    let saldoInicial = 0;
+    let saldoFinal = 0;
+    
+    cuentas.forEach(cuenta => {
+      saldoInicial += cuenta.saldo_inicial || 0;
+      saldoFinal += cuenta.saldo_final || 0;
+    });
+    
+    return { saldoInicial, saldoFinal };
+  }
 
-private agruparPorEstado(cuentas: CuentaPuc[]): Record<string, number> {
-  const agrupado: Record<string, number> = {};
-  
-  cuentas.forEach(cuenta => {
-    const estado = cuenta.estado || 'DESCONOCIDO';
-    agrupado[estado] = (agrupado[estado] || 0) + 1;
-  });
-  
-  return agrupado;
-}
-
-private calcularTotales(cuentas: CuentaPuc[]): { saldoInicial: number; saldoFinal: number } {
-  let saldoInicial = 0;
-  let saldoFinal = 0;
-  
-  cuentas.forEach(cuenta => {
-    saldoInicial += cuenta.saldo_inicial || 0;
-    saldoFinal += cuenta.saldo_final || 0;
-  });
-  
-  return { saldoInicial, saldoFinal };
-}
-
-private obtenerNombreNivel(nivel: number): string {
-  const nombres: Record<number, string> = {
-    1: 'Clase',
-    2: 'Grupo', 
-    3: 'Cuenta',
-    4: 'Subcuenta',
-    5: 'Detalle'
-  };
-  return nombres[nivel] || 'Desconocido';
-}
+  private obtenerNombreNivel(nivel: number): string {
+    const nombres: Record<number, string> = {
+      1: 'Clase',
+      2: 'Grupo', 
+      3: 'Cuenta',
+      4: 'Subcuenta',
+      5: 'Detalle'
+    };
+    return nombres[nivel] || 'Desconocido';
+  }
 
   // ===============================================
   // 📋 TEMPLATES Y PLANTILLAS
@@ -747,156 +741,6 @@ private obtenerNombreNivel(nivel: number): string {
           '', // Conciliacion Fiscal - vacío
           '', // Col Z - vacía
           '' // Col AA - vacía
-        ],
-        // Fila 5 - CAJA (Cuenta 1105)
-        [
-          '17130522.90', // SALDO INICIAL
-          '', // SALDO FINAL
-          '', // C (1) - vacío
-          '', // CGG (2) - vacío
-          '1105', // CGUU(3) - Cuenta
-          '', // CGUUSS(4) - vacío
-          '', // CGGUUSSDD(5) - vacío
-          '', // I.D. - vacío
-          'CAJA', // DESCRIPCION
-          '', // OM - vacío
-          '', // Centro de Costos - vacío
-          '', // Debitos - vacío
-          '', // Creditos - vacío
-          'G', // Cta - Tipo cuenta (G=Grupo)
-          '3', // NL - Nivel
-          '', // AT - vacío
-          '', // CT - vacío
-          '', // CC - vacío
-          '', // TI - vacío
-          '', // F350 - vacío
-          '', // F300 - vacío
-          '', // Exogena - vacío
-          '', // ICA - vacío
-          '', // DR(110) - vacío
-          '', // Conciliacion Fiscal - vacío
-          '', // Col Z - vacía
-          '' // Col AA - vacía
-        ],
-        // Fila 6 - Caja principal (Subcuenta 110501)
-        [
-          '15630522.90', // SALDO INICIAL
-          '', // SALDO FINAL
-          '', // C (1) - vacío
-          '', // CGG (2) - vacío
-          '', // CGUU(3) - vacío
-          '110501', // CGUUSS(4) - Subcuenta
-          '', // CGGUUSSDD(5) - vacío
-          'X', // I.D. - con movimientos
-          'Caja principal', // DESCRIPCION
-          '', // OM - vacío
-          'N / A', // Centro de Costos
-          '', // Debitos - vacío
-          '', // Creditos - vacío
-          'D', // Cta - Tipo cuenta (D=Detalle)
-          '4', // NL - Nivel
-          'X', // AT - Afecta terceros
-          'X', // CT - Cierra terceros
-          '', // CC - vacío
-          '', // TI - vacío
-          '', // F350 - vacío
-          '', // F300 - vacío
-          '', // Exogena - vacío
-          '', // ICA - vacío
-          '36', // DR(110)
-          'H2 (ESF - Patrimonio)', // Conciliacion Fiscal
-          '12', // Col Z
-          '' // Col AA - vacía
-        ],
-        // Fila 7 - Fila separadora (N/A)
-        [
-          '', // SALDO INICIAL
-          '', // SALDO FINAL
-          '', // C (1) - vacío
-          '', // CGG (2) - vacío
-          '', // CGUU(3) - vacío
-          '', // CGUUSS(4) - vacío
-          '', // CGGUUSSDD(5) - vacío
-          '', // I.D. - vacío
-          'N / A', // DESCRIPCION
-          '', // OM - vacío
-          '', // Centro de Costos - vacío
-          '', // Debitos - vacío
-          '', // Creditos - vacío
-          '', // Cta - vacío
-          '', // NL - vacío
-          '', // AT - vacío
-          '', // CT - vacío
-          '', // CC - vacío
-          '', // TI - vacío
-          '', // F350 - vacío
-          '', // F300 - vacío
-          '', // Exogena - vacío
-          '', // ICA - vacío
-          '', // DR(110) - vacío
-          '', // Conciliacion Fiscal - vacío
-          '', // Col Z - vacía
-          '' // Col AA - vacía
-        ],
-        // Fila 8 - Caja menor (Subcuenta 110502)
-        [
-          '1500000.00', // SALDO INICIAL
-          '', // SALDO FINAL
-          '', // C (1) - vacío
-          '', // CGG (2) - vacío
-          '', // CGUU(3) - vacío
-          '110502', // CGUUSS(4) - Subcuenta
-          '', // CGGUUSSDD(5) - vacío
-          'X', // I.D. - con movimientos
-          'Caja menor', // DESCRIPCION
-          '', // OM - vacío
-          '000 00000', // Centro de Costos
-          '', // Debitos - vacío
-          '', // Creditos - vacío
-          'D', // Cta - Tipo cuenta (D=Detalle)
-          '4', // NL - Nivel
-          'X', // AT - Afecta terceros
-          '', // CT - vacío
-          '', // CC - vacío
-          '', // TI - vacío
-          '', // F350 - vacío
-          '', // F300 - vacío
-          '', // Exogena - vacío
-          '', // ICA - vacío
-          '36', // DR(110)
-          'H2 (ESF - Patrimonio)', // Conciliacion Fiscal
-          '12', // Col Z
-          '' // Col AA - vacía
-        ],
-        // Fila 9 - Otra fila separadora (N/A)
-        [
-          '', // SALDO INICIAL
-          '', // SALDO FINAL
-          '', // C (1) - vacío
-          '', // CGG (2) - vacío
-          '', // CGUU(3) - vacío
-          '', // CGUUSS(4) - vacío
-          '', // CGGUUSSDD(5) - vacío
-          '', // I.D. - vacío
-          'N / A', // DESCRIPCION
-          '', // OM - vacío
-          '', // Centro de Costos - vacío
-          '', // Debitos - vacío
-          '', // Creditos - vacío
-          '', // Cta - vacío
-          '', // NL - vacío
-          '', // AT - vacío
-          '', // CT - vacío
-          '', // CC - vacío
-          '', // TI - vacío
-          '', // F350 - vacío
-          '', // F300 - vacío
-          '', // Exogena - vacío
-          '', // ICA - vacío
-          '', // DR(110) - vacío
-          '', // Conciliacion Fiscal - vacío
-          '', // Col Z - vacía
-          '' // Col AA - vacía
         ]
       ];
       
@@ -922,7 +766,7 @@ private obtenerNombreNivel(nivel: number): string {
       ['• CUENTA (Col E): Código de cuenta (4 dígitos) - Ej: 1105, 1110, 2105'],
       ['• SUBCUENTA (Col F): Código de subcuenta (6 dígitos) - Ej: 110501, 110502'],
       ['• DETALLE (Col G): Código de detalle (8+ dígitos) - Ej: 11050101, 11050102'],
-      ['• DESCRIPCION (Col I): Nombre de la cuenta (obligatorio)'],
+      ['• DESCRIPCION (Col I): Descripción de la cuenta (obligatorio)'],
       [''],
       ['📊 COLUMNAS DE IDENTIFICACIÓN:'],
       ['• I.D. (Col H): Marcar con "X" si acepta movimientos'],
@@ -959,45 +803,21 @@ private obtenerNombreNivel(nivel: number): string {
       ['• Subcuenta: 6 dígitos (Ej: 110501=Caja principal, 110502=Caja menor)'],
       ['• Detalle: 8+ dígitos (Ej: 11050101=Caja principal sede A)'],
       [''],
-      ['📝 CAMPOS ESPECIALES EXPLICADOS:'],
-      ['• TC$ (Tasa Cambio): Se actualiza mensualmente según Superfinanciera'],
-      ['• OM: Tasa de Cambio operaciones múltiples'],
-      ['• NL: Nivel jerárquico (1-5, calculado automáticamente)'],
-      ['• AT: Afecta Terceros - Requiere info de terceros'],
-      ['• CT: Cierra terceros al ciclo anual cuando saldo = 0'],
-      ['• CC: Código de cierre contable para ciclo anual'],
-      ['• TI: Tipo Interfase - Cuenta con afectación módulo específico'],
-      ['• F350: Declaración RteFte según formulario 350'],
-      [''],
       ['⚠️ VALIDACIONES IMPORTANTES:'],
       ['• Los códigos deben contener solo números'],
       ['• Respetar jerarquía: crear padres antes que hijos'],
       ['• Solo llenar UNA columna de código por fila (según nivel)'],
-      ['• Los nombres son obligatorios'],
-      ['• Máximo 500 caracteres para nombres'],
+      ['• Las descripciones son obligatorias'],
       ['• I.D. = "X" indica que acepta movimientos'],
       [''],
       ['🔄 NATURALEZA AUTOMÁTICA:'],
       ['• DEBITO: Clases 1, 5, 6, 7, 8 (Activos, Gastos, Costos)'],
-      ['• CREDITO: Clases 2, 3, 4, 9 (Pasivos, Patrimonio, Ingresos)'],
-      [''],
-      ['💡 EJEMPLO DE ESTRUCTURA:'],
-      ['• Fila 3: Clase "1" = ACTIVOS (Col C)'],
-      ['• Fila 4: Grupo "11" = EFECTIVO Y EQUIVALENTES (Col D)'],
-      ['• Fila 5: Cuenta "1105" = CAJA (Col E)'],
-      ['• Fila 6: Subcuenta "110501" = Caja principal (Col F)'],
-      ['• Fila 7: Detalle "11050101" = Caja principal sucursal A (Col G)'],
-      [''],
-      ['🔧 FORMATOS SOPORTADOS:'],
-      ['• Números: 1000, 1000.50, 1,000.50'],
-      ['• Booleanos: X, true/false, 1/0, si/no'],
-      ['• Texto: cualquier cadena de texto'],
-      ['• Códigos: solo números (se limpia automáticamente)']
+      ['• CREDITO: Clases 2, 3, 4, 9 (Pasivos, Patrimonio, Ingresos)']
     ];
   }
 
   // ===============================================
-  // 🔧 MÉTODOS AUXILIARES PARA IMPORTACIÓN
+  // 🔧 MÉTODOS AUXILIARES PARA IMPORTACIÓN CORREGIDOS
   // ===============================================
 
   private async procesarFilasExcel(
@@ -1028,7 +848,7 @@ private obtenerNombreNivel(nivel: number): string {
     return filasValidas;
   }
 
- private extraerFilaExcel(worksheet: XLSX.WorkSheet, fila: number, maxCol: number): any[] {
+  private extraerFilaExcel(worksheet: XLSX.WorkSheet, fila: number, maxCol: number): any[] {
     const filaData: any[] = [];
     for (let col = 0; col <= maxCol; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: fila, c: col });
@@ -1043,7 +863,8 @@ private obtenerNombreNivel(nivel: number): string {
   }
 
   private esFilaSeparadora(filaData: any[]): boolean {
-    const descripcion = filaData[this.COLUMN_MAPPING.nombre];
+    // CORREGIDO: usar descripcion en lugar de nombre
+    const descripcion = filaData[this.COLUMN_MAPPING.descripcion];
     return descripcion && descripcion.toString().trim() === 'N / A';
   }
 
@@ -1056,10 +877,10 @@ private obtenerNombreNivel(nivel: number): string {
         return null;
       }
 
-      // Extraer nombre
-      const nombre = this.limpiarTexto(filaData[this.COLUMN_MAPPING.nombre]);
-      if (!nombre) {
-        this.logger.warn(`Fila ${numeroFila}: Nombre requerido`);
+      // CORREGIDO: Extraer descripcion en lugar de nombre
+      const descripcion = this.limpiarTexto(filaData[this.COLUMN_MAPPING.descripcion]);
+      if (!descripcion) {
+        this.logger.warn(`Fila ${numeroFila}: Descripción requerida`);
         return null;
       }
 
@@ -1082,7 +903,7 @@ private obtenerNombreNivel(nivel: number): string {
 
       return {
         codigo_completo: codigo,
-        nombre,
+        descripcion, // CORREGIDO: usar descripcion
         codigo_clase: nivel === 1 ? codigo : null,
         codigo_grupo: nivel === 2 ? codigo : null,
         codigo_cuenta: nivel === 3 ? codigo : null,
@@ -1208,7 +1029,7 @@ private obtenerNombreNivel(nivel: number): string {
       } catch (error) {
         resultado.errores.push({
           fila: fila.fila_excel,
-          error: error.message, // Corregido: 'error' en lugar de 'mensaje'
+          error: error.message,
         });
         this.logger.error(`Error en fila ${fila.fila_excel}: ${error.message}`);
       }
@@ -1216,11 +1037,11 @@ private obtenerNombreNivel(nivel: number): string {
 
     resultado.exito = resultado.errores.length === 0;
     resultado.resumen = {
-      total_procesadas: filasValidas.length, // Corregido: 'total_procesadas' en lugar de 'total_filas'
+      total_procesadas: filasValidas.length,
       insertadas,
       actualizadas,
       errores: resultado.errores.length,
-      omitidas: filasValidas.length - insertadas - actualizadas - resultado.errores.length, // Calculo de omitidas
+      omitidas: filasValidas.length - insertadas - actualizadas - resultado.errores.length,
     };
 
     return resultado;
@@ -1231,8 +1052,8 @@ private obtenerNombreNivel(nivel: number): string {
     fila: FilaProcesada, 
     opciones: ImportPucExcelDto
   ): Promise<void> {
-    // Actualizar campos básicos
-    cuenta.nombre = fila.nombre;
+    // CORREGIDO: Actualizar descripcion en lugar de nombre
+    cuenta.descripcion = fila.descripcion;
     cuenta.acepta_movimientos = fila.acepta_movimientos;
     cuenta.tipo_cuenta = fila.tipo_cuenta;
 
@@ -1271,9 +1092,9 @@ private obtenerNombreNivel(nivel: number): string {
   ): Promise<void> {
     const nuevaCuenta = new CuentaPuc();
 
-    // Campos obligatorios
+    // CORREGIDO: Campos obligatorios usando descripcion
     nuevaCuenta.codigo_completo = fila.codigo_completo;
-    nuevaCuenta.nombre = fila.nombre;
+    nuevaCuenta.descripcion = fila.descripcion; // CAMBIADO DE nombre A descripcion
     nuevaCuenta.naturaleza = fila.naturaleza;
     nuevaCuenta.tipo_cuenta = fila.tipo_cuenta;
     nuevaCuenta.nivel = fila.nivel;

@@ -1,9 +1,9 @@
-// frontend-react/src/api/pucApi.js - ACTUALIZADA PARA EL BACKEND
+// frontend-react/src/api/pucApi.js - ACTUALIZADA PARA NUEVO ESQUEMA DE BD
 import api from './config';
 
 export const pucApi = {
   // ===============================================
-  // 📋 MÉTODOS CRUD BÁSICOS
+  // 📋 MÉTODOS CRUD BÁSICOS - ACTUALIZADO
   // ===============================================
 
   async obtenerCuentas(filtros = {}) {
@@ -21,11 +21,98 @@ export const pucApi = {
   },
 
   async crearCuenta(cuenta) {
-    return await api.post('/puc/cuentas', cuenta);
+    // Mapear campos del frontend al nuevo esquema de BD
+    const cuentaMapeada = {
+      codigo_completo: cuenta.codigo_completo,
+      descripcion: cuenta.descripcion, // Ahora es descripcion en lugar de nombre
+      codigo_clase: cuenta.codigo_clase,
+      codigo_grupo: cuenta.codigo_grupo,
+      codigo_cuenta: cuenta.codigo_cuenta,
+      codigo_subcuenta: cuenta.codigo_subcuenta,
+      codigo_detalle: cuenta.codigo_detalle,
+      codigo_padre: cuenta.codigo_padre,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      naturaleza: cuenta.naturaleza,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      activo: cuenta.activo,
+      saldo_inicial: cuenta.saldo_inicial,
+      saldo_final: cuenta.saldo_final,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos,
+      aplica_dr110: cuenta.aplica_dr110,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      conciliacion_fiscal: cuenta.conciliacion_fiscal,
+      tipo_om: cuenta.tipo_om,
+      codigo_at: cuenta.codigo_at,
+      codigo_ct: cuenta.codigo_ct,
+      codigo_cc: cuenta.codigo_cc,
+      codigo_ti: cuenta.codigo_ti,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_niif: cuenta.codigo_niif,
+      dinamica: cuenta.dinamica,
+      id_movimiento: cuenta.id_movimiento,
+      usuario_creacion: cuenta.usuario_creacion,
+      usuario_modificacion: cuenta.usuario_modificacion,
+      fila_excel: cuenta.fila_excel,
+      observaciones: cuenta.observaciones
+    };
+
+    return await api.post('/puc/cuentas', cuentaMapeada);
   },
 
   async actualizarCuenta(id, cuenta) {
-    return await api.put(`/puc/cuentas/${id}`, cuenta);
+    // Mapear campos del frontend al nuevo esquema de BD
+    const cuentaMapeada = {
+      descripcion: cuenta.descripcion, // Campo principal actualizado
+      codigo_clase: cuenta.codigo_clase,
+      codigo_grupo: cuenta.codigo_grupo,
+      codigo_cuenta: cuenta.codigo_cuenta,
+      codigo_subcuenta: cuenta.codigo_subcuenta,
+      codigo_detalle: cuenta.codigo_detalle,
+      codigo_padre: cuenta.codigo_padre,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      naturaleza: cuenta.naturaleza,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      activo: cuenta.activo,
+      saldo_inicial: cuenta.saldo_inicial,
+      saldo_final: cuenta.saldo_final,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos,
+      aplica_dr110: cuenta.aplica_dr110,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      conciliacion_fiscal: cuenta.conciliacion_fiscal,
+      tipo_om: cuenta.tipo_om,
+      codigo_at: cuenta.codigo_at,
+      codigo_ct: cuenta.codigo_ct,
+      codigo_cc: cuenta.codigo_cc,
+      codigo_ti: cuenta.codigo_ti,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_niif: cuenta.codigo_niif,
+      dinamica: cuenta.dinamica,
+      id_movimiento: cuenta.id_movimiento,
+      usuario_modificacion: cuenta.usuario_modificacion,
+      observaciones: cuenta.observaciones
+    };
+
+    return await api.put(`/puc/cuentas/${id}`, cuentaMapeada);
   },
 
   async eliminarCuenta(id) {
@@ -91,14 +178,13 @@ export const pucApi = {
   },
 
   // ===============================================
-  // 📥 MÉTODOS DE IMPORTACIÓN EXCEL - ACTUALIZADOS
+  // 📥 MÉTODOS DE IMPORTACIÓN EXCEL
   // ===============================================
 
   async validarArchivoExcel(file, opciones = {}) {
     const formData = new FormData();
     formData.append('file', file);
     
-    // Agregar opciones de validación con nombres correctos del backend
     const opcionesBackend = {
       hoja: opciones.hoja || 'PUC',
       fila_inicio: opciones.fila_inicio || 3,
@@ -122,7 +208,6 @@ export const pucApi = {
     const formData = new FormData();
     formData.append('file', file);
     
-    // Mapear opciones del frontend a los nombres del backend
     const opcionesBackend = {
       sobreescribir: opciones.sobreescribir || opciones.sobrescribir_existentes || false,
       validar_jerarquia: opciones.validar_jerarquia !== false,
@@ -142,18 +227,17 @@ export const pucApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      timeout: 300000 // 5 minutos para importaciones grandes
+      timeout: 300000
     });
   },
 
   // ===============================================
-  // 📤 MÉTODOS DE EXPORTACIÓN - ACTUALIZADOS
+  // 📤 MÉTODOS DE EXPORTACIÓN
   // ===============================================
 
   async exportarAExcel(opciones = {}) {
     const params = new URLSearchParams();
     
-    // Mapear opciones con los nombres correctos del backend
     const opcionesBackend = {
       incluir_saldos: opciones.incluir_saldos !== false,
       incluir_movimientos: opciones.incluir_movimientos !== false,
@@ -175,7 +259,6 @@ export const pucApi = {
       responseType: 'blob',
     });
 
-    // Crear y descargar el archivo
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
@@ -184,7 +267,6 @@ export const pucApi = {
     const link = document.createElement('a');
     link.href = url;
     
-    // Obtener nombre del archivo desde el header Content-Disposition si está disponible
     const contentDisposition = response.headers['content-disposition'];
     let fileName = 'puc_export.xlsx';
     
@@ -194,7 +276,6 @@ export const pucApi = {
         fileName = fileNameMatch[1];
       }
     } else {
-      // Generar nombre con fecha
       const fecha = new Date().toISOString().split('T')[0];
       fileName = `puc_export_${fecha}.xlsx`;
     }
@@ -221,7 +302,6 @@ export const pucApi = {
       responseType: 'blob',
     });
 
-    // Crear y descargar el archivo
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
@@ -269,7 +349,6 @@ export const pucApi = {
   // 📋 MÉTODOS ESPECÍFICOS PARA COMPONENTES
   // ===============================================
 
-  // Método auxiliar para obtener opciones de clase
   async obtenerClases() {
     try {
       const response = await this.reportePorClase(false);
@@ -284,18 +363,16 @@ export const pucApi = {
     }
   },
 
-  // Método auxiliar para obtener cuenta por código
   async obtenerCuentaPorCodigo(codigo) {
     try {
-      const response = await this.obtenerCuentas({ codigo_completo: codigo });
-      return response.data.length > 0 ? response.data[0] : null;
+      const response = await this.obtenerCuentas({ busqueda: codigo });
+      return response.data.find(cuenta => cuenta.codigo_completo === codigo) || null;
     } catch (error) {
       console.error('Error obteniendo cuenta por código:', error);
       return null;
     }
   },
 
-  // Método auxiliar para verificar si existe una cuenta
   async existeCuenta(codigo) {
     try {
       const cuenta = await this.obtenerCuentaPorCodigo(codigo);
@@ -305,7 +382,6 @@ export const pucApi = {
     }
   },
 
-  // Método auxiliar para obtener el path completo de una cuenta
   async obtenerPathCuenta(codigo) {
     try {
       const path = [];
@@ -332,14 +408,10 @@ export const pucApi = {
   // 🔄 MÉTODOS DE IMPORTACIÓN ESPECIALES
   // ===============================================
 
-  // Método para importar PUC estándar (simulado por ahora)
   async importarPucEstandar(opciones = {}) {
     try {
-      // Por ahora simulamos la importación del PUC estándar
-      // En el futuro se podría implementar un endpoint específico
       console.log('Importando PUC estándar con opciones:', opciones);
       
-      // Simular delay de importación
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       return {
@@ -363,7 +435,6 @@ export const pucApi = {
     }
   },
 
-  // Método para obtener versión del PUC
   async obtenerVersionPuc() {
     try {
       const response = await this.obtenerEstadisticas();
@@ -378,7 +449,6 @@ export const pucApi = {
     }
   },
 
-  // Método auxiliar para obtener nombre de clase
   obtenerNombreClase(codigoClase) {
     const clases = {
       '1': 'ACTIVOS',
@@ -395,7 +465,7 @@ export const pucApi = {
   }
 };
 
-// Métodos de utilidad para el frontend (sin cambios, ya estaban bien)
+// Métodos de utilidad para el frontend actualizados para el nuevo esquema
 export const pucUtils = {
   // Determinar nivel de cuenta por longitud del código
   determinarNivel(codigo) {
@@ -413,8 +483,6 @@ export const pucUtils = {
   determinarNaturaleza(codigo) {
     if (!codigo) return 'DEBITO';
     const clase = codigo.charAt(0);
-    // Clases 1, 5, 6, 7, 8 son DEBITO
-    // Clases 2, 3, 4, 9 son CREDITO
     return ['1', '5', '6', '7', '8'].includes(clase) ? 'DEBITO' : 'CREDITO';
   },
 
@@ -422,12 +490,10 @@ export const pucUtils = {
   validarCodigo(codigo) {
     if (!codigo) return { valido: false, error: 'Código requerido' };
     
-    // Solo números
     if (!/^\d+$/.test(codigo)) {
       return { valido: false, error: 'El código debe contener solo números' };
     }
     
-    // Longitudes válidas
     const longitudesValidas = [1, 2, 4, 6, 8];
     if (!longitudesValidas.includes(codigo.length)) {
       return { 
@@ -505,10 +571,10 @@ export const pucUtils = {
   generarCodigoPadre(codigo) {
     if (!codigo || codigo.length <= 1) return null;
     
-    if (codigo.length === 2) return codigo.substring(0, 1);      // Grupo -> Clase
-    if (codigo.length === 4) return codigo.substring(0, 2);      // Cuenta -> Grupo
-    if (codigo.length === 6) return codigo.substring(0, 4);      // Subcuenta -> Cuenta
-    if (codigo.length >= 8) return codigo.substring(0, 6);       // Detalle -> Subcuenta
+    if (codigo.length === 2) return codigo.substring(0, 1);
+    if (codigo.length === 4) return codigo.substring(0, 2);
+    if (codigo.length === 6) return codigo.substring(0, 4);
+    if (codigo.length >= 8) return codigo.substring(0, 6);
     
     return null;
   },
@@ -518,20 +584,18 @@ export const pucUtils = {
     const mapa = new Map();
     const raices = [];
     
-    // Crear mapa de cuentas
     cuentas.forEach(cuenta => {
       cuenta.hijos = [];
       mapa.set(cuenta.codigo_completo, cuenta);
     });
     
-    // Construir árbol
     cuentas.forEach(cuenta => {
       if (cuenta.codigo_padre) {
         const padre = mapa.get(cuenta.codigo_padre);
         if (padre) {
           padre.hijos.push(cuenta);
         } else {
-          raices.push(cuenta); // Padre no encontrado, tratar como raíz
+          raices.push(cuenta);
         }
       } else {
         raices.push(cuenta);
@@ -548,8 +612,88 @@ export const pucUtils = {
     const terminoLower = termino.toLowerCase();
     return cuentas.filter(cuenta => 
       cuenta.codigo_completo.includes(termino) ||
-      cuenta.nombre.toLowerCase().includes(terminoLower)
+      (cuenta.descripcion && cuenta.descripcion.toLowerCase().includes(terminoLower))
     );
+  },
+
+  // Mapear cuenta del backend al frontend
+  mapearCuentaBackendAFrontend(cuentaBackend) {
+    return {
+      id: cuentaBackend.id,
+      codigo_completo: cuentaBackend.codigo_completo,
+      descripcion: cuentaBackend.descripcion, // Campo principal
+      codigo_clase: cuentaBackend.codigo_clase,
+      codigo_grupo: cuentaBackend.codigo_grupo,
+      codigo_cuenta: cuentaBackend.codigo_cuenta,
+      codigo_subcuenta: cuentaBackend.codigo_subcuenta,
+      codigo_detalle: cuentaBackend.codigo_detalle,
+      codigo_padre: cuentaBackend.codigo_padre,
+      tipo_cuenta: cuentaBackend.tipo_cuenta,
+      naturaleza: cuentaBackend.naturaleza,
+      estado: cuentaBackend.estado,
+      nivel: cuentaBackend.nivel,
+      tipo_cta: cuentaBackend.tipo_cta,
+      acepta_movimientos: cuentaBackend.acepta_movimientos,
+      requiere_tercero: cuentaBackend.requiere_tercero,
+      requiere_centro_costo: cuentaBackend.requiere_centro_costo,
+      activo: cuentaBackend.activo,
+      saldo_inicial: cuentaBackend.saldo_inicial,
+      saldo_final: cuentaBackend.saldo_final,
+      movimientos_debito: cuentaBackend.movimientos_debito,
+      movimientos_credito: cuentaBackend.movimientos_credito,
+      centro_costos: cuentaBackend.centro_costos,
+      aplica_dr110: cuentaBackend.aplica_dr110,
+      aplica_f350: cuentaBackend.aplica_f350,
+      aplica_f300: cuentaBackend.aplica_f300,
+      aplica_exogena: cuentaBackend.aplica_exogena,
+      aplica_ica: cuentaBackend.aplica_ica,
+      conciliacion_fiscal: cuentaBackend.conciliacion_fiscal,
+      tipo_om: cuentaBackend.tipo_om,
+      codigo_at: cuentaBackend.codigo_at,
+      codigo_ct: cuentaBackend.codigo_ct,
+      codigo_cc: cuentaBackend.codigo_cc,
+      codigo_ti: cuentaBackend.codigo_ti,
+      es_cuenta_niif: cuentaBackend.es_cuenta_niif,
+      codigo_niif: cuentaBackend.codigo_niif,
+      dinamica: cuentaBackend.dinamica,
+      id_movimiento: cuentaBackend.id_movimiento,
+      usuario_creacion: cuentaBackend.usuario_creacion,
+      fecha_creacion: cuentaBackend.fecha_creacion,
+      usuario_modificacion: cuentaBackend.usuario_modificacion,
+      fecha_modificacion: cuentaBackend.fecha_modificacion,
+      fila_excel: cuentaBackend.fila_excel,
+      observaciones: cuentaBackend.observaciones
+    };
+  },
+
+  // Validar integridad de cuenta
+  validarIntegridadCuenta(cuenta) {
+    const errores = [];
+
+    if (!cuenta.codigo_completo) {
+      errores.push('Código completo es requerido');
+    }
+
+    if (!cuenta.descripcion || cuenta.descripcion.trim().length === 0) {
+      errores.push('Descripción es requerida');
+    }
+
+    if (cuenta.codigo_padre) {
+      const codigoPadreEsperado = this.generarCodigoPadre(cuenta.codigo_completo);
+      if (cuenta.codigo_padre !== codigoPadreEsperado) {
+        errores.push('Código padre no coincide con la jerarquía esperada');
+      }
+    }
+
+    const nivelEsperado = this.determinarNivel(cuenta.codigo_completo);
+    if (cuenta.nivel !== nivelEsperado) {
+      errores.push('Nivel no coincide con la estructura del código');
+    }
+
+    return {
+      valida: errores.length === 0,
+      errores
+    };
   }
 };
 
