@@ -1,122 +1,183 @@
-// frontend-react/src/api/pucApi.js - ACTUALIZADA PARA NUEVO ESQUEMA DE BD
+// frontend-react/src/api/pucApi.js - COMPLETAMENTE CORREGIDO PARA RESPUESTAS DEL BACKEND
 import api from './config';
 
 export const pucApi = {
   // ===============================================
-  // 📋 MÉTODOS CRUD BÁSICOS - ACTUALIZADO
+  // 📋 MÉTODOS CRUD BÁSICOS - CORREGIDOS
   // ===============================================
 
   async obtenerCuentas(filtros = {}) {
-    const params = new URLSearchParams();
-    Object.entries(filtros).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        params.append(key, value);
-      }
-    });
-    return await api.get(`/puc/cuentas?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filtros).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value);
+        }
+      });
+      
+      console.log('🔍 [PUCAPI] Obteniendo cuentas con filtros:', filtros);
+      const response = await api.get(`/puc/cuentas?${params.toString()}`);
+      
+      // El backend devuelve { success: true, data: [...], total: X }
+      return {
+        data: response.data.data || response.data || [],
+        total: response.data.total || 0,
+        totalPaginas: response.data.totalPaginas || Math.ceil((response.data.total || 0) / (filtros.limite || 50)),
+        pagina: response.data.pagina || filtros.pagina || 1
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error obteniendo cuentas:', error);
+      throw error;
+    }
   },
 
   async obtenerCuentaPorId(id) {
-    return await api.get(`/puc/cuentas/${id}`);
+    try {
+      console.log('🔍 [PUCAPI] Obteniendo cuenta por ID:', id);
+      const response = await api.get(`/puc/cuentas/${id}`);
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error obteniendo cuenta por ID:', error);
+      throw error;
+    }
   },
 
   async crearCuenta(cuenta) {
-    // Mapear campos del frontend al nuevo esquema de BD
-    const cuentaMapeada = {
-      codigo_completo: cuenta.codigo_completo,
-      descripcion: cuenta.descripcion, // Ahora es descripcion en lugar de nombre
-      codigo_clase: cuenta.codigo_clase,
-      codigo_grupo: cuenta.codigo_grupo,
-      codigo_cuenta: cuenta.codigo_cuenta,
-      codigo_subcuenta: cuenta.codigo_subcuenta,
-      codigo_detalle: cuenta.codigo_detalle,
-      codigo_padre: cuenta.codigo_padre,
-      tipo_cuenta: cuenta.tipo_cuenta,
-      naturaleza: cuenta.naturaleza,
-      estado: cuenta.estado,
-      nivel: cuenta.nivel,
-      tipo_cta: cuenta.tipo_cta,
-      acepta_movimientos: cuenta.acepta_movimientos,
-      requiere_tercero: cuenta.requiere_tercero,
-      requiere_centro_costo: cuenta.requiere_centro_costo,
-      activo: cuenta.activo,
-      saldo_inicial: cuenta.saldo_inicial,
-      saldo_final: cuenta.saldo_final,
-      movimientos_debito: cuenta.movimientos_debito,
-      movimientos_credito: cuenta.movimientos_credito,
-      centro_costos: cuenta.centro_costos,
-      aplica_dr110: cuenta.aplica_dr110,
-      aplica_f350: cuenta.aplica_f350,
-      aplica_f300: cuenta.aplica_f300,
-      aplica_exogena: cuenta.aplica_exogena,
-      aplica_ica: cuenta.aplica_ica,
-      conciliacion_fiscal: cuenta.conciliacion_fiscal,
-      tipo_om: cuenta.tipo_om,
-      codigo_at: cuenta.codigo_at,
-      codigo_ct: cuenta.codigo_ct,
-      codigo_cc: cuenta.codigo_cc,
-      codigo_ti: cuenta.codigo_ti,
-      es_cuenta_niif: cuenta.es_cuenta_niif,
-      codigo_niif: cuenta.codigo_niif,
-      dinamica: cuenta.dinamica,
-      id_movimiento: cuenta.id_movimiento,
-      usuario_creacion: cuenta.usuario_creacion,
-      usuario_modificacion: cuenta.usuario_modificacion,
-      fila_excel: cuenta.fila_excel,
-      observaciones: cuenta.observaciones
-    };
+    try {
+      // Mapear campos del frontend al backend con valores por defecto
+      const cuentaMapeada = {
+        codigo_completo: cuenta.codigo_completo,
+        descripcion: cuenta.descripcion, // Campo principal actualizado
+        codigo_clase: cuenta.codigo_clase,
+        codigo_grupo: cuenta.codigo_grupo,
+        codigo_cuenta: cuenta.codigo_cuenta,
+        codigo_subcuenta: cuenta.codigo_subcuenta,
+        codigo_detalle: cuenta.codigo_detalle,
+        codigo_padre: cuenta.codigo_padre,
+        tipo_cuenta: cuenta.tipo_cuenta,
+        naturaleza: cuenta.naturaleza,
+        estado: cuenta.estado || 'ACTIVA',
+        nivel: cuenta.nivel,
+        tipo_cta: cuenta.tipo_cta,
+        acepta_movimientos: cuenta.acepta_movimientos ?? true,
+        requiere_tercero: cuenta.requiere_tercero ?? false,
+        requiere_centro_costo: cuenta.requiere_centro_costo ?? false,
+        activo: cuenta.activo ?? true,
+        // Campos financieros
+        saldo_inicial: cuenta.saldo_inicial || 0,
+        saldo_final: cuenta.saldo_final || 0,
+        movimientos_debito: cuenta.movimientos_debito || 0,
+        movimientos_credito: cuenta.movimientos_credito || 0,
+        centro_costos: cuenta.centro_costos,
+        // Campos fiscales
+        aplica_dr110: cuenta.aplica_dr110 ?? false,
+        aplica_f350: cuenta.aplica_f350 ?? false,
+        aplica_f300: cuenta.aplica_f300 ?? false,
+        aplica_exogena: cuenta.aplica_exogena ?? false,
+        aplica_ica: cuenta.aplica_ica ?? false,
+        conciliacion_fiscal: cuenta.conciliacion_fiscal,
+        // Códigos especiales
+        tipo_om: cuenta.tipo_om,
+        codigo_at: cuenta.codigo_at,
+        codigo_ct: cuenta.codigo_ct,
+        codigo_cc: cuenta.codigo_cc,
+        codigo_ti: cuenta.codigo_ti,
+        es_cuenta_niif: cuenta.es_cuenta_niif ?? false,
+        codigo_niif: cuenta.codigo_niif,
+        dinamica: cuenta.dinamica,
+        id_movimiento: cuenta.id_movimiento,
+        // Campos de auditoría
+        usuario_creacion: cuenta.usuario_creacion,
+        fila_excel: cuenta.fila_excel,
+        observaciones: cuenta.observaciones
+      };
 
-    return await api.post('/puc/cuentas', cuentaMapeada);
+      console.log('➕ [PUCAPI] Creando cuenta:', cuentaMapeada);
+      const response = await api.post('/puc/cuentas', cuentaMapeada);
+      
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error creando cuenta:', error);
+      throw error;
+    }
   },
 
   async actualizarCuenta(id, cuenta) {
-    // Mapear campos del frontend al nuevo esquema de BD
-    const cuentaMapeada = {
-      descripcion: cuenta.descripcion, // Campo principal actualizado
-      codigo_clase: cuenta.codigo_clase,
-      codigo_grupo: cuenta.codigo_grupo,
-      codigo_cuenta: cuenta.codigo_cuenta,
-      codigo_subcuenta: cuenta.codigo_subcuenta,
-      codigo_detalle: cuenta.codigo_detalle,
-      codigo_padre: cuenta.codigo_padre,
-      tipo_cuenta: cuenta.tipo_cuenta,
-      naturaleza: cuenta.naturaleza,
-      estado: cuenta.estado,
-      nivel: cuenta.nivel,
-      tipo_cta: cuenta.tipo_cta,
-      acepta_movimientos: cuenta.acepta_movimientos,
-      requiere_tercero: cuenta.requiere_tercero,
-      requiere_centro_costo: cuenta.requiere_centro_costo,
-      activo: cuenta.activo,
-      saldo_inicial: cuenta.saldo_inicial,
-      saldo_final: cuenta.saldo_final,
-      movimientos_debito: cuenta.movimientos_debito,
-      movimientos_credito: cuenta.movimientos_credito,
-      centro_costos: cuenta.centro_costos,
-      aplica_dr110: cuenta.aplica_dr110,
-      aplica_f350: cuenta.aplica_f350,
-      aplica_f300: cuenta.aplica_f300,
-      aplica_exogena: cuenta.aplica_exogena,
-      aplica_ica: cuenta.aplica_ica,
-      conciliacion_fiscal: cuenta.conciliacion_fiscal,
-      tipo_om: cuenta.tipo_om,
-      codigo_at: cuenta.codigo_at,
-      codigo_ct: cuenta.codigo_ct,
-      codigo_cc: cuenta.codigo_cc,
-      codigo_ti: cuenta.codigo_ti,
-      es_cuenta_niif: cuenta.es_cuenta_niif,
-      codigo_niif: cuenta.codigo_niif,
-      dinamica: cuenta.dinamica,
-      id_movimiento: cuenta.id_movimiento,
-      usuario_modificacion: cuenta.usuario_modificacion,
-      observaciones: cuenta.observaciones
-    };
+    try {
+      // Mapear campos del frontend al backend (sin código_completo)
+      const cuentaMapeada = {
+        descripcion: cuenta.descripcion, // Campo principal actualizado
+        codigo_clase: cuenta.codigo_clase,
+        codigo_grupo: cuenta.codigo_grupo,
+        codigo_cuenta: cuenta.codigo_cuenta,
+        codigo_subcuenta: cuenta.codigo_subcuenta,
+        codigo_detalle: cuenta.codigo_detalle,
+        codigo_padre: cuenta.codigo_padre,
+        tipo_cuenta: cuenta.tipo_cuenta,
+        naturaleza: cuenta.naturaleza,
+        estado: cuenta.estado,
+        nivel: cuenta.nivel,
+        tipo_cta: cuenta.tipo_cta,
+        acepta_movimientos: cuenta.acepta_movimientos,
+        requiere_tercero: cuenta.requiere_tercero,
+        requiere_centro_costo: cuenta.requiere_centro_costo,
+        activo: cuenta.activo,
+        // Campos financieros
+        saldo_inicial: cuenta.saldo_inicial,
+        saldo_final: cuenta.saldo_final,
+        movimientos_debito: cuenta.movimientos_debito,
+        movimientos_credito: cuenta.movimientos_credito,
+        centro_costos: cuenta.centro_costos,
+        // Campos fiscales
+        aplica_dr110: cuenta.aplica_dr110,
+        aplica_f350: cuenta.aplica_f350,
+        aplica_f300: cuenta.aplica_f300,
+        aplica_exogena: cuenta.aplica_exogena,
+        aplica_ica: cuenta.aplica_ica,
+        conciliacion_fiscal: cuenta.conciliacion_fiscal,
+        // Códigos especiales
+        tipo_om: cuenta.tipo_om,
+        codigo_at: cuenta.codigo_at,
+        codigo_ct: cuenta.codigo_ct,
+        codigo_cc: cuenta.codigo_cc,
+        codigo_ti: cuenta.codigo_ti,
+        es_cuenta_niif: cuenta.es_cuenta_niif,
+        codigo_niif: cuenta.codigo_niif,
+        dinamica: cuenta.dinamica,
+        id_movimiento: cuenta.id_movimiento,
+        // Campos de auditoría
+        usuario_modificacion: cuenta.usuario_modificacion,
+        observaciones: cuenta.observaciones
+      };
 
-    return await api.put(`/puc/cuentas/${id}`, cuentaMapeada);
+      console.log('✏️ [PUCAPI] Actualizando cuenta:', id, cuentaMapeada);
+      const response = await api.put(`/puc/cuentas/${id}`, cuentaMapeada);
+      
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error actualizando cuenta:', error);
+      throw error;
+    }
   },
 
   async eliminarCuenta(id) {
-    return await api.delete(`/puc/cuentas/${id}`);
+    try {
+      console.log('🗑️ [PUCAPI] Eliminando cuenta:', id);
+      const response = await api.delete(`/puc/cuentas/${id}`);
+      
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error eliminando cuenta:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -124,18 +185,36 @@ export const pucApi = {
   // ===============================================
 
   async obtenerArbol(codigoPadre = null, incluirInactivas = false) {
-    const params = new URLSearchParams();
-    if (codigoPadre) params.append('codigo_padre', codigoPadre);
-    if (incluirInactivas) params.append('incluir_inactivas', 'true');
-    
-    return await api.get(`/puc/arbol?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      if (codigoPadre) params.append('codigo_padre', codigoPadre);
+      if (incluirInactivas) params.append('incluir_inactivas', 'true');
+      
+      console.log('🌳 [PUCAPI] Obteniendo árbol jerárquico');
+      const response = await api.get(`/puc/arbol?${params.toString()}`);
+      return {
+        data: response.data.data || response.data || []
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error obteniendo árbol:', error);
+      throw error;
+    }
   },
 
   async obtenerSubcuentas(codigo, incluirInactivas = false) {
-    const params = new URLSearchParams();
-    if (incluirInactivas) params.append('incluir_inactivas', 'true');
-    
-    return await api.get(`/puc/cuentas/${codigo}/subcuentas?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      if (incluirInactivas) params.append('incluir_inactivas', 'true');
+      
+      console.log('📂 [PUCAPI] Obteniendo subcuentas para:', codigo);
+      const response = await api.get(`/puc/cuentas/${codigo}/subcuentas?${params.toString()}`);
+      return {
+        data: response.data.data || response.data || []
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error obteniendo subcuentas:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -143,16 +222,34 @@ export const pucApi = {
   // ===============================================
 
   async buscarCuentas(termino, limite = 50, soloActivas = true) {
-    const params = new URLSearchParams();
-    params.append('q', termino);
-    params.append('limite', limite.toString());
-    params.append('solo_activas', soloActivas.toString());
-    
-    return await api.get(`/puc/buscar?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      params.append('q', termino);
+      params.append('limite', limite.toString());
+      params.append('solo_activas', soloActivas.toString());
+      
+      console.log('🔍 [PUCAPI] Buscando cuentas:', termino);
+      const response = await api.get(`/puc/buscar?${params.toString()}`);
+      return {
+        data: response.data.data || response.data || []
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error buscando cuentas:', error);
+      throw error;
+    }
   },
 
   async validarCodigo(codigo) {
-    return await api.get(`/puc/validar/${codigo}`);
+    try {
+      console.log('✅ [PUCAPI] Validando código:', codigo);
+      const response = await api.get(`/puc/validar/${codigo}`);
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error validando código:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -160,169 +257,238 @@ export const pucApi = {
   // ===============================================
 
   async obtenerEstadisticas() {
-    return await api.get('/puc/estadisticas');
+    try {
+      console.log('📊 [PUCAPI] Obteniendo estadísticas...');
+      const response = await api.get('/puc/estadisticas');
+      
+      return {
+        data: response.data.data || response.data || {}
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error obteniendo estadísticas:', error);
+      throw error;
+    }
   },
 
   async reportePorClase(incluirSaldos = false) {
-    const params = new URLSearchParams();
-    if (incluirSaldos) params.append('incluir_saldos', 'true');
-    
-    return await api.get(`/puc/reportes/por-clase?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      if (incluirSaldos) params.append('incluir_saldos', 'true');
+      
+      console.log('📈 [PUCAPI] Generando reporte por clase');
+      const response = await api.get(`/puc/reportes/por-clase?${params.toString()}`);
+      return {
+        data: response.data.data || response.data || []
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error en reporte por clase:', error);
+      throw error;
+    }
   },
 
   async reporteJerarquiaCompleta(formato = 'json') {
-    const params = new URLSearchParams();
-    params.append('formato', formato);
-    
-    return await api.get(`/puc/reportes/jerarquia-completa?${params.toString()}`);
+    try {
+      const params = new URLSearchParams();
+      params.append('formato', formato);
+      
+      console.log('📋 [PUCAPI] Generando reporte jerarquía completa');
+      const response = await api.get(`/puc/reportes/jerarquia-completa?${params.toString()}`);
+      return {
+        data: response.data.data || response.data || []
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error en reporte jerarquía completa:', error);
+      throw error;
+    }
   },
 
   // ===============================================
-  // 📥 MÉTODOS DE IMPORTACIÓN EXCEL
+  // 📥 MÉTODOS DE IMPORTACIÓN EXCEL - CORREGIDOS
   // ===============================================
 
   async validarArchivoExcel(file, opciones = {}) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const opcionesBackend = {
-      hoja: opciones.hoja || 'PUC',
-      fila_inicio: opciones.fila_inicio || 3,
-      validar_jerarquia: opciones.validar_jerarquia !== false
-    };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const opcionesBackend = {
+        hoja: opciones.hoja || 'PUC',
+        fila_inicio: opciones.fila_inicio || 3,
+        validar_jerarquia: opciones.validar_jerarquia !== false
+      };
 
-    Object.entries(opcionesBackend).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        formData.append(key, value.toString());
-      }
-    });
+      Object.entries(opcionesBackend).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          formData.append(key, value.toString());
+        }
+      });
 
-    return await api.post('/puc/validar/excel', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+      console.log('🔍 [PUCAPI] Validando archivo Excel:', file.name, opcionesBackend);
+      const response = await api.post('/puc/validar/excel', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000 // 1 minuto para validaciones
+      });
+
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error validando archivo Excel:', error);
+      throw error;
+    }
   },
 
   async importarDesdeExcel(file, opciones = {}) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const opcionesBackend = {
-      sobreescribir: opciones.sobreescribir || opciones.sobrescribir_existentes || false,
-      validar_jerarquia: opciones.validar_jerarquia !== false,
-      importar_saldos: opciones.importar_saldos !== false,
-      importar_fiscal: opciones.importar_fiscal !== false,
-      hoja: opciones.hoja || 'PUC',
-      fila_inicio: opciones.fila_inicio || 3
-    };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const opcionesBackend = {
+        sobreescribir: opciones.sobreescribir || opciones.sobrescribir_existentes || false,
+        validar_jerarquia: opciones.validar_jerarquia !== false,
+        importar_saldos: opciones.importar_saldos !== false,
+        importar_fiscal: opciones.importar_fiscal !== false,
+        hoja: opciones.hoja || 'PUC',
+        fila_inicio: opciones.fila_inicio || 3
+      };
 
-    Object.entries(opcionesBackend).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        formData.append(key, value.toString());
-      }
-    });
+      Object.entries(opcionesBackend).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          formData.append(key, value.toString());
+        }
+      });
 
-    return await api.post('/puc/importar/excel', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: 300000
-    });
+      console.log('📥 [PUCAPI] Importando Excel:', file.name, 'con opciones:', opcionesBackend);
+      const response = await api.post('/puc/importar/excel', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 300000, // 5 minutos para importaciones grandes
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`📤 [PUCAPI] Progreso de subida: ${percentCompleted}%`);
+        }
+      });
+
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error importando Excel:', error);
+      throw error;
+    }
   },
 
   // ===============================================
-  // 📤 MÉTODOS DE EXPORTACIÓN
+  // 📤 MÉTODOS DE EXPORTACIÓN - CORREGIDOS
   // ===============================================
 
   async exportarAExcel(opciones = {}) {
-    const params = new URLSearchParams();
-    
-    const opcionesBackend = {
-      incluir_saldos: opciones.incluir_saldos !== false,
-      incluir_movimientos: opciones.incluir_movimientos !== false,
-      incluir_fiscal: opciones.incluir_fiscal !== false,
-      filtro_estado: opciones.filtro_estado,
-      filtro_tipo: opciones.filtro_tipo,
-      filtro_clase: opciones.filtro_clase,
-      solo_movimientos: opciones.solo_movimientos || false,
-      incluir_inactivas: opciones.incluir_inactivas || false
-    };
+    try {
+      const params = new URLSearchParams();
+      
+      const opcionesBackend = {
+        incluir_saldos: opciones.incluir_saldos !== false,
+        incluir_movimientos: opciones.incluir_movimientos !== false,
+        incluir_fiscal: opciones.incluir_fiscal !== false,
+        filtro_estado: opciones.filtro_estado,
+        filtro_tipo: opciones.filtro_tipo,
+        filtro_clase: opciones.filtro_clase,
+        solo_movimientos: opciones.solo_movimientos || false,
+        incluir_inactivas: opciones.incluir_inactivas || false
+      };
 
-    Object.entries(opcionesBackend).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        params.append(key, value.toString());
+      Object.entries(opcionesBackend).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value.toString());
+        }
+      });
+
+      console.log('📤 [PUCAPI] Exportando Excel con opciones:', opcionesBackend);
+      const response = await api.get(`/puc/exportar/excel?${params.toString()}`, {
+        responseType: 'blob',
+        timeout: 120000 // 2 minutos para descargas grandes
+      });
+
+      // Crear blob y descargar
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Obtener nombre del archivo
+      const contentDisposition = response.headers['content-disposition'];
+      let fileName = 'puc_export.xlsx';
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (fileNameMatch) {
+          fileName = fileNameMatch[1];
+        }
+      } else {
+        const fecha = new Date().toISOString().split('T')[0];
+        fileName = `puc_export_${fecha}.xlsx`;
       }
-    });
+      
+      link.download = fileName;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
-    const response = await api.get(`/puc/exportar/excel?${params.toString()}`, {
-      responseType: 'blob',
-    });
-
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    });
-    
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    const contentDisposition = response.headers['content-disposition'];
-    let fileName = 'puc_export.xlsx';
-    
-    if (contentDisposition) {
-      const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
-      if (fileNameMatch) {
-        fileName = fileNameMatch[1];
-      }
-    } else {
-      const fecha = new Date().toISOString().split('T')[0];
-      fileName = `puc_export_${fecha}.xlsx`;
+      return { 
+        success: true, 
+        message: 'Archivo descargado exitosamente',
+        fileName: fileName
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error exportando Excel:', error);
+      throw error;
     }
-    
-    link.download = fileName;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-
-    return { 
-      success: true, 
-      message: 'Archivo descargado exitosamente',
-      fileName: fileName
-    };
   },
 
   async descargarTemplate(conEjemplos = true) {
-    const params = new URLSearchParams();
-    params.append('con_ejemplos', conEjemplos.toString());
+    try {
+      const params = new URLSearchParams();
+      params.append('con_ejemplos', conEjemplos.toString());
 
-    const response = await api.get(`/puc/exportar/template?${params.toString()}`, {
-      responseType: 'blob',
-    });
+      console.log('📋 [PUCAPI] Descargando template Excel...');
+      const response = await api.get(`/puc/exportar/template?${params.toString()}`, {
+        responseType: 'blob',
+        timeout: 60000 // 1 minuto para templates
+      });
 
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    });
-    
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    const fileName = `puc_template_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
-    link.download = fileName;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const fileName = `puc_template_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
+      link.download = fileName;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
-    return { 
-      success: true, 
-      message: 'Template descargado exitosamente',
-      fileName: fileName
-    };
+      return { 
+        success: true, 
+        message: 'Template descargado exitosamente',
+        fileName: fileName
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error descargando template:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -330,11 +496,29 @@ export const pucApi = {
   // ===============================================
 
   async recalcularJerarquia() {
-    return await api.post('/puc/mantenimiento/recalcular-jerarquia');
+    try {
+      console.log('🔄 [PUCAPI] Recalculando jerarquía...');
+      const response = await api.post('/puc/mantenimiento/recalcular-jerarquia');
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error recalculando jerarquía:', error);
+      throw error;
+    }
   },
 
   async validarIntegridad() {
-    return await api.post('/puc/mantenimiento/validar-integridad');
+    try {
+      console.log('✅ [PUCAPI] Validando integridad...');
+      const response = await api.post('/puc/mantenimiento/validar-integridad');
+      return {
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error validando integridad:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -342,7 +526,16 @@ export const pucApi = {
   // ===============================================
 
   async test() {
-    return await api.get('/puc/test');
+    try {
+      console.log('🧪 [PUCAPI] Ejecutando test de conexión...');
+      const response = await api.get('/puc/test');
+      return {
+        data: response.data
+      };
+    } catch (error) {
+      console.error('❌ [PUCAPI] Error en test:', error);
+      throw error;
+    }
   },
 
   // ===============================================
@@ -352,13 +545,14 @@ export const pucApi = {
   async obtenerClases() {
     try {
       const response = await this.reportePorClase(false);
-      return response.data.map(clase => ({
+      const clases = response.data || [];
+      return clases.map(clase => ({
         value: clase.codigo_clase,
         label: `${clase.codigo_clase} - ${this.obtenerNombreClase(clase.codigo_clase)}`,
         total_cuentas: clase.total_cuentas
       }));
     } catch (error) {
-      console.error('Error obteniendo clases:', error);
+      console.error('❌ [PUCAPI] Error obteniendo clases:', error);
       return [];
     }
   },
@@ -366,9 +560,10 @@ export const pucApi = {
   async obtenerCuentaPorCodigo(codigo) {
     try {
       const response = await this.obtenerCuentas({ busqueda: codigo });
-      return response.data.find(cuenta => cuenta.codigo_completo === codigo) || null;
+      const cuentas = response.data || [];
+      return cuentas.find(cuenta => cuenta.codigo_completo === codigo) || null;
     } catch (error) {
-      console.error('Error obteniendo cuenta por código:', error);
+      console.error('❌ [PUCAPI] Error obteniendo cuenta por código:', error);
       return null;
     }
   },
@@ -399,7 +594,7 @@ export const pucApi = {
       
       return path;
     } catch (error) {
-      console.error('Error obteniendo path de cuenta:', error);
+      console.error('❌ [PUCAPI] Error obteniendo path de cuenta:', error);
       return [];
     }
   },
@@ -410,8 +605,9 @@ export const pucApi = {
 
   async importarPucEstandar(opciones = {}) {
     try {
-      console.log('Importando PUC estándar con opciones:', opciones);
+      console.log('📥 [PUCAPI] Importando PUC estándar con opciones:', opciones);
       
+      // Simulación para desarrollo - reemplazar con endpoint real cuando esté disponible
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       return {
@@ -430,7 +626,7 @@ export const pucApi = {
         }
       };
     } catch (error) {
-      console.error('Error importando PUC estándar:', error);
+      console.error('❌ [PUCAPI] Error importando PUC estándar:', error);
       throw error;
     }
   },
@@ -438,13 +634,14 @@ export const pucApi = {
   async obtenerVersionPuc() {
     try {
       const response = await this.obtenerEstadisticas();
+      const estadisticas = response.data || {};
       return {
         version: '1.0',
         fecha_actualizacion: new Date().toISOString(),
-        total_cuentas: response.data.total || 0
+        total_cuentas: estadisticas.total || 0
       };
     } catch (error) {
-      console.error('Error obteniendo versión PUC:', error);
+      console.error('❌ [PUCAPI] Error obteniendo versión PUC:', error);
       return null;
     }
   },
@@ -465,7 +662,10 @@ export const pucApi = {
   }
 };
 
-// Métodos de utilidad para el frontend actualizados para el nuevo esquema
+// ===============================================
+// 🛠️ UTILIDADES PUC - ACTUALIZADAS
+// ===============================================
+
 export const pucUtils = {
   // Determinar nivel de cuenta por longitud del código
   determinarNivel(codigo) {
@@ -511,7 +711,7 @@ export const pucUtils = {
     return codigo.toString().padStart(Math.max(codigo.length, 6), '0');
   },
 
-  // Formatear saldo
+  // Formatear saldo con moneda colombiana
   formatearSaldo(saldo, mostrarSigno = true) {
     if (saldo === null || saldo === undefined) return '-';
     

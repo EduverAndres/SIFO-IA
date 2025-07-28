@@ -1,7 +1,9 @@
-// backend-nestjs/src/puc/puc.service.ts - SIN CAMPO NOMBRE
+// backend-nestjs/src/puc/puc.service.ts - COMPLETAMENTE CORREGIDO CON IMPORTACIONES EXPRESS
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Express } from 'express'; // ✅ IMPORTACIÓN CORREGIDA
+
 import { CuentaPuc, NaturalezaCuentaEnum, TipoCuentaEnum, EstadoCuentaEnum } from './entities/cuenta-puc.entity';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
 import { UpdateCuentaPucDto } from './dto/update-cuenta-puc.dto';
@@ -23,14 +25,23 @@ export class PucService {
     @InjectRepository(CuentaPuc)
     private cuentaPucRepository: Repository<CuentaPuc>,
     private pucExcelService: PucExcelService
-  ) {}
+  ) {
+    this.logger.log('🏛️ PucService inicializado correctamente');
+  }
 
   // ===============================================
-  // 📋 MÉTODOS CRUD IMPLEMENTADOS
+  // 📋 MÉTODOS CRUD IMPLEMENTADOS - CORREGIDOS
   // ===============================================
 
-  async obtenerCuentas(filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
+  async obtenerCuentas(filtros: FiltrosPucDto): Promise<{
+    data: ResponsePucDto[];
+    total: number;
+    pagina?: number;
+    totalPaginas?: number;
+  }> {
     try {
+      this.logger.log('🔍 Obteniendo cuentas con filtros:', JSON.stringify(filtros));
+      
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
       // Aplicar filtros - USAR DESCRIPCION EN LUGAR DE NOMBRE
@@ -64,26 +75,44 @@ export class PucService {
       // Solo cuentas activas por defecto
       query.andWhere('cuenta.activo = :activo', { activo: true });
 
+      // Contar total antes de aplicar límite
+      const total = await query.getCount();
+
       // Ordenamiento
       query.orderBy('cuenta.codigo_completo', 'ASC');
 
-      // Límite
+      // Paginación
       const limite = Math.min(Number(filtros.limite) || 50, 1000);
+      const pagina = Number(filtros.pagina) || 1;
+      const offset = (pagina - 1) * limite;
+
       query.limit(limite);
+      query.offset(offset);
 
       const cuentas = await query.getMany();
 
       // Mapear a ResponsePucDto
-      return cuentas.map(cuenta => this.mapearAResponseDto(cuenta));
+      const data = cuentas.map(cuenta => this.mapearAResponseDto(cuenta));
+
+      this.logger.log(`✅ Obtenidas ${data.length} cuentas de ${total} total`);
+
+      return {
+        data,
+        total,
+        pagina,
+        totalPaginas: Math.ceil(total / limite)
+      };
 
     } catch (error) {
-      this.logger.error('Error obteniendo cuentas:', error);
+      this.logger.error('❌ Error obteniendo cuentas:', error);
       throw new BadRequestException('Error obteniendo cuentas del PUC');
     }
   }
 
-  async crearCuenta(createCuentaDto: CreateCuentaPucDto): Promise<ResponsePucDto> {
+  async crearCuenta(createCuentaDto: CreateCuentaPucDto): Promise<{ data: ResponsePucDto }> {
     try {
+      this.logger.log('➕ Creando nueva cuenta:', createCuentaDto.codigo_completo);
+
       // Validar que el código no exista
       const existente = await this.cuentaPucRepository.findOne({
         where: { codigo_completo: createCuentaDto.codigo_completo }
@@ -109,28 +138,53 @@ export class PucService {
       const tipoCuenta = createCuentaDto.tipo_cuenta || this.determinarTipoCuenta(createCuentaDto.codigo_completo);
       const nivel = this.determinarNivel(createCuentaDto.codigo_completo);
 
+      // Asignar códigos de jerarquía automáticamente
+      const codigosJerarquia = this.calcularCodigosJerarquia(createCuentaDto.codigo_completo);
+
       const nuevaCuenta = this.cuentaPucRepository.create({
         ...createCuentaDto,
         naturaleza,
         tipo_cuenta: tipoCuenta,
         nivel,
         estado: EstadoCuentaEnum.ACTIVA,
-        acepta_movimientos: nivel === 5, // Solo detalles aceptan movimientos
-        activo: true
+        acepta_movimientos: nivel === 5, // Solo detalles aceptan movimientos por defecto
+        activo: true,
+        // Asignar códigos de jerarquía
+        ...codigosJerarquia,
+        // Valores por defecto
+        saldo_inicial: createCuentaDto.saldo_inicial || 0,
+        saldo_final: createCuentaDto.saldo_final || 0,
+        movimientos_debito: createCuentaDto.movimientos_debito || 0,
+        movimientos_credito: createCuentaDto.movimientos_credito || 0,
+        // Campos fiscales por defecto
+        aplica_f350: createCuentaDto.aplica_f350 || false,
+        aplica_f300: createCuentaDto.aplica_f300 || false,
+        aplica_exogena: createCuentaDto.aplica_exogena || false,
+        aplica_ica: createCuentaDto.aplica_ica || false,
+        aplica_dr110: createCuentaDto.aplica_dr110 || false,
+        es_cuenta_niif: createCuentaDto.es_cuenta_niif || false,
+        requiere_tercero: createCuentaDto.requiere_tercero || false,
+        requiere_centro_costo: createCuentaDto.requiere_centro_costo || false
       });
 
       const cuentaGuardada = await this.cuentaPucRepository.save(nuevaCuenta);
 
-      return this.mapearAResponseDto(cuentaGuardada);
+      this.logger.log(`✅ Cuenta creada: ${cuentaGuardada.codigo_completo} - ${cuentaGuardada.descripcion}`);
+
+      return {
+        data: this.mapearAResponseDto(cuentaGuardada)
+      };
 
     } catch (error) {
-      this.logger.error('Error creando cuenta:', error);
+      this.logger.error('❌ Error creando cuenta:', error);
       throw error;
     }
   }
 
-  async obtenerCuentaPorId(id: number): Promise<ResponsePucDto> {
+  async obtenerCuentaPorId(id: number): Promise<{ data: ResponsePucDto }> {
     try {
+      this.logger.log(`🔍 Buscando cuenta por ID: ${id}`);
+
       const cuenta = await this.cuentaPucRepository.findOne({
         where: { id, activo: true }
       });
@@ -139,16 +193,20 @@ export class PucService {
         throw new NotFoundException(`Cuenta con ID ${id} no encontrada`);
       }
 
-      return this.mapearAResponseDto(cuenta);
+      return {
+        data: this.mapearAResponseDto(cuenta)
+      };
 
     } catch (error) {
-      this.logger.error(`Error obteniendo cuenta ${id}:`, error);
+      this.logger.error(`❌ Error obteniendo cuenta ${id}:`, error);
       throw error;
     }
   }
 
-  async actualizarCuenta(id: number, updateCuentaDto: UpdateCuentaPucDto): Promise<ResponsePucDto> {
+  async actualizarCuenta(id: number, updateCuentaDto: UpdateCuentaPucDto): Promise<{ data: ResponsePucDto }> {
     try {
+      this.logger.log(`✏️ Actualizando cuenta ID: ${id}`);
+
       const cuenta = await this.cuentaPucRepository.findOne({
         where: { id, activo: true }
       });
@@ -174,16 +232,23 @@ export class PucService {
       });
 
       const cuentaActualizada = await this.cuentaPucRepository.findOne({ where: { id } });
-      return this.mapearAResponseDto(cuentaActualizada!);
+
+      this.logger.log(`✅ Cuenta actualizada: ${cuentaActualizada?.codigo_completo}`);
+
+      return {
+        data: this.mapearAResponseDto(cuentaActualizada!)
+      };
 
     } catch (error) {
-      this.logger.error(`Error actualizando cuenta ${id}:`, error);
+      this.logger.error(`❌ Error actualizando cuenta ${id}:`, error);
       throw error;
     }
   }
 
-  async eliminarCuenta(id: number): Promise<void> {
+  async eliminarCuenta(id: number): Promise<{ success: boolean; message: string }> {
     try {
+      this.logger.log(`🗑️ Eliminando cuenta ID: ${id}`);
+
       const cuenta = await this.cuentaPucRepository.findOne({
         where: { id, activo: true }
       });
@@ -210,14 +275,21 @@ export class PucService {
 
       this.logger.log(`✅ Cuenta eliminada físicamente: ${cuenta.codigo_completo}`);
 
+      return {
+        success: true,
+        message: `Cuenta ${cuenta.codigo_completo} eliminada exitosamente`
+      };
+
     } catch (error) {
       this.logger.error(`❌ Error eliminando cuenta ${id}:`, error);
       throw error;
     }
   }
 
-  async buscarCuentas(termino: string, limite: number, soloActivas: boolean): Promise<ResponsePucDto[]> {
+  async buscarCuentas(termino: string, limite: number, soloActivas: boolean): Promise<{ data: ResponsePucDto[] }> {
     try {
+      this.logger.log(`🔍 Buscando cuentas con término: "${termino}"`);
+
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
       // BUSCAR EN DESCRIPCION EN LUGAR DE NOMBRE
@@ -234,20 +306,27 @@ export class PucService {
       query.limit(limite);
 
       const cuentas = await query.getMany();
-      return cuentas.map(cuenta => this.mapearAResponseDto(cuenta));
+
+      this.logger.log(`✅ Encontradas ${cuentas.length} cuentas`);
+
+      return {
+        data: cuentas.map(cuenta => this.mapearAResponseDto(cuenta))
+      };
 
     } catch (error) {
-      this.logger.error('Error buscando cuentas:', error);
+      this.logger.error('❌ Error buscando cuentas:', error);
       throw new BadRequestException('Error buscando cuentas');
     }
   }
 
   // ===============================================
-  // 📊 MÉTODOS DE REPORTES Y ESTADÍSTICAS
+  // 📊 MÉTODOS DE REPORTES Y ESTADÍSTICAS - CORREGIDOS
   // ===============================================
 
-  async obtenerEstadisticas(): Promise<any> {
+  async obtenerEstadisticas(): Promise<{ data: any }> {
     try {
+      this.logger.log('📊 Calculando estadísticas del PUC');
+
       const stats = await this.cuentaPucRepository
         .createQueryBuilder('cuenta')
         .select([
@@ -266,7 +345,7 @@ export class PucService {
         .where('cuenta.activo = :activo', { activo: true })
         .getRawOne();
 
-      return {
+      const estadisticas = {
         total: parseInt(stats.total),
         por_tipo: {
           clases: parseInt(stats.clases),
@@ -283,17 +362,24 @@ export class PucService {
           activas: parseInt(stats.activas),
           inactivas: parseInt(stats.inactivas)
         },
-        acepta_movimientos: parseInt(stats.acepta_movimientos)
+        acepta_movimientos: parseInt(stats.acepta_movimientos),
+        timestamp: new Date().toISOString()
       };
 
+      this.logger.log(`✅ Estadísticas calculadas: ${estadisticas.total} cuentas total`);
+
+      return { data: estadisticas };
+
     } catch (error) {
-      this.logger.error('Error obteniendo estadísticas:', error);
+      this.logger.error('❌ Error obteniendo estadísticas:', error);
       throw new BadRequestException('Error obteniendo estadísticas del PUC');
     }
   }
 
-  async obtenerArbol(codigoPadre?: string, incluirInactivas: boolean = false): Promise<any> {
+  async obtenerArbol(codigoPadre?: string, incluirInactivas: boolean = false): Promise<{ data: any[] }> {
     try {
+      this.logger.log(`🌳 Obteniendo árbol PUC - Padre: ${codigoPadre || 'raíz'}`);
+
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
 
       if (codigoPadre) {
@@ -324,16 +410,20 @@ export class PucService {
         })
       );
 
-      return cuentasConHijos;
+      this.logger.log(`✅ Árbol obtenido: ${cuentasConHijos.length} nodos`);
+
+      return { data: cuentasConHijos };
 
     } catch (error) {
-      this.logger.error('Error obteniendo árbol:', error);
+      this.logger.error('❌ Error obteniendo árbol:', error);
       throw new BadRequestException('Error obteniendo árbol del PUC');
     }
   }
 
-  async obtenerSubcuentas(codigo: string, incluirInactivas: boolean = false): Promise<ResponsePucDto[]> {
+  async obtenerSubcuentas(codigo: string, incluirInactivas: boolean = false): Promise<{ data: ResponsePucDto[] }> {
     try {
+      this.logger.log(`📂 Obteniendo subcuentas de: ${codigo}`);
+
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
       
       query.where('cuenta.codigo_padre = :codigo_padre', { codigo_padre: codigo });
@@ -345,16 +435,23 @@ export class PucService {
       query.orderBy('cuenta.codigo_completo', 'ASC');
 
       const subcuentas = await query.getMany();
-      return subcuentas.map(cuenta => this.mapearAResponseDto(cuenta));
+
+      this.logger.log(`✅ Subcuentas obtenidas: ${subcuentas.length}`);
+
+      return { 
+        data: subcuentas.map(cuenta => this.mapearAResponseDto(cuenta)) 
+      };
 
     } catch (error) {
-      this.logger.error(`Error obteniendo subcuentas de ${codigo}:`, error);
+      this.logger.error(`❌ Error obteniendo subcuentas de ${codigo}:`, error);
       throw new BadRequestException('Error obteniendo subcuentas');
     }
   }
 
-  async reportePorClase(incluirSaldos: boolean): Promise<any> {
+  async reportePorClase(incluirSaldos: boolean): Promise<{ data: any[] }> {
     try {
+      this.logger.log('📈 Generando reporte por clase');
+
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
       
       query.select([
@@ -376,7 +473,7 @@ export class PucService {
 
       const resultado = await query.getRawMany();
 
-      return resultado.map(item => ({
+      const data = resultado.map(item => ({
         codigo_clase: item.codigo_clase,
         total_cuentas: parseInt(item.total_cuentas),
         ...(incluirSaldos && {
@@ -385,42 +482,57 @@ export class PucService {
         })
       }));
 
+      this.logger.log(`✅ Reporte por clase generado: ${data.length} clases`);
+
+      return { data };
+
     } catch (error) {
-      this.logger.error('Error generando reporte por clase:', error);
+      this.logger.error('❌ Error generando reporte por clase:', error);
       throw new BadRequestException('Error generando reporte por clase');
     }
   }
 
-  async reporteJerarquiaCompleta(formato: 'json' | 'tree'): Promise<any> {
+  async reporteJerarquiaCompleta(formato: 'json' | 'tree'): Promise<{ data: any }> {
     try {
+      this.logger.log(`📋 Generando reporte jerarquía completa - Formato: ${formato}`);
+
       const todasLasCuentas = await this.cuentaPucRepository.find({
         where: { activo: true },
         order: { codigo_completo: 'ASC' }
       });
 
+      let data;
       if (formato === 'tree') {
-        return this.construirArbolJerarquico(todasLasCuentas);
+        data = this.construirArbolJerarquico(todasLasCuentas);
+      } else {
+        data = todasLasCuentas.map(cuenta => this.mapearAResponseDto(cuenta));
       }
 
-      return todasLasCuentas.map(cuenta => this.mapearAResponseDto(cuenta));
+      this.logger.log(`✅ Reporte jerarquía completa generado: ${todasLasCuentas.length} cuentas`);
+
+      return { data };
 
     } catch (error) {
-      this.logger.error('Error generando reporte de jerarquía completa:', error);
+      this.logger.error('❌ Error generando reporte de jerarquía completa:', error);
       throw new BadRequestException('Error generando reporte de jerarquía');
     }
   }
 
   // ===============================================
-  // 🔧 MÉTODOS DE MANTENIMIENTO
+  // 🔧 MÉTODOS DE MANTENIMIENTO - CORREGIDOS
   // ===============================================
 
   async recalcularJerarquia(): Promise<{
-    success: boolean;
-    message: string;
-    cuentas_actualizadas: number;
-    errores: string[];
+    data: {
+      success: boolean;
+      message: string;
+      cuentas_actualizadas: number;
+      errores: string[];
+    }
   }> {
     try {
+      this.logger.log('🔄 Iniciando recálculo de jerarquía');
+
       const todasLasCuentas = await this.cuentaPucRepository.find({
         where: { activo: true }
       });
@@ -434,6 +546,7 @@ export class PucService {
           const codigoPadre = this.calcularPadreSugerido(cuenta.codigo_completo);
           const naturaleza = this.determinarNaturaleza(cuenta.codigo_completo);
           const tipoCuenta = this.determinarTipoCuenta(cuenta.codigo_completo);
+          const codigosJerarquia = this.calcularCodigosJerarquia(cuenta.codigo_completo);
 
           await this.cuentaPucRepository.update(cuenta.id, {
             nivel,
@@ -441,7 +554,8 @@ export class PucService {
             naturaleza,
             tipo_cuenta: tipoCuenta,
             acepta_movimientos: nivel === 5,
-            fecha_modificacion: new Date()
+            fecha_modificacion: new Date(),
+            ...codigosJerarquia
           });
 
           cuentasActualizadas++;
@@ -450,27 +564,35 @@ export class PucService {
         }
       }
 
+      this.logger.log(`✅ Jerarquía recalculada: ${cuentasActualizadas} cuentas actualizadas`);
+
       return {
-        success: true,
-        message: 'Jerarquía recalculada exitosamente',
-        cuentas_actualizadas: cuentasActualizadas,
-        errores
+        data: {
+          success: true,
+          message: 'Jerarquía recalculada exitosamente',
+          cuentas_actualizadas: cuentasActualizadas,
+          errores
+        }
       };
 
     } catch (error) {
-      this.logger.error('Error recalculando jerarquía:', error);
+      this.logger.error('❌ Error recalculando jerarquía:', error);
       throw new BadRequestException('Error recalculando jerarquía');
     }
   }
 
   async validarIntegridad(): Promise<{
-    valido: boolean;
-    total_cuentas: number;
-    errores_encontrados: string[];
-    advertencias: string[];
-    recomendaciones: string[];
+    data: {
+      valido: boolean;
+      total_cuentas: number;
+      errores_encontrados: string[];
+      advertencias: string[];
+      recomendaciones: string[];
+    }
   }> {
     try {
+      this.logger.log('✅ Validando integridad del PUC');
+
       const errores: string[] = [];
       const advertencias: string[] = [];
       const recomendaciones: string[] = [];
@@ -517,7 +639,7 @@ export class PucService {
         recomendaciones.push('Ejecutar recálculo de jerarquía para corregir naturalezas');
       }
 
-      return {
+      const resultado = {
         valido: errores.length === 0,
         total_cuentas: totalCuentas,
         errores_encontrados: errores,
@@ -525,21 +647,29 @@ export class PucService {
         recomendaciones
       };
 
+      this.logger.log(`✅ Validación completada - Válido: ${resultado.valido}, Total: ${totalCuentas}`);
+
+      return { data: resultado };
+
     } catch (error) {
-      this.logger.error('Error validando integridad:', error);
+      this.logger.error('❌ Error validando integridad:', error);
       throw new BadRequestException('Error validando integridad del PUC');
     }
   }
 
   async validarCodigo(codigo: string): Promise<{
-    valido: boolean;
-    existe: boolean;
-    nivel: number;
-    padre_requerido?: string;
-    padre_existe?: boolean;
-    sugerencias?: string[];
+    data: {
+      valido: boolean;
+      existe: boolean;
+      nivel: number;
+      padre_requerido?: string;
+      padre_existe?: boolean;
+      sugerencias?: string[];
+    }
   }> {
     try {
+      this.logger.log(`✅ Validando código: ${codigo}`);
+
       const sugerencias: string[] = [];
       
       // Validar formato básico
@@ -572,7 +702,7 @@ export class PucService {
         }
       }
 
-      return {
+      const resultado = {
         valido: esValido && !existe && padreExiste,
         existe,
         nivel,
@@ -581,83 +711,168 @@ export class PucService {
         sugerencias
       };
 
+      this.logger.log(`✅ Código validado: ${codigo} - Válido: ${resultado.valido}`);
+
+      return { data: resultado };
+
     } catch (error) {
-      this.logger.error('Error validando código:', error);
+      this.logger.error('❌ Error validando código:', error);
       throw new BadRequestException('Error validando código');
     }
   }
 
   // ===============================================
-  // 📥📤 MÉTODOS DE EXCEL (DELEGADOS)
+  // 📥📤 MÉTODOS DE EXCEL - CORREGIDOS
   // ===============================================
 
   async importarDesdeExcel(
-    file: Express.Multer.File, 
+    file: Express.Multer.File, // ✅ TIPO CORREGIDO
     opciones: ImportPucExcelDto
-  ): Promise<ResultadoImportacion> {
-    this.logger.log(`Iniciando importación Excel: ${file.originalname}`);
-    return await this.pucExcelService.importarDesdeExcel(file, opciones);
+  ): Promise<{ data: ResultadoImportacion }> {
+    try {
+      this.logger.log(`📥 Iniciando importación Excel: ${file.originalname}`);
+      const resultado = await this.pucExcelService.importarDesdeExcel(file, opciones);
+      
+      this.logger.log(`✅ Importación completada: ${resultado.resumen.total_procesadas} filas procesadas`);
+      
+      return { data: resultado };
+    } catch (error) {
+      this.logger.error('❌ Error en importación Excel:', error);
+      throw error;
+    }
   }
 
   async validarArchivoExcel(
-    file: Express.Multer.File, 
-    nombreHoja: string = 'PUC'
-  ): Promise<ValidacionExcel> {
-    this.logger.log(`Validando archivo Excel: ${file.originalname}`);
-    return await this.pucExcelService.validarArchivoExcel(file, nombreHoja);
+    file: Express.Multer.File, // ✅ TIPO CORREGIDO
+    opciones: any = {}
+  ): Promise<{ data: ValidacionExcel }> {
+    try {
+      this.logger.log(`🔍 Validando archivo Excel: ${file.originalname}`);
+      const nombreHoja = opciones.hoja || 'PUC';
+      const resultado = await this.pucExcelService.validarArchivoExcel(file, nombreHoja);
+      
+      this.logger.log(`✅ Archivo validado: ${resultado.filas_detectadas} filas`);
+      
+      return { data: resultado };
+    } catch (error) {
+      this.logger.error('❌ Error validando archivo Excel:', error);
+      throw error;
+    }
   }
 
   async exportarAExcel(opciones: ExportPucExcelDto): Promise<Buffer> {
-    this.logger.log('Exportando PUC a Excel');
-    return await this.pucExcelService.exportarAExcel(opciones);
+    try {
+      this.logger.log('📤 Exportando PUC a Excel');
+      const buffer = await this.pucExcelService.exportarAExcel(opciones);
+      
+      this.logger.log('✅ PUC exportado a Excel exitosamente');
+      
+      return buffer;
+    } catch (error) {
+      this.logger.error('❌ Error exportando a Excel:', error);
+      throw error;
+    }
   }
 
   async generarTemplateExcel(conEjemplos: boolean = true): Promise<Buffer> {
-    this.logger.log('Generando template Excel');
-    return await this.pucExcelService.generarTemplateExcel(conEjemplos);
+    try {
+      this.logger.log('📋 Generando template Excel');
+      const buffer = await this.pucExcelService.generarTemplateExcel(conEjemplos);
+      
+      this.logger.log('✅ Template Excel generado exitosamente');
+      
+      return buffer;
+    } catch (error) {
+      this.logger.error('❌ Error generando template:', error);
+      throw error;
+    }
   }
 
   // ===============================================
-  // 🔧 MÉTODOS PRIVADOS AUXILIARES
+  // 🎯 MÉTODO DE TEST
   // ===============================================
 
-// En puc.service.ts - Método mapearAResponseDto corregido
-private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
-  return {
-    id: cuenta.id,
-    codigo_completo: cuenta.codigo_completo,
-    descripcion: cuenta.descripcion || undefined,
-    naturaleza: cuenta.naturaleza,
-    tipo_cuenta: cuenta.tipo_cuenta,
-    estado: cuenta.estado,
-    nivel: cuenta.nivel,
-    tipo_cta: cuenta.tipo_cta,                    // AGREGADO
-    acepta_movimientos: cuenta.acepta_movimientos,
-    requiere_tercero: cuenta.requiere_tercero,    // AGREGADO
-    requiere_centro_costo: cuenta.requiere_centro_costo, // AGREGADO
-    es_cuenta_niif: cuenta.es_cuenta_niif,        // AGREGADO
-    codigo_padre: cuenta.codigo_padre || undefined,
-    saldo_inicial: cuenta.saldo_inicial || 0,
-    saldo_final: cuenta.saldo_final || 0,
-    codigo_clase: cuenta.codigo_clase || undefined,
-    codigo_grupo: cuenta.codigo_grupo || undefined,
-    codigo_cuenta: cuenta.codigo_cuenta || undefined,
-    codigo_subcuenta: cuenta.codigo_subcuenta || undefined,
-    codigo_detalle: cuenta.codigo_detalle || undefined,
-    activo: cuenta.activo,
-    fecha_creacion: cuenta.fecha_creacion,
-    fecha_modificacion: cuenta.fecha_modificacion,
-    movimientos_debito: cuenta.movimientos_debito,
-    movimientos_credito: cuenta.movimientos_credito,
-    centro_costos: cuenta.centro_costos || undefined,
-    aplica_f350: cuenta.aplica_f350,
-    aplica_f300: cuenta.aplica_f300,
-    aplica_exogena: cuenta.aplica_exogena,
-    aplica_ica: cuenta.aplica_ica,
-    aplica_dr110: cuenta.aplica_dr110
-  };
-}
+  async test(): Promise<{
+    success: boolean;
+    message: string;
+    timestamp: string;
+    database_status: string;
+    total_cuentas: number;
+  }> {
+    try {
+      this.logger.log('🧪 Ejecutando test de PUC Service');
 
+      const totalCuentas = await this.cuentaPucRepository.count({ where: { activo: true } });
+
+      const resultado = {
+        success: true,
+        message: 'PUC Service funcionando correctamente',
+        timestamp: new Date().toISOString(),
+        database_status: 'connected',
+        total_cuentas: totalCuentas
+      };
+
+      this.logger.log(`✅ Test completado - ${totalCuentas} cuentas en BD`);
+
+      return resultado;
+    } catch (error) {
+      this.logger.error('❌ Error en test:', error);
+      throw new BadRequestException('Error en test del servicio PUC');
+    }
+  }
+
+  // ===============================================
+  // 🔧 MÉTODOS PRIVADOS AUXILIARES - CORREGIDOS
+  // ===============================================
+
+  private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
+    return {
+      id: cuenta.id,
+      codigo_completo: cuenta.codigo_completo,
+      descripcion: cuenta.descripcion || undefined,
+      naturaleza: cuenta.naturaleza,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_padre: cuenta.codigo_padre || undefined,
+      saldo_inicial: cuenta.saldo_inicial || 0,
+      saldo_final: cuenta.saldo_final || 0,
+      codigo_clase: cuenta.codigo_clase || undefined,
+      codigo_grupo: cuenta.codigo_grupo || undefined,
+      codigo_cuenta: cuenta.codigo_cuenta || undefined,
+      codigo_subcuenta: cuenta.codigo_subcuenta || undefined,
+      codigo_detalle: cuenta.codigo_detalle || undefined,
+      activo: cuenta.activo,
+      fecha_creacion: cuenta.fecha_creacion,
+      fecha_modificacion: cuenta.fecha_modificacion,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos || undefined,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      aplica_dr110: cuenta.aplica_dr110,
+      conciliacion_fiscal: cuenta.conciliacion_fiscal || undefined,
+      tipo_om: cuenta.tipo_om || undefined,
+      codigo_at: cuenta.codigo_at || undefined,
+      codigo_ct: cuenta.codigo_ct || undefined,
+      codigo_cc: cuenta.codigo_cc || undefined,
+      codigo_ti: cuenta.codigo_ti || undefined,
+      codigo_niif: cuenta.codigo_niif || undefined,
+      dinamica: cuenta.dinamica || undefined,
+      id_movimiento: cuenta.id_movimiento || undefined,
+      usuario_creacion: cuenta.usuario_creacion || undefined,
+      usuario_modificacion: cuenta.usuario_modificacion || undefined,
+      fila_excel: cuenta.fila_excel || undefined,
+      observaciones: cuenta.observaciones || undefined
+    };
+  }
 
   private determinarNaturaleza(codigo: string): NaturalezaCuentaEnum {
     const primerDigito = codigo.charAt(0);
@@ -667,11 +882,11 @@ private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
       case '5': // Gastos
       case '6': // Costos
       case '7': // Costos de producción
+      case '8': // Cuentas de orden deudoras
         return NaturalezaCuentaEnum.DEBITO;
       case '2': // Pasivos
       case '3': // Patrimonio
       case '4': // Ingresos
-      case '8': // Cuentas de orden deudoras
       case '9': // Cuentas de orden acreedoras
         return NaturalezaCuentaEnum.CREDITO;
       default:
@@ -706,6 +921,24 @@ private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
     if (codigo.length === 4) return codigo.substring(0, 2);
     if (codigo.length === 6) return codigo.substring(0, 4);
     return codigo.substring(0, 6);
+  }
+
+  private calcularCodigosJerarquia(codigo: string): {
+    codigo_clase?: string;
+    codigo_grupo?: string;
+    codigo_cuenta?: string;
+    codigo_subcuenta?: string;
+    codigo_detalle?: string;
+  } {
+    const resultado: any = {};
+    
+    if (codigo.length >= 1) resultado.codigo_clase = codigo.substring(0, 1);
+    if (codigo.length >= 2) resultado.codigo_grupo = codigo.substring(0, 2);
+    if (codigo.length >= 4) resultado.codigo_cuenta = codigo.substring(0, 4);
+    if (codigo.length >= 6) resultado.codigo_subcuenta = codigo.substring(0, 6);
+    if (codigo.length >= 8) resultado.codigo_detalle = codigo;
+    
+    return resultado;
   }
 
   private construirArbolJerarquico(cuentas: CuentaPuc[]): any[] {
