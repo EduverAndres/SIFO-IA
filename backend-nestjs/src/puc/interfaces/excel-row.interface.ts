@@ -1,7 +1,7 @@
 // backend-nestjs/src/puc/interfaces/excel-row.interface.ts - CORREGIDA
 export interface ExcelRowPuc {
   codigo_completo?: string;
-  nombre?: string;
+  descripcion?: string;
   codigo_clase?: string;
   codigo_grupo?: string;
   codigo_cuenta?: string;
