@@ -1,5 +1,5 @@
-// frontend-react/src/pages/PucPage.jsx - VERSIÓN FINAL COMPLETA CON JERARQUÍA
-import React, { useState, useEffect, useCallback } from 'react';
+// frontend-react/src/pages/PucPage.jsx - VERSIÓN CORREGIDA
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FaPlus,
   FaEdit,
@@ -16,7 +16,17 @@ import {
   FaSearch,
   FaUsers,
   FaUser,
-  FaSitemap
+  FaSitemap,
+  FaFilter,
+  FaSort,
+  FaSortUp,
+  FaSortDown,
+  FaRedo, // ✅ CORREGIDO
+  FaCog,
+  FaChevronDown,
+  FaChevronUp,
+  FaDatabase,
+  FaChartBar
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -29,10 +39,12 @@ import { pucApi } from '../api/pucApi';
 const PucPage = () => {
   // Estados principales
   const [cuentas, setCuentas] = useState([]);
-  const [cuentasOriginales, setCuentasOriginales] = useState([]); // Para filtros locales
+  const [cuentasOriginales, setCuentasOriginales] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [estadisticas, setEstadisticas] = useState(null);
 
   // Estados de modales
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,8 +58,10 @@ const PucPage = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountToDelete, setAccountToDelete] = useState(null);
 
-  // Estado para vista de árbol
+  // Estados de UI
   const [vistaArbol, setVistaArbol] = useState(false);
+  const [mostrarFiltrosAvanzados, setMostrarFiltrosAvanzados] = useState(false);
+  const [ordenamiento, setOrdenamiento] = useState({ campo: 'codigo_completo', direccion: 'asc' });
 
   // Form data para crear/editar
   const [formData, setFormData] = useState({
@@ -60,7 +74,7 @@ const PucPage = () => {
     estado: 'ACTIVA'
   });
 
-  // Filtros actualizados con jerarquía
+  // Filtros mejorados y perfeccionados
   const [filtros, setFiltros] = useState({
     busqueda: '',
     estado: 'ACTIVA',
@@ -70,25 +84,36 @@ const PucPage = () => {
     solo_padres: false,
     solo_hijas: false,
     codigo_padre: '',
-    limite: 50,
-    pagina: 1
+    acepta_movimientos: '',
+    rango_nivel: { min: '', max: '' },
+    fecha_creacion: { desde: '', hasta: '' },
+    limite: 50, // Opciones: 10, 25, 50, 100, 'todos'
+    pagina: 1,
+    incluir_inactivas: false,
+    solo_con_movimientos: false,
+    clase_contable: ''
+  });
+
+  // Estados de paginación
+  const [paginacion, setPaginacion] = useState({
+    total: 0,
+    totalPaginas: 0,
+    paginaActual: 1,
+    limite: 50
   });
 
   // ===============================================
-  // 🔧 FUNCIONES DE JERARQUÍA
+  // 🔧 FUNCIONES DE JERARQUÍA MEJORADAS
   // ===============================================
 
-  // Función para determinar si una cuenta es padre
-  const esCuentaPadre = (cuenta, todasLasCuentas) => {
+  const esCuentaPadre = useCallback((cuenta, todasLasCuentas) => {
     return todasLasCuentas.some(c => c.codigo_padre === cuenta.codigo_completo);
-  };
+  }, []);
 
-  // Función para determinar el nivel de jerarquía
-  const obtenerNivelJerarquia = (cuenta) => {
+  const obtenerNivelJerarquia = useCallback((cuenta) => {
     const codigo = cuenta.codigo_completo;
     if (!codigo) return 0;
     
-    // Basado en la longitud del código (estándar PUC Colombia)
     if (codigo.length === 1) return 1; // Clase
     if (codigo.length === 2) return 2; // Grupo  
     if (codigo.length === 4) return 3; // Cuenta
@@ -96,86 +121,183 @@ const PucPage = () => {
     if (codigo.length >= 8) return 5; // Detalle
     
     return 0;
-  };
+  }, []);
 
-  // Función para obtener indentación visual
-  const obtenerIndentacion = (cuenta) => {
+  const obtenerIndentacion = useCallback((cuenta) => {
     const nivel = obtenerNivelJerarquia(cuenta);
-    return nivel * 20; // 20px por cada nivel
-  };
+    return nivel * 20;
+  }, [obtenerNivelJerarquia]);
+
+  const obtenerClaseContable = useCallback((codigo) => {
+    if (!codigo) return '';
+    const clase = codigo.charAt(0);
+    const clases = {
+      '1': 'ACTIVOS',
+      '2': 'PASIVOS',
+      '3': 'PATRIMONIO',
+      '4': 'INGRESOS',
+      '5': 'GASTOS',
+      '6': 'COSTOS DE VENTAS',
+      '7': 'COSTOS DE PRODUCCIÓN',
+      '8': 'CUENTAS DE ORDEN DEUDORAS',
+      '9': 'CUENTAS DE ORDEN ACREEDORAS'
+    };
+    return clases[clase] || `CLASE ${clase}`;
+  }, []);
 
   // ===============================================
-  // 🔧 FUNCIONES PRINCIPALES
+  // 🔧 FUNCIONES PRINCIPALES OPTIMIZADAS
   // ===============================================
 
-  // Cargar datos
-  const cargarDatos = useCallback(async () => {
+  const cargarDatos = useCallback(async (nuevaPage = 1) => {
     setLoading(true);
+    setLoadingAction('cargando');
+    
     try {
-      const response = await pucApi.obtenerCuentas(filtros);
+      // Construir parámetros de filtro
+      const params = {
+        ...filtros,
+        pagina: nuevaPage,
+        // Si limite es 'todos', enviamos un número muy alto
+        limite: filtros.limite === 'todos' ? 10000 : filtros.limite
+      };
+
+      console.log('📊 Cargando cuentas con parámetros:', params);
+      
+      const response = await pucApi.obtenerCuentas(params);
       const cuentasData = response.data || [];
+      
       setCuentasOriginales(cuentasData);
       setCuentas(aplicarFiltrosLocales(cuentasData));
+      
+      // Actualizar paginación si viene del backend
+      if (response.pagination) {
+        setPaginacion({
+          total: response.pagination.total,
+          totalPaginas: response.pagination.totalPages,
+          paginaActual: response.pagination.currentPage,
+          limite: response.pagination.limit
+        });
+      }
+
+      // Cargar estadísticas
+      await cargarEstadisticas();
+      
     } catch (err) {
-      setError('Error cargando cuentas: ' + err.message);
+      console.error('❌ Error cargando cuentas:', err);
+      setError('Error cargando cuentas: ' + (err.message || 'Error desconocido'));
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   }, [filtros]);
 
-  // Aplicar filtros locales (jerarquía)
+  const cargarEstadisticas = useCallback(async () => {
+    try {
+      const response = await pucApi.obtenerEstadisticas();
+      setEstadisticas(response.data);
+    } catch (err) {
+      console.warn('⚠️ No se pudieron cargar las estadísticas:', err);
+    }
+  }, []);
+
+  // Aplicar filtros locales mejorados
   const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
-    return cuentasRaw.filter(cuenta => {
-      const esPadre = esCuentaPadre(cuenta, cuentasRaw);
-      const nivel = obtenerNivelJerarquia(cuenta);
-      
-      // Filtro por jerarquía
-      if (filtros.jerarquia) {
-        switch (filtros.jerarquia) {
-          case 'padre':
-            if (!esPadre) return false;
-            break;
-          case 'hija':
-            if (esPadre) return false;
-            break;
-          case 'nivel1':
-            if (nivel !== 1) return false;
-            break;
-          case 'nivel2':
-            if (nivel !== 2) return false;
-            break;
-          case 'nivel3':
-            if (nivel !== 3) return false;
-            break;
-          case 'nivel4':
-            if (nivel !== 4) return false;
-            break;
-          case 'nivel5':
-            if (nivel < 5) return false;
-            break;
-        }
-      }
-      
-      // Filtros de checkbox
-      if (filtros.solo_padres && !esPadre) return false;
-      if (filtros.solo_hijas && esPadre) return false;
-      
-      // Filtro por código padre específico
-      if (filtros.codigo_padre && cuenta.codigo_padre !== filtros.codigo_padre) return false;
-      
-      return true;
-    });
-  }, [filtros]);
+    let cuentasFiltradas = [...cuentasRaw];
 
-  // Actualizar filtros y aplicar
-  useEffect(() => {
-    if (cuentasOriginales.length > 0) {
-      setCuentas(aplicarFiltrosLocales(cuentasOriginales));
+    // Filtros de jerarquía
+    if (filtros.jerarquia) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+        const esPadre = esCuentaPadre(cuenta, cuentasRaw);
+        const nivel = obtenerNivelJerarquia(cuenta);
+        
+        switch (filtros.jerarquia) {
+          case 'padre': return esPadre;
+          case 'hija': return !esPadre;
+          case 'nivel1': return nivel === 1;
+          case 'nivel2': return nivel === 2;
+          case 'nivel3': return nivel === 3;
+          case 'nivel4': return nivel === 4;
+          case 'nivel5': return nivel >= 5;
+          default: return true;
+        }
+      });
     }
+
+    // Filtros checkbox
+    if (filtros.solo_padres) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
+        esCuentaPadre(cuenta, cuentasRaw)
+      );
+    }
+    
+    if (filtros.solo_hijas) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
+        !esCuentaPadre(cuenta, cuentasRaw)
+      );
+    }
+
+    // Filtro por código padre específico
+    if (filtros.codigo_padre) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
+        cuenta.codigo_padre === filtros.codigo_padre
+      );
+    }
+
+    // Filtro por rango de nivel
+    if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+        const nivel = obtenerNivelJerarquia(cuenta);
+        const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
+        const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
+        return nivel >= min && nivel <= max;
+      });
+    }
+
+    // Filtro por clase contable
+    if (filtros.clase_contable) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
+        cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable)
+      );
+    }
+
+    // Aplicar ordenamiento
+    cuentasFiltradas.sort((a, b) => {
+      let valorA = a[ordenamiento.campo] || '';
+      let valorB = b[ordenamiento.campo] || '';
+
+      // Ordenamiento especial para códigos
+      if (ordenamiento.campo === 'codigo_completo') {
+        valorA = valorA.padStart(10, '0');
+        valorB = valorB.padStart(10, '0');
+      }
+
+      if (typeof valorA === 'string') {
+        valorA = valorA.toLowerCase();
+        valorB = valorB.toLowerCase();
+      }
+
+      if (ordenamiento.direccion === 'asc') {
+        return valorA > valorB ? 1 : -1;
+      } else {
+        return valorA < valorB ? 1 : -1;
+      }
+    });
+
+    return cuentasFiltradas;
+  }, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
+
+  // Memoizar cuentas filtradas para optimización
+  const cuentasMemo = useMemo(() => {
+    return aplicarFiltrosLocales(cuentasOriginales);
   }, [cuentasOriginales, aplicarFiltrosLocales]);
 
-  // Reset form
-  const resetForm = () => {
+  // Actualizar cuentas cuando cambien los filtros locales
+  useEffect(() => {
+    setCuentas(cuentasMemo);
+  }, [cuentasMemo]);
+
+  const resetForm = useCallback(() => {
     setFormData({
       codigo_completo: '',
       descripcion: '',
@@ -185,49 +307,47 @@ const PucPage = () => {
       codigo_padre: '',
       estado: 'ACTIVA'
     });
-  };
+  }, []);
 
   // ===============================================
-  // 🎯 FUNCIONES PARA CREAR CUENTA
+  // 🎯 FUNCIONES CRUD OPTIMIZADAS
   // ===============================================
 
-  const abrirModalCrear = () => {
+  const abrirModalCrear = useCallback(() => {
     resetForm();
     setShowCreateModal(true);
-  };
+  }, [resetForm]);
 
-  const cerrarModalCrear = () => {
+  const cerrarModalCrear = useCallback(() => {
     setShowCreateModal(false);
     resetForm();
-  };
+    setError(null);
+  }, [resetForm]);
 
-  const crearCuenta = async (e) => {
+  const crearCuenta = useCallback(async (e) => {
     e.preventDefault();
-    setLoading(true);
+    
+    if (!formData.codigo_completo?.trim() || !formData.descripcion?.trim()) {
+      setError('❌ Por favor complete todos los campos requeridos');
+      return;
+    }
+
+    setLoadingAction('creando');
     
     try {
-      if (!formData.codigo_completo || !formData.descripcion) {
-        setError('Por favor complete todos los campos requeridos');
-        return;
-      }
-
       await pucApi.crearCuenta(formData);
-      setSuccess('Cuenta creada exitosamente');
+      setSuccess('✅ Cuenta creada exitosamente');
       setShowCreateModal(false);
       resetForm();
-      cargarDatos();
+      cargarDatos(paginacion.paginaActual);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Error al crear la cuenta');
+      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al crear la cuenta'));
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
-  };
+  }, [formData, resetForm, cargarDatos, paginacion.paginaActual]);
 
-  // ===============================================
-  // ✏️ FUNCIONES PARA EDITAR CUENTA
-  // ===============================================
-
-  const abrirModalEditar = (cuenta) => {
+  const abrirModalEditar = useCallback((cuenta) => {
     setSelectedAccount(cuenta);
     setFormData({
       codigo_completo: cuenta.codigo_completo || '',
@@ -239,118 +359,111 @@ const PucPage = () => {
       estado: cuenta.estado || 'ACTIVA'
     });
     setShowEditModal(true);
-  };
+  }, []);
 
-  const cerrarModalEditar = () => {
+  const cerrarModalEditar = useCallback(() => {
     setShowEditModal(false);
     setSelectedAccount(null);
     resetForm();
-  };
+    setError(null);
+  }, [resetForm]);
 
-  const actualizarCuenta = async (e) => {
+  const actualizarCuenta = useCallback(async (e) => {
     e.preventDefault();
     if (!selectedAccount) return;
     
-    setLoading(true);
+    if (!formData.descripcion?.trim()) {
+      setError('❌ La descripción es requerida');
+      return;
+    }
+
+    setLoadingAction('actualizando');
     
     try {
-      if (!formData.codigo_completo || !formData.descripcion) {
-        setError('Por favor complete todos los campos requeridos');
-        return;
-      }
-
       await pucApi.actualizarCuenta(selectedAccount.id, formData);
-      setSuccess('Cuenta actualizada exitosamente');
+      setSuccess('✅ Cuenta actualizada exitosamente');
       setShowEditModal(false);
       setSelectedAccount(null);
       resetForm();
-      cargarDatos();
+      cargarDatos(paginacion.paginaActual);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Error al actualizar la cuenta');
+      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al actualizar la cuenta'));
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
-  };
+  }, [selectedAccount, formData, resetForm, cargarDatos, paginacion.paginaActual]);
 
-  // ===============================================
-  // 🗑️ FUNCIONES PARA ELIMINAR CUENTA
-  // ===============================================
-
-  const abrirModalEliminar = (cuenta) => {
+  const abrirModalEliminar = useCallback((cuenta) => {
     setAccountToDelete(cuenta);
     setShowDeleteModal(true);
-  };
+  }, []);
 
-  const cerrarModalEliminar = () => {
+  const cerrarModalEliminar = useCallback(() => {
     setShowDeleteModal(false);
     setAccountToDelete(null);
-  };
+  }, []);
 
-  const confirmarEliminacion = async () => {
+  const confirmarEliminacion = useCallback(async () => {
     if (!accountToDelete) return;
     
-    setLoading(true);
+    setLoadingAction('eliminando');
+    
     try {
       await pucApi.eliminarCuenta(accountToDelete.id);
-      setSuccess('Cuenta eliminada exitosamente');
+      setSuccess('✅ Cuenta eliminada exitosamente');
       setShowDeleteModal(false);
       setAccountToDelete(null);
-      cargarDatos();
+      cargarDatos(paginacion.paginaActual);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Error al eliminar la cuenta');
+      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al eliminar la cuenta'));
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
-  };
+  }, [accountToDelete, cargarDatos, paginacion.paginaActual]);
 
-  // ===============================================
-  // 👁️ FUNCIONES PARA VER DETALLE
-  // ===============================================
-
-  const abrirModalDetalle = (cuenta) => {
+  const abrirModalDetalle = useCallback((cuenta) => {
     setSelectedAccount(cuenta);
     setShowDetailModal(true);
-  };
+  }, []);
 
-  const cerrarModalDetalle = () => {
+  const cerrarModalDetalle = useCallback(() => {
     setShowDetailModal(false);
     setSelectedAccount(null);
-  };
+  }, []);
 
   // ===============================================
-  // 📊 FUNCIONES PARA IMPORTAR/EXPORTAR
+  // 📊 FUNCIONES DE IMPORTAR/EXPORTAR
   // ===============================================
 
-  const abrirModalImportar = () => {
+  const abrirModalImportar = useCallback(() => {
     setShowImportModal(true);
-  };
+  }, []);
 
-  const cerrarModalImportar = () => {
+  const cerrarModalImportar = useCallback(() => {
     setShowImportModal(false);
-  };
+  }, []);
 
-  const abrirModalExportar = () => {
+  const abrirModalExportar = useCallback(() => {
     setShowExportModal(true);
-  };
+  }, []);
 
-  const cerrarModalExportar = () => {
+  const cerrarModalExportar = useCallback(() => {
     setShowExportModal(false);
-  };
+  }, []);
 
   // ===============================================
-  // 🔍 FUNCIONES DE FILTROS
+  // 🔍 FUNCIONES DE FILTROS PERFECCIONADAS
   // ===============================================
 
-  const manejarBusqueda = (e) => {
+  const manejarBusqueda = useCallback((e) => {
     setFiltros(prev => ({
       ...prev,
       busqueda: e.target.value,
       pagina: 1
     }));
-  };
+  }, []);
 
-  // Función para filtrar por cuenta padre
-  const filtrarPorPadre = (codigoPadre) => {
+  const filtrarPorPadre = useCallback((codigoPadre) => {
     setFiltros(prev => ({
       ...prev,
       busqueda: '',
@@ -359,15 +472,13 @@ const PucPage = () => {
       solo_padres: false,
       jerarquia: 'hija'
     }));
-  };
+  }, []);
 
-  // Función para toggle vista árbol
-  const toggleVistaArbol = () => {
+  const toggleVistaArbol = useCallback(() => {
     setVistaArbol(!vistaArbol);
-  };
+  }, [vistaArbol]);
 
-  // Función para limpiar filtros actualizada
-  const limpiarFiltros = () => {
+  const limpiarFiltros = useCallback(() => {
     setFiltros({
       busqueda: '',
       estado: 'ACTIVA',
@@ -377,16 +488,44 @@ const PucPage = () => {
       solo_padres: false,
       solo_hijas: false,
       codigo_padre: '',
+      acepta_movimientos: '',
+      rango_nivel: { min: '', max: '' },
+      fecha_creacion: { desde: '', hasta: '' },
       limite: 50,
-      pagina: 1
+      pagina: 1,
+      incluir_inactivas: false,
+      solo_con_movimientos: false,
+      clase_contable: ''
     });
-  };
+    setOrdenamiento({ campo: 'codigo_completo', direccion: 'asc' });
+  }, []);
+
+  const cambiarOrdenamiento = useCallback((campo) => {
+    setOrdenamiento(prev => ({
+      campo,
+      direccion: prev.campo === campo && prev.direccion === 'asc' ? 'desc' : 'asc'
+    }));
+  }, []);
+
+  const cambiarPagina = useCallback((nuevaPagina) => {
+    if (nuevaPagina >= 1 && nuevaPagina <= paginacion.totalPaginas) {
+      cargarDatos(nuevaPagina);
+    }
+  }, [cargarDatos, paginacion.totalPaginas]);
+
+  const cambiarLimite = useCallback((nuevoLimite) => {
+    setFiltros(prev => ({
+      ...prev,
+      limite: nuevoLimite,
+      pagina: 1
+    }));
+  }, []);
 
   // ===============================================
   // 🎨 FUNCIONES AUXILIARES
   // ===============================================
 
-  const obtenerIconoTipoCuenta = (tipo) => {
+  const obtenerIconoTipoCuenta = useCallback((tipo) => {
     const iconos = {
       'CLASE': '🏛️',
       'GRUPO': '📁',
@@ -395,15 +534,15 @@ const PucPage = () => {
       'DETALLE': '🔸'
     };
     return iconos[tipo] || '📌';
-  };
+  }, []);
 
-  const obtenerColorNaturaleza = (naturaleza) => {
+  const obtenerColorNaturaleza = useCallback((naturaleza) => {
     return naturaleza === 'DEBITO' 
       ? 'bg-green-100 text-green-800'
       : 'bg-blue-100 text-blue-800';
-  };
+  }, []);
 
-  const obtenerColorTipoCuenta = (tipo) => {
+  const obtenerColorTipoCuenta = useCallback((tipo) => {
     const colores = {
       'CLASE': 'bg-purple-100 text-purple-800',
       'GRUPO': 'bg-blue-100 text-blue-800',
@@ -412,10 +551,17 @@ const PucPage = () => {
       'DETALLE': 'bg-orange-100 text-orange-800'
     };
     return colores[tipo] || 'bg-gray-100 text-gray-800';
-  };
+  }, []);
+
+  const obtenerIconoOrdenamiento = useCallback((campo) => {
+    if (ordenamiento.campo !== campo) return <FaSort className="text-gray-400" />;
+    return ordenamiento.direccion === 'asc' 
+      ? <FaSortUp className="text-blue-600" />
+      : <FaSortDown className="text-blue-600" />;
+  }, [ordenamiento]);
 
   // ===============================================
-  // ⚡ EFFECTS
+  // ⚡ EFFECTS OPTIMIZADOS
   // ===============================================
 
   useEffect(() => {
@@ -437,25 +583,160 @@ const PucPage = () => {
   }, [error]);
 
   // ===============================================
-  // 🎨 RENDERIZADO
+  // 🎨 COMPONENTES DE RENDERIZADO
+  // ===============================================
+
+  const EstadisticasHeader = () => (
+    estadisticas && (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-600 text-sm font-medium">Total Cuentas</p>
+              <p className="text-2xl font-bold text-blue-900">{estadisticas.total || 0}</p>
+            </div>
+            <FaDatabase className="text-blue-500 text-2xl" />
+          </div>
+        </div>
+        
+        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-600 text-sm font-medium">Activas</p>
+              <p className="text-2xl font-bold text-green-900">{estadisticas.activas || 0}</p>
+            </div>
+            <FaCheckCircle className="text-green-500 text-2xl" />
+          </div>
+        </div>
+        
+        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-600 text-sm font-medium">Cuentas Padre</p>
+              <p className="text-2xl font-bold text-purple-900">{estadisticas.padres || 0}</p>
+            </div>
+            <FaUsers className="text-purple-500 text-2xl" />
+          </div>
+        </div>
+        
+        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-600 text-sm font-medium">Niveles</p>
+              <p className="text-2xl font-bold text-orange-900">{estadisticas.niveles || 0}</p>
+            </div>
+            <FaChartBar className="text-orange-500 text-2xl" />
+          </div>
+        </div>
+      </div>
+    )
+  );
+
+  const PaginacionControles = () => (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center space-x-2">
+        <span className="text-sm text-gray-600">Mostrar:</span>
+        <Select
+          value={filtros.limite}
+          onChange={(e) => cambiarLimite(e.target.value)}
+          options={[
+            { value: 10, label: '10 registros' },
+            { value: 25, label: '25 registros' },
+            { value: 50, label: '50 registros' },
+            { value: 100, label: '100 registros' },
+            { value: 'todos', label: 'Todos los registros' }
+          ]}
+          className="min-w-32"
+        />
+      </div>
+
+      {filtros.limite !== 'todos' && paginacion.totalPaginas > 1 && (
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={() => cambiarPagina(paginacion.paginaActual - 1)}
+            disabled={paginacion.paginaActual <= 1}
+            className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700"
+          >
+            Anterior
+          </Button>
+          
+          <div className="flex items-center space-x-1">
+            {Array.from({ length: Math.min(5, paginacion.totalPaginas) }, (_, i) => {
+              let pageNum;
+              if (paginacion.totalPaginas <= 5) {
+                pageNum = i + 1;
+              } else if (paginacion.paginaActual <= 3) {
+                pageNum = i + 1;
+              } else if (paginacion.paginaActual >= paginacion.totalPaginas - 2) {
+                pageNum = paginacion.totalPaginas - 4 + i;
+              } else {
+                pageNum = paginacion.paginaActual - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => cambiarPagina(pageNum)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    pageNum === paginacion.paginaActual
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+          
+          <Button
+            onClick={() => cambiarPagina(paginacion.paginaActual + 1)}
+            disabled={paginacion.paginaActual >= paginacion.totalPaginas}
+            className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700"
+          >
+            Siguiente
+          </Button>
+        </div>
+      )}
+
+      <div className="text-sm text-gray-600">
+        {filtros.limite === 'todos' 
+          ? `Total: ${cuentas.length} registros`
+          : `Página ${paginacion.paginaActual} de ${paginacion.totalPaginas} (${paginacion.total} total)`
+        }
+      </div>
+    </div>
+  );
+
+  // ===============================================
+  // 🎨 RENDERIZADO PRINCIPAL
   // ===============================================
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="p-6 space-y-6">
         
-        {/* Header */}
+        {/* Header perfeccionado */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent">
               Plan Único de Cuentas (PUC)
             </h1>
             <p className="text-gray-600">
-              Gestiona la estructura contable con importación/exportación Excel y vista jerárquica
+              Sistema perfeccionado de gestión contable con filtros avanzados y vista jerárquica
             </p>
           </div>
           
           <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={() => cargarDatos(paginacion.paginaActual)}
+              className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg"
+              icon={FaRedo}
+              loading={loadingAction === 'cargando'}
+            >
+              Actualizar
+            </Button>
+            
             <Button
               onClick={abrirModalCrear}
               className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
@@ -482,15 +763,18 @@ const PucPage = () => {
           </div>
         </div>
 
-        {/* Filtros con opciones de jerarquía */}
+        {/* Estadísticas */}
+        <EstadisticasHeader />
+
+        {/* Filtros perfeccionados */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col space-y-4">
             
-            {/* Primera fila de filtros básicos */}
+            {/* Primera fila - Filtros básicos */}
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <Input
-                  placeholder="Buscar por código o descripción..."
+                  placeholder="🔍 Buscar por código, descripción o cualquier campo..."
                   value={filtros.busqueda}
                   onChange={manejarBusqueda}
                   icon={FaSearch}
@@ -500,120 +784,224 @@ const PucPage = () => {
               <div className="flex gap-3">
                 <Select
                   value={filtros.estado}
-                  onChange={(e) => setFiltros(prev => ({...prev, estado: e.target.value}))}
+                  onChange={(e) => setFiltros(prev => ({...prev, estado: e.target.value, pagina: 1}))}
                   options={[
                     { value: '', label: 'Todos los estados' },
-                    { value: 'ACTIVA', label: 'Activas' },
-                    { value: 'INACTIVA', label: 'Inactivas' }
+                    { value: 'ACTIVA', label: '✅ Activas' },
+                    { value: 'INACTIVA', label: '❌ Inactivas' }
                   ]}
                   className="min-w-40"
                 />
 
                 <Select
-                  value={filtros.naturaleza}
-                  onChange={(e) => setFiltros(prev => ({...prev, naturaleza: e.target.value}))}
+                  value={filtros.clase_contable}
+                  onChange={(e) => setFiltros(prev => ({...prev, clase_contable: e.target.value, pagina: 1}))}
                   options={[
-                    { value: '', label: 'Todas las naturalezas' },
-                    { value: 'DEBITO', label: 'Débito' },
-                    { value: 'CREDITO', label: 'Crédito' }
+                    { value: '', label: 'Todas las clases' },
+                    { value: '1', label: '1 - Activos' },
+                    { value: '2', label: '2 - Pasivos' },
+                    { value: '3', label: '3 - Patrimonio' },
+                    { value: '4', label: '4 - Ingresos' },
+                    { value: '5', label: '5 - Gastos' },
+                    { value: '6', label: '6 - Costos de Ventas' },
+                    { value: '7', label: '7 - Costos de Producción' },
+                    { value: '8', label: '8 - Cuentas de Orden Deudoras' },
+                    { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
                   ]}
-                  className="min-w-40"
+                  className="min-w-48"
                 />
+
+                <Button
+                  onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
+                  icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
+                >
+                  <span>Filtros Avanzados</span>
+                </Button>
 
                 <Button
                   onClick={limpiarFiltros}
                   className="bg-gray-500 hover:bg-gray-600 text-white"
+                  icon={FaTimes}
                 >
                   Limpiar
                 </Button>
               </div>
             </div>
 
-            {/* Segunda fila - Filtros de jerarquía */}
-            <div className="border-t pt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                <FaSitemap className="mr-2" />
-                Filtros de Jerarquía
-              </h4>
-              
-              <div className="flex flex-wrap gap-3">
-                {/* Filtro por tipo de jerarquía */}
-                <Select
-                  value={filtros.jerarquia}
-                  onChange={(e) => setFiltros(prev => ({...prev, jerarquia: e.target.value}))}
-                  options={[
-                    { value: '', label: 'Todas las jerarquías' },
-                    { value: 'padre', label: '👥 Solo Cuentas Padre' },
-                    { value: 'hija', label: '👤 Solo Cuentas Hijas' },
-                    { value: 'nivel1', label: '1️⃣ Nivel 1 (Clase)' },
-                    { value: 'nivel2', label: '2️⃣ Nivel 2 (Grupo)' },
-                    { value: 'nivel3', label: '3️⃣ Nivel 3 (Cuenta)' },
-                    { value: 'nivel4', label: '4️⃣ Nivel 4 (Subcuenta)' },
-                    { value: 'nivel5', label: '5️⃣ Nivel 5+ (Detalle)' }
-                  ]}
-                  className="min-w-48"
-                />
+            {/* Filtros avanzados (collapsible) */}
+            {mostrarFiltrosAvanzados && (
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <FaFilter className="mr-2" />
+                  Filtros Avanzados
+                </h4>
+                
+                {/* Segunda fila - Filtros de jerarquía */}
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <Select
+                    value={filtros.naturaleza}
+                    onChange={(e) => setFiltros(prev => ({...prev, naturaleza: e.target.value, pagina: 1}))}
+                    options={[
+                      { value: '', label: 'Todas las naturalezas' },
+                      { value: 'DEBITO', label: '📈 Débito' },
+                      { value: 'CREDITO', label: '📉 Crédito' }
+                    ]}
+                  />
 
-                {/* Filtro por tipo de cuenta */}
-                <Select
-                  value={filtros.tipo_cuenta}
-                  onChange={(e) => setFiltros(prev => ({...prev, tipo_cuenta: e.target.value}))}
-                  options={[
-                    { value: '', label: 'Todos los tipos' },
-                    { value: 'CLASE', label: '🏛️ Clase' },
-                    { value: 'GRUPO', label: '📁 Grupo' },
-                    { value: 'CUENTA', label: '📋 Cuenta' },
-                    { value: 'SUBCUENTA', label: '📄 Subcuenta' },
-                    { value: 'DETALLE', label: '🔸 Detalle' }
-                  ]}
-                  className="min-w-40"
-                />
+                  <Select
+                    value={filtros.tipo_cuenta}
+                    onChange={(e) => setFiltros(prev => ({...prev, tipo_cuenta: e.target.value, pagina: 1}))}
+                    options={[
+                      { value: '', label: 'Todos los tipos' },
+                      { value: 'CLASE', label: '🏛️ Clase' },
+                      { value: 'GRUPO', label: '📁 Grupo' },
+                      { value: 'CUENTA', label: '📋 Cuenta' },
+                      { value: 'SUBCUENTA', label: '📄 Subcuenta' },
+                      { value: 'DETALLE', label: '🔸 Detalle' }
+                    ]}
+                  />
 
-                {/* Checkboxes para filtros rápidos */}
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={filtros.solo_padres}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev, 
-                        solo_padres: e.target.checked,
-                        solo_hijas: e.target.checked ? false : prev.solo_hijas
-                      }))}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                    />
-                    <span className="text-sm text-gray-700">Solo Padres</span>
-                  </label>
+                  <Select
+                    value={filtros.jerarquia}
+                    onChange={(e) => setFiltros(prev => ({...prev, jerarquia: e.target.value, pagina: 1}))}
+                    options={[
+                      { value: '', label: 'Todas las jerarquías' },
+                      { value: 'padre', label: '👥 Solo Cuentas Padre' },
+                      { value: 'hija', label: '👤 Solo Cuentas Hijas' },
+                      { value: 'nivel1', label: '1️⃣ Nivel 1 (Clase)' },
+                      { value: 'nivel2', label: '2️⃣ Nivel 2 (Grupo)' },
+                      { value: 'nivel3', label: '3️⃣ Nivel 3 (Cuenta)' },
+                      { value: 'nivel4', label: '4️⃣ Nivel 4 (Subcuenta)' },
+                      { value: 'nivel5', label: '5️⃣ Nivel 5+ (Detalle)' }
+                    ]}
+                  />
 
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={filtros.solo_hijas}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev, 
-                        solo_hijas: e.target.checked,
-                        solo_padres: e.target.checked ? false : prev.solo_padres
-                      }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Solo Hijas</span>
-                  </label>
+                  <Select
+                    value={filtros.acepta_movimientos}
+                    onChange={(e) => setFiltros(prev => ({...prev, acepta_movimientos: e.target.value, pagina: 1}))}
+                    options={[
+                      { value: '', label: 'Movimientos: Todas' },
+                      { value: 'true', label: '✅ Acepta movimientos' },
+                      { value: 'false', label: '❌ No acepta movimientos' }
+                    ]}
+                  />
+
+                  <Button
+                    onClick={toggleVistaArbol}
+                    className={`${
+                      vistaArbol 
+                        ? 'bg-green-600 hover:bg-green-700' 
+                        : 'bg-gray-600 hover:bg-gray-700'
+                    } text-white flex items-center space-x-2`}
+                    icon={FaSitemap}
+                  >
+                    <span>{vistaArbol ? 'Vista Tabla' : 'Vista Árbol'}</span>
+                  </Button>
                 </div>
 
-                {/* Botón para mostrar árbol jerárquico */}
-                <Button
-                  onClick={toggleVistaArbol}
-                  className={`${
-                    vistaArbol 
-                      ? 'bg-green-600 hover:bg-green-700' 
-                      : 'bg-gray-600 hover:bg-gray-700'
-                  } text-white flex items-center space-x-2`}
-                  icon={FaSitemap}
-                >
-                  <span>{vistaArbol ? 'Vista Tabla' : 'Vista Árbol'}</span>
-                </Button>
+                {/* Tercera fila - Filtros específicos */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nivel min"
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={filtros.rango_nivel.min}
+                      onChange={(e) => setFiltros(prev => ({
+                        ...prev, 
+                        rango_nivel: { ...prev.rango_nivel, min: e.target.value },
+                        pagina: 1
+                      }))}
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder="Nivel max"
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={filtros.rango_nivel.max}
+                      onChange={(e) => setFiltros(prev => ({
+                        ...prev, 
+                        rango_nivel: { ...prev.rango_nivel, max: e.target.value },
+                        pagina: 1
+                      }))}
+                      className="flex-1"
+                    />
+                  </div>
+
+                  <Input
+                    placeholder="Código padre específico"
+                    value={filtros.codigo_padre}
+                    onChange={(e) => setFiltros(prev => ({...prev, codigo_padre: e.target.value, pagina: 1}))}
+                  />
+
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.solo_padres}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev, 
+                          solo_padres: e.target.checked,
+                          solo_hijas: e.target.checked ? false : prev.solo_hijas,
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-sm text-gray-700">Solo Padres</span>
+                    </label>
+
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.solo_hijas}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev, 
+                          solo_hijas: e.target.checked,
+                          solo_padres: e.target.checked ? false : prev.solo_padres,
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Solo Hijas</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.incluir_inactivas}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev, 
+                          incluir_inactivas: e.target.checked,
+                          estado: e.target.checked ? '' : 'ACTIVA',
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      />
+                      <span className="text-sm text-gray-700">Incluir inactivas</span>
+                    </label>
+
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.solo_con_movimientos}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev, 
+                          solo_con_movimientos: e.target.checked,
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-700">Solo con movimientos</span>
+                    </label>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -644,13 +1032,15 @@ const PucPage = () => {
           </div>
         )}
 
-        {/* Tabla de cuentas con jerarquía visual */}
+        {/* Tabla perfeccionada con jerarquía visual */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-800">Cuentas del PUC</h2>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-500">{cuentas.length} cuentas</span>
+                <span className="text-sm text-gray-500">
+                  {loading ? 'Cargando...' : `${cuentas.length} cuentas mostradas`}
+                </span>
                 {/* Indicadores de jerarquía */}
                 <div className="flex items-center space-x-2 text-xs">
                   <div className="flex items-center space-x-1">
@@ -665,7 +1055,7 @@ const PucPage = () => {
               </div>
             </div>
 
-            {loading ? (
+            {loading && loadingAction === 'cargando' ? (
               <div className="flex items-center justify-center py-12">
                 <FaSpinner className="animate-spin text-3xl text-blue-600" />
                 <span className="ml-3 text-gray-600">Cargando cuentas...</span>
@@ -676,23 +1066,64 @@ const PucPage = () => {
                   <FaFileAlt className="text-6xl mx-auto mb-4" />
                 </div>
                 <p className="text-gray-500 text-lg">No se encontraron cuentas</p>
-                <p className="text-gray-400 text-sm">Haz clic en "Nueva Cuenta" para crear la primera</p>
+                <p className="text-gray-400 text-sm">
+                  {filtros.busqueda || Object.values(filtros).some(v => v && v !== 'ACTIVA' && v !== 50 && v !== 1)
+                    ? 'Intenta ajustar los filtros o crear una nueva cuenta'
+                    : 'Haz clic en "Nueva Cuenta" para crear la primera'
+                  }
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">
+                      <th 
+                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                        onClick={() => cambiarOrdenamiento('codigo_completo')}
+                      >
                         <div className="flex items-center space-x-2">
                           <span>Código</span>
                           <span className="text-xs text-gray-500">(Jerarquía)</span>
+                          {obtenerIconoOrdenamiento('codigo_completo')}
                         </div>
                       </th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Descripción</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Tipo</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Naturaleza</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Estado</th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                        onClick={() => cambiarOrdenamiento('descripcion')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Descripción</span>
+                          {obtenerIconoOrdenamiento('descripcion')}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                        onClick={() => cambiarOrdenamiento('tipo_cuenta')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Tipo</span>
+                          {obtenerIconoOrdenamiento('tipo_cuenta')}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                        onClick={() => cambiarOrdenamiento('naturaleza')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Naturaleza</span>
+                          {obtenerIconoOrdenamiento('naturaleza')}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                        onClick={() => cambiarOrdenamiento('estado')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Estado</span>
+                          {obtenerIconoOrdenamiento('estado')}
+                        </div>
+                      </th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Jerarquía</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Acciones</th>
                     </tr>
@@ -703,12 +1134,13 @@ const PucPage = () => {
                       const nivel = obtenerNivelJerarquia(cuenta);
                       const indentacion = obtenerIndentacion(cuenta);
                       const cuentasHijas = cuentasOriginales.filter(c => c.codigo_padre === cuenta.codigo_completo);
+                      const claseContable = obtenerClaseContable(cuenta.codigo_completo);
                       
                       return (
                         <tr 
                           key={cuenta.id} 
                           className={`
-                            border-b border-gray-100 hover:bg-blue-50 transition-colors
+                            border-b border-gray-100 hover:bg-blue-50 transition-all duration-200
                             ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
                             ${esPadre ? 'border-l-4 border-l-purple-400' : 'border-l-4 border-l-blue-200'}
                           `}
@@ -736,11 +1168,14 @@ const PucPage = () => {
                               )}
                               
                               {/* Código de la cuenta */}
-                              <span className={`font-mono font-bold ${
-                                esPadre ? 'text-purple-900' : 'text-gray-900'
-                              }`}>
-                                {cuenta.codigo_completo}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className={`font-mono font-bold ${
+                                  esPadre ? 'text-purple-900' : 'text-gray-900'
+                                }`}>
+                                  {cuenta.codigo_completo}
+                                </span>
+                                <span className="text-xs text-gray-500">{claseContable}</span>
+                              </div>
                               
                               {/* Badge de nivel */}
                               <span className={`text-xs px-2 py-1 rounded-full ${
@@ -765,6 +1200,14 @@ const PucPage = () => {
                                 Padre: {cuenta.codigo_padre}
                               </div>
                             )}
+                            {/* Mostrar si acepta movimientos */}
+                            {cuenta.acepta_movimientos !== undefined && (
+                              <div className={`text-xs mt-1 ${
+                                cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {cuenta.acepta_movimientos ? '✓ Acepta mov.' : '✗ No acepta mov.'}
+                              </div>
+                            )}
                           </td>
                           
                           <td className="py-3 px-4">
@@ -787,7 +1230,7 @@ const PucPage = () => {
                             </span>
                           </td>
                           
-                          {/* Nueva columna de jerarquía */}
+                          {/* Columna de jerarquía mejorada */}
                           <td className="py-3 px-4">
                             <div className="flex flex-col items-center space-y-1">
                               {esPadre ? (
@@ -796,7 +1239,7 @@ const PucPage = () => {
                                   <div className="flex items-center space-x-1">
                                     <FaUsers className="text-purple-500 text-xs" />
                                     <span className="text-xs text-gray-500">
-                                      {cuentasHijas.length} hijas
+                                      {cuentasHijas.length} hija{cuentasHijas.length !== 1 ? 's' : ''}
                                     </span>
                                   </div>
                                 </>
@@ -818,6 +1261,7 @@ const PucPage = () => {
                                 onClick={() => abrirModalDetalle(cuenta)}
                                 className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
                                 title="Ver detalles"
+                                disabled={loadingAction}
                               >
                                 <FaEye />
                               </button>
@@ -825,6 +1269,7 @@ const PucPage = () => {
                                 onClick={() => abrirModalEditar(cuenta)}
                                 className="p-2 text-green-600 hover:bg-green-100 rounded transition-colors"
                                 title="Editar"
+                                disabled={loadingAction}
                               >
                                 <FaEdit />
                               </button>
@@ -832,6 +1277,7 @@ const PucPage = () => {
                                 onClick={() => abrirModalEliminar(cuenta)}
                                 className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
                                 title="Eliminar"
+                                disabled={loadingAction}
                               >
                                 <FaTrash />
                               </button>
@@ -842,6 +1288,7 @@ const PucPage = () => {
                                   onClick={() => filtrarPorPadre(cuenta.codigo_completo)}
                                   className="p-2 text-purple-600 hover:bg-purple-100 rounded transition-colors"
                                   title={`Ver ${cuentasHijas.length} cuentas hijas`}
+                                  disabled={loadingAction}
                                 >
                                   <FaUsers />
                                 </button>
@@ -855,15 +1302,31 @@ const PucPage = () => {
                 </table>
               </div>
             )}
+
+            {/* Controles de paginación */}
+            <PaginacionControles />
           </div>
         </div>
+
+        {/* Indicador de carga global */}
+        {loadingAction && (
+          <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2">
+            <FaSpinner className="animate-spin" />
+            <span>
+              {loadingAction === 'creando' && 'Creando cuenta...'}
+              {loadingAction === 'actualizando' && 'Actualizando cuenta...'}
+              {loadingAction === 'eliminando' && 'Eliminando cuenta...'}
+              {loadingAction === 'cargando' && 'Cargando datos...'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* =============================================== */}
       {/* 🔥 MODALES CRUD COMPLETOS */}
       {/* =============================================== */}
 
-      {/* 1️⃣ Modal Crear Cuenta */}
+      {/* Modal Crear Cuenta */}
       <Modal
         show={showCreateModal}
         onClose={cerrarModalCrear}
@@ -889,6 +1352,7 @@ const PucPage = () => {
                 value={formData.codigo_completo}
                 onChange={(e) => setFormData({...formData, codigo_completo: e.target.value})}
                 required
+                disabled={loadingAction === 'creando'}
               />
               
               <Select
@@ -903,6 +1367,7 @@ const PucPage = () => {
                   { value: 'DETALLE', label: '🔸 Detalle' }
                 ]}
                 required
+                disabled={loadingAction === 'creando'}
               />
             </div>
 
@@ -913,6 +1378,7 @@ const PucPage = () => {
                 value={formData.descripcion}
                 onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                 required
+                disabled={loadingAction === 'creando'}
               />
             </div>
 
@@ -926,13 +1392,15 @@ const PucPage = () => {
                   { value: 'CREDITO', label: '📉 Crédito' }
                 ]}
                 required
+                disabled={loadingAction === 'creando'}
               />
 
               <Input
                 label="Código Padre"
-                placeholder="Código cuenta padre"
+                placeholder="Código cuenta padre (opcional)"
                 value={formData.codigo_padre}
                 onChange={(e) => setFormData({...formData, codigo_padre: e.target.value})}
+                disabled={loadingAction === 'creando'}
               />
             </div>
 
@@ -946,6 +1414,7 @@ const PucPage = () => {
                   { value: 'INACTIVA', label: '❌ Inactiva' }
                 ]}
                 required
+                disabled={loadingAction === 'creando'}
               />
 
               <div className="flex items-center space-x-2 mt-6">
@@ -955,6 +1424,7 @@ const PucPage = () => {
                   checked={formData.acepta_movimientos}
                   onChange={(e) => setFormData({...formData, acepta_movimientos: e.target.checked})}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  disabled={loadingAction === 'creando'}
                 />
                 <label htmlFor="acepta_movimientos_crear" className="text-sm text-gray-700">
                   Acepta movimientos contables
@@ -968,6 +1438,7 @@ const PucPage = () => {
               type="button"
               onClick={cerrarModalCrear}
               className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+              disabled={loadingAction === 'creando'}
             >
               Cancelar
             </Button>
@@ -975,7 +1446,7 @@ const PucPage = () => {
             <Button
               type="submit"
               className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white"
-              loading={loading}
+              loading={loadingAction === 'creando'}
               icon={FaPlus}
             >
               Crear Cuenta
@@ -984,7 +1455,7 @@ const PucPage = () => {
         </form>
       </Modal>
 
-      {/* 2️⃣ Modal Editar Cuenta */}
+      {/* Modal Editar Cuenta */}
       <Modal
         show={showEditModal}
         onClose={cerrarModalEditar}
@@ -1023,6 +1494,7 @@ const PucPage = () => {
                   { value: 'DETALLE', label: '🔸 Detalle' }
                 ]}
                 required
+                disabled={loadingAction === 'actualizando'}
               />
             </div>
 
@@ -1033,6 +1505,7 @@ const PucPage = () => {
                 value={formData.descripcion}
                 onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                 required
+                disabled={loadingAction === 'actualizando'}
               />
             </div>
 
@@ -1046,13 +1519,15 @@ const PucPage = () => {
                   { value: 'CREDITO', label: '📉 Crédito' }
                 ]}
                 required
+                disabled={loadingAction === 'actualizando'}
               />
 
               <Input
                 label="Código Padre"
-                placeholder="Código cuenta padre"
+                placeholder="Código cuenta padre (opcional)"
                 value={formData.codigo_padre}
                 onChange={(e) => setFormData({...formData, codigo_padre: e.target.value})}
+                disabled={loadingAction === 'actualizando'}
               />
             </div>
 
@@ -1066,6 +1541,7 @@ const PucPage = () => {
                   { value: 'INACTIVA', label: '❌ Inactiva' }
                 ]}
                 required
+                disabled={loadingAction === 'actualizando'}
               />
 
               <div className="flex items-center space-x-2 mt-6">
@@ -1075,6 +1551,7 @@ const PucPage = () => {
                   checked={formData.acepta_movimientos}
                   onChange={(e) => setFormData({...formData, acepta_movimientos: e.target.checked})}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  disabled={loadingAction === 'actualizando'}
                 />
                 <label htmlFor="acepta_movimientos_editar" className="text-sm text-gray-700">
                   Acepta movimientos contables
@@ -1088,6 +1565,7 @@ const PucPage = () => {
               type="button"
               onClick={cerrarModalEditar}
               className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+              disabled={loadingAction === 'actualizando'}
             >
               Cancelar
             </Button>
@@ -1095,7 +1573,7 @@ const PucPage = () => {
             <Button
               type="submit"
               className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-              loading={loading}
+              loading={loadingAction === 'actualizando'}
               icon={FaSave}
             >
               Actualizar Cuenta
@@ -1104,7 +1582,7 @@ const PucPage = () => {
         </form>
       </Modal>
 
-      {/* 3️⃣ Modal Eliminar Cuenta */}
+      {/* Modal Eliminar Cuenta */}
       <Modal
         show={showDeleteModal}
         onClose={cerrarModalEliminar}
@@ -1136,6 +1614,9 @@ const PucPage = () => {
                 <p className="text-gray-700">
                   <strong>Tipo:</strong> {accountToDelete.tipo_cuenta}
                 </p>
+                <p className="text-gray-700">
+                  <strong>Clase:</strong> {obtenerClaseContable(accountToDelete.codigo_completo)}
+                </p>
               </div>
             )}
             
@@ -1152,6 +1633,7 @@ const PucPage = () => {
               type="button"
               onClick={cerrarModalEliminar}
               className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+              disabled={loadingAction === 'eliminando'}
             >
               Cancelar
             </Button>
@@ -1159,7 +1641,7 @@ const PucPage = () => {
             <Button
               onClick={confirmarEliminacion}
               className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white"
-              loading={loading}
+              loading={loadingAction === 'eliminando'}
               icon={FaTrash}
             >
               Sí, Eliminar
@@ -1168,7 +1650,7 @@ const PucPage = () => {
         </div>
       </Modal>
 
-      {/* 4️⃣ Modal Ver Detalle */}
+      {/* Modal Ver Detalle */}
       <Modal
         show={showDetailModal}
         onClose={cerrarModalDetalle}
@@ -1189,6 +1671,9 @@ const PucPage = () => {
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">{selectedAccount.codigo_completo}</h3>
                   <p className="text-gray-600 text-lg">{selectedAccount.descripcion}</p>
+                  <p className="text-purple-600 text-sm font-medium">
+                    {obtenerClaseContable(selectedAccount.codigo_completo)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1306,7 +1791,12 @@ const PucPage = () => {
                     .map(hija => (
                       <div key={hija.id} className="flex items-center justify-between bg-white p-2 rounded text-sm">
                         <span className="font-mono">{hija.codigo_completo}</span>
-                        <span className="text-gray-600">{hija.descripcion}</span>
+                        <span className="text-gray-600 flex-1 px-2">{hija.descripcion}</span>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          hija.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {hija.estado}
+                        </span>
                       </div>
                     ))
                   }
@@ -1351,19 +1841,19 @@ const PucPage = () => {
         )}
       </Modal>
 
-      {/* 5️⃣ Modal Importar Excel */}
+      {/* Modal Importar Excel */}
       <ImportPucExcelModal
         isOpen={showImportModal}
         onClose={cerrarModalImportar}
         onImport={(result) => {
-          setSuccess(`Importación completada: ${result.resumen?.insertadas || 0} cuentas insertadas`);
-          cargarDatos();
+          setSuccess(`✅ Importación completada: ${result.resumen?.insertadas || 0} cuentas insertadas`);
+          cargarDatos(paginacion.paginaActual);
           cerrarModalImportar();
         }}
-        loading={loading}
+        loading={loadingAction === 'importando'}
       />
 
-      {/* 6️⃣ Modal Exportar */}
+      {/* Modal Exportar */}
       <ExportPucModal
         visible={showExportModal}
         onCancel={cerrarModalExportar}
