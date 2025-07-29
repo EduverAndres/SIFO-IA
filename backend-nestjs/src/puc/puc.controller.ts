@@ -40,6 +40,7 @@ import { ValidarExcelDto } from './dto/validar-excel.dto';
 import { ResultadoImportacionDto } from './dto/resultado-importacion.dto';
 import { ResultadoValidacionDto } from './dto/resultado-validacion.dto';
 import { ResponsePucDto } from './dto/response-puc.dto';
+import { Express } from 'express';
 
 @ApiTags('🏛️ PUC (Plan Único de Cuentas)')
 @Controller('puc')
