@@ -14,6 +14,7 @@ import {
   ValidacionExcel, 
   ResultadoImportacion 
 } from './interfaces/excel-row.interface';
+import { Express } from 'express';
 
 @Injectable()
 export class PucService {

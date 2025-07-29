@@ -12,6 +12,7 @@ import {
   ResultadoImportacion 
 } from '../interfaces/excel-row.interface';
 import { TipoCuentaEnum, NaturalezaCuentaEnum, EstadoCuentaEnum } from '../entities/cuenta-puc.entity';
+import { Express } from 'express';
 
 // Mapeo de columnas actualizado SIN CAMPO NOMBRE
 interface ExcelColumnMapping {
