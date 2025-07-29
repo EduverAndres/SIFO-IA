@@ -1,590 +1,329 @@
-// ===============================================
-// 🔧 pucApi.js - ARCHIVO COMPLETO CON MANEJO DE ERRORES
-// ===============================================
-
-// Configuración base de la API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://sifo-ia-main.onrender.com/api/v1';
-
-// ===============================================
-// 🛠️ UTILIDADES DE CONFIGURACIÓN
-// ===============================================
-
-// Configuración de logging detallado
-const LOG_CONFIG = {
-  enabled: process.env.NODE_ENV === 'development',
-  logRequests: true,
-  logResponses: true,
-  logErrors: true
-};
-
-// Función de logging condicional
-const apiLog = (level, message, data = null) => {
-  if (!LOG_CONFIG.enabled) return;
-  
-  const logMessage = `[PUC-API] ${message}`;
-  switch (level) {
-    case 'info':
-      console.log(`📥 ${logMessage}`, data || '');
-      break;
-    case 'success':
-      console.log(`✅ ${logMessage}`, data || '');
-      break;
-    case 'warning':
-      console.warn(`⚠️ ${logMessage}`, data || '');
-      break;
-    case 'error':
-      console.error(`❌ ${logMessage}`, data || '');
-      break;
-    default:
-      console.log(logMessage, data || '');
-  }
-};
-
-// ===============================================
-// 🔧 CONFIGURACIÓN DE FETCH MEJORADA
-// ===============================================
-
-// Función helper para obtener headers con autenticación
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  return headers;
-};
-
-// Función helper mejorada para manejar respuestas
-const handleResponse = async (response, endpoint = 'unknown') => {
-  const startTime = Date.now();
-  
-  // Log de la respuesta
-  if (LOG_CONFIG.logResponses) {
-    apiLog('info', `API Response: {status: ${response.status}, url: '${endpoint}', fullURL: '${response.url}'}`);
-  }
-
-  // Verificar si la respuesta es OK
-  if (!response.ok) {
-    let errorData;
-    let errorMessage = `Error ${response.status}: ${response.statusText}`;
-
-    try {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        errorData = await response.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
-        
-        // Incluir errores de validación si existen
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          errorMessage += '\n\nDetalles:\n' + errorData.errors.join('\n');
-        } else if (errorData.details && Array.isArray(errorData.details)) {
-          errorMessage += '\n\nDetalles:\n' + errorData.details.join('\n');
-        }
-      } else {
-        // Si no es JSON, intentar obtener texto
-        const textResponse = await response.text();
-        if (textResponse) {
-          errorMessage += `\n\nRespuesta: ${textResponse}`;
-        }
-      }
-    } catch (parseError) {
-      apiLog('warning', `No se pudo parsear error de respuesta para ${endpoint}`, parseError);
-    }
-
-    apiLog('error', `Error en ${endpoint}`, { 
-      status: response.status, 
-      message: errorMessage,
-      errorData 
-    });
-
-    throw new Error(errorMessage);
-  }
-
-  // Intentar parsear respuesta JSON
-  try {
-    const data = await response.json();
-    
-    const endTime = Date.now();
-    if (LOG_CONFIG.logResponses) {
-      apiLog('success', `Respuesta procesada en ${endTime - startTime}ms`, {
-        endpoint,
-        dataType: Array.isArray(data) ? 'Array' : typeof data,
-        dataLength: data?.length || (data?.data?.length || 'N/A')
-      });
-    }
-
-    return data;
-  } catch (jsonError) {
-    apiLog('error', `Error parseando JSON para ${endpoint}`, jsonError);
-    throw new Error(`Error parseando respuesta JSON: ${jsonError.message}`);
-  }
-};
-
-// Función helper para hacer requests con retry automático
-const makeRequest = async (url, options = {}, retries = 2) => {
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  const endpoint = url.startsWith('http') ? url : url;
-  
-  // Configuración por defecto
-  const defaultOptions = {
-    headers: getAuthHeaders(),
-    timeout: 30000, // 30 segundos
-    ...options
-  };
-
-  if (LOG_CONFIG.logRequests) {
-    apiLog('info', `Request: ${options.method || 'GET'} ${endpoint}`, {
-      url: fullUrl,
-      headers: defaultOptions.headers,
-      body: options.body
-    });
-  }
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), defaultOptions.timeout);
-
-      const response = await fetch(fullUrl, {
-        ...defaultOptions,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      return await handleResponse(response, endpoint);
-
-    } catch (error) {
-      const isLastAttempt = attempt === retries;
-      
-      if (error.name === 'AbortError') {
-        apiLog('error', `Timeout en ${endpoint} (intento ${attempt + 1}/${retries + 1})`);
-        if (isLastAttempt) throw new Error(`Timeout: La petición a ${endpoint} tardó más de ${defaultOptions.timeout/1000} segundos`);
-      } else if (error.message.includes('fetch')) {
-        apiLog('error', `Error de red en ${endpoint} (intento ${attempt + 1}/${retries + 1})`, error);
-        if (isLastAttempt) throw new Error(`Error de conexión: No se pudo conectar con el servidor`);
-      } else {
-        // Si no es un error de red, no reintentar
-        throw error;
-      }
-
-      // Esperar antes del siguiente intento (backoff exponencial)
-      if (!isLastAttempt) {
-        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
-        apiLog('warning', `Reintentando en ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-};
-
-// ===============================================
-// 🏛️ OBJETO PRINCIPAL DE LA API
-// ===============================================
+// frontend-react/src/api/pucApi.js - ACTUALIZADA PARA NUEVO ESQUEMA DE BD
+import api from './config';
 
 export const pucApi = {
   // ===============================================
-  // 🔍 MÉTODOS DE CONSULTA
+  // 📋 MÉTODOS CRUD BÁSICOS - ACTUALIZADO
   // ===============================================
 
   // Obtener lista de cuentas con filtros
   async obtenerCuentas(filtros = {}) {
-    try {
-      // Construir query parameters
-      const params = new URLSearchParams();
-      
-      // Añadir filtros válidos
-      Object.entries(filtros).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value);
-        }
-      });
-
-      const queryString = params.toString();
-      const endpoint = `/puc/cuentas${queryString ? `?${queryString}` : ''}`;
-      
-      apiLog('info', `Obteniendo cuentas con filtros:`, filtros);
-      
-      const response = await makeRequest(endpoint);
-      
-      // ✅ VALIDACIÓN Y NORMALIZACIÓN DE RESPUESTA
-      let processedResponse = response;
-      
-      // Verificar estructura de respuesta
-      if (response && typeof response === 'object') {
-        if (response.success !== undefined) {
-          // Formato: { success: true, data: [...] }
-          processedResponse = response;
-        } else if (Array.isArray(response)) {
-          // Formato directo: [...]
-          processedResponse = {
-            success: true,
-            data: response
-          };
-        } else if (response.data) {
-          // Formato: { data: [...] }
-          processedResponse = {
-            success: true,
-            data: response.data
-          };
-        }
+    const params = new URLSearchParams();
+    Object.entries(filtros).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        params.append(key, value);
       }
-
-      // Asegurar que data sea un array
-      if (processedResponse.data && !Array.isArray(processedResponse.data)) {
-        apiLog('warning', 'data no es un array, convirtiendo...', processedResponse.data);
-        processedResponse.data = [];
-      }
-
-      apiLog('success', `${processedResponse.data?.length || 0} cuentas obtenidas`);
-      return processedResponse;
-
-    } catch (error) {
-      apiLog('error', 'Error obteniendo cuentas', error);
-      // Retornar estructura consistente en caso de error
-      return {
-        success: false,
-        data: [],
-        error: error.message
-      };
-    }
+    });
+    return await api.get(`/puc/cuentas?${params.toString()}`);
   },
 
-  // Obtener cuenta por ID
   async obtenerCuentaPorId(id) {
-    try {
-      apiLog('info', `Obteniendo cuenta ID: ${id}`);
-      const response = await makeRequest(`/puc/cuentas/${id}`);
-      apiLog('success', 'Cuenta obtenida exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error obteniendo cuenta ${id}`, error);
-      throw error;
-    }
+    return await api.get(`/puc/cuentas/${id}`);
   },
 
-  // Obtener árbol jerárquico
+  async crearCuenta(cuenta) {
+    // Mapear campos del frontend al nuevo esquema de BD
+    const cuentaMapeada = {
+      codigo_completo: cuenta.codigo_completo,
+      descripcion: cuenta.descripcion, // Ahora es descripcion en lugar de nombre
+      codigo_clase: cuenta.codigo_clase,
+      codigo_grupo: cuenta.codigo_grupo,
+      codigo_cuenta: cuenta.codigo_cuenta,
+      codigo_subcuenta: cuenta.codigo_subcuenta,
+      codigo_detalle: cuenta.codigo_detalle,
+      codigo_padre: cuenta.codigo_padre,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      naturaleza: cuenta.naturaleza,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      activo: cuenta.activo,
+      saldo_inicial: cuenta.saldo_inicial,
+      saldo_final: cuenta.saldo_final,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos,
+      aplica_dr110: cuenta.aplica_dr110,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      conciliacion_fiscal: cuenta.conciliacion_fiscal,
+      tipo_om: cuenta.tipo_om,
+      codigo_at: cuenta.codigo_at,
+      codigo_ct: cuenta.codigo_ct,
+      codigo_cc: cuenta.codigo_cc,
+      codigo_ti: cuenta.codigo_ti,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_niif: cuenta.codigo_niif,
+      dinamica: cuenta.dinamica,
+      id_movimiento: cuenta.id_movimiento,
+      usuario_creacion: cuenta.usuario_creacion,
+      usuario_modificacion: cuenta.usuario_modificacion,
+      fila_excel: cuenta.fila_excel,
+      observaciones: cuenta.observaciones
+    };
+
+    return await api.post('/puc/cuentas', cuentaMapeada);
+  },
+
+  async actualizarCuenta(id, cuenta) {
+    // Mapear campos del frontend al nuevo esquema de BD
+    const cuentaMapeada = {
+      descripcion: cuenta.descripcion, // Campo principal actualizado
+      codigo_clase: cuenta.codigo_clase,
+      codigo_grupo: cuenta.codigo_grupo,
+      codigo_cuenta: cuenta.codigo_cuenta,
+      codigo_subcuenta: cuenta.codigo_subcuenta,
+      codigo_detalle: cuenta.codigo_detalle,
+      codigo_padre: cuenta.codigo_padre,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      naturaleza: cuenta.naturaleza,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      activo: cuenta.activo,
+      saldo_inicial: cuenta.saldo_inicial,
+      saldo_final: cuenta.saldo_final,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos,
+      aplica_dr110: cuenta.aplica_dr110,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      conciliacion_fiscal: cuenta.conciliacion_fiscal,
+      tipo_om: cuenta.tipo_om,
+      codigo_at: cuenta.codigo_at,
+      codigo_ct: cuenta.codigo_ct,
+      codigo_cc: cuenta.codigo_cc,
+      codigo_ti: cuenta.codigo_ti,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_niif: cuenta.codigo_niif,
+      dinamica: cuenta.dinamica,
+      id_movimiento: cuenta.id_movimiento,
+      usuario_modificacion: cuenta.usuario_modificacion,
+      observaciones: cuenta.observaciones
+    };
+
+    return await api.put(`/puc/cuentas/${id}`, cuentaMapeada);
+  },
+
+  async eliminarCuenta(id) {
+    return await api.delete(`/puc/cuentas/${id}`);
+  },
+
+  // ===============================================
+  // 🌳 MÉTODOS DE ÁRBOL JERÁRQUICO
+  // ===============================================
+
   async obtenerArbol(codigoPadre = null, incluirInactivas = false) {
-    try {
-      const params = new URLSearchParams();
-      if (codigoPadre) params.append('codigo_padre', codigoPadre);
-      if (incluirInactivas) params.append('incluir_inactivas', 'true');
-
-      const endpoint = `/puc/arbol${params.toString() ? `?${params.toString()}` : ''}`;
-      
-      apiLog('info', `Obteniendo árbol PUC`, { codigoPadre, incluirInactivas });
-      const response = await makeRequest(endpoint);
-      
-      // Asegurar formato consistente
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
-      };
-
-      apiLog('success', `Árbol obtenido: ${processedResponse.data.length} nodos`);
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo árbol', error);
-      return { success: false, data: [], error: error.message };
-    }
+    const params = new URLSearchParams();
+    if (codigoPadre) params.append('codigo_padre', codigoPadre);
+    if (incluirInactivas) params.append('incluir_inactivas', 'true');
+    
+    return await api.get(`/puc/arbol?${params.toString()}`);
   },
 
-  // Buscar cuentas
-  async buscarCuentas(termino, limite = 50, soloActivas = true) {
-    try {
-      const params = new URLSearchParams({
-        q: termino,
-        limite: limite.toString(),
-        solo_activas: soloActivas.toString()
-      });
-
-      apiLog('info', `Buscando cuentas: "${termino}"`);
-      const response = await makeRequest(`/puc/buscar?${params.toString()}`);
-      
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
-      };
-
-      apiLog('success', `${processedResponse.data.length} cuentas encontradas`);
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', `Error buscando "${termino}"`, error);
-      return { success: false, data: [], error: error.message };
-    }
-  },
-
-  // Obtener estadísticas
-  async obtenerEstadisticas() {
-    try {
-      apiLog('info', 'Obteniendo estadísticas PUC');
-      const response = await makeRequest('/puc/estadisticas');
-      
-      const processedResponse = response.success !== undefined ? response : {
-        success: true,
-        data: response
-      };
-
-      apiLog('success', 'Estadísticas obtenidas');
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo estadísticas', error);
-      return { success: false, data: {}, error: error.message };
-    }
+  async obtenerSubcuentas(codigo, incluirInactivas = false) {
+    const params = new URLSearchParams();
+    if (incluirInactivas) params.append('incluir_inactivas', 'true');
+    
+    return await api.get(`/puc/cuentas/${codigo}/subcuentas?${params.toString()}`);
   },
 
   // ===============================================
   // ✏️ MÉTODOS DE MODIFICACIÓN
   // ===============================================
 
-  // Crear nueva cuenta
-  async crearCuenta(datosCuenta) {
-    try {
-      apiLog('info', 'Creando nueva cuenta', datosCuenta);
-      
-      const response = await makeRequest('/puc/cuentas', {
-        method: 'POST',
-        body: JSON.stringify(datosCuenta)
-      });
-
-      apiLog('success', 'Cuenta creada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error creando cuenta', error);
-      throw error;
-    }
+  async buscarCuentas(termino, limite = 50, soloActivas = true) {
+    const params = new URLSearchParams();
+    params.append('q', termino);
+    params.append('limite', limite.toString());
+    params.append('solo_activas', soloActivas.toString());
+    
+    return await api.get(`/puc/buscar?${params.toString()}`);
   },
 
-  // Actualizar cuenta existente
-  async actualizarCuenta(id, datosCuenta) {
-    try {
-      apiLog('info', `Actualizando cuenta ${id}`, datosCuenta);
-      
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(datosCuenta)
-      });
-
-      apiLog('success', 'Cuenta actualizada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error actualizando cuenta ${id}`, error);
-      throw error;
-    }
-  },
-
-  // Eliminar cuenta
-  async eliminarCuenta(id) {
-    try {
-      apiLog('info', `Eliminando cuenta ${id}`);
-      
-      const response = await makeRequest(`/puc/cuentas/${id}`, {
-        method: 'DELETE'
-      });
-
-      apiLog('success', 'Cuenta eliminada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', `Error eliminando cuenta ${id}`, error);
-      throw error;
-    }
+  async validarCodigo(codigo) {
+    return await api.get(`/puc/validar/${codigo}`);
   },
 
   // ===============================================
   // 📊 MÉTODOS DE REPORTES
   // ===============================================
 
-  // Reporte por clase
+  async obtenerEstadisticas() {
+    return await api.get('/puc/estadisticas');
+  },
+
   async reportePorClase(incluirSaldos = false) {
-    try {
-      const params = incluirSaldos ? '?incluir_saldos=true' : '';
-      
-      apiLog('info', `Generando reporte por clase`, { incluirSaldos });
-      const response = await makeRequest(`/puc/reportes/por-clase${params}`);
-      
-      const processedResponse = {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
-      };
-
-      apiLog('success', 'Reporte por clase generado');
-      return processedResponse;
-    } catch (error) {
-      apiLog('error', 'Error generando reporte por clase', error);
-      return { success: false, data: [], error: error.message };
-    }
+    const params = new URLSearchParams();
+    if (incluirSaldos) params.append('incluir_saldos', 'true');
+    
+    return await api.get(`/puc/reportes/por-clase?${params.toString()}`);
   },
 
-  // Reporte de jerarquía completa
   async reporteJerarquiaCompleta(formato = 'json') {
-    try {
-      const params = `?formato=${formato}`;
-      
-      apiLog('info', `Generando reporte de jerarquía`, { formato });
-      const response = await makeRequest(`/puc/reportes/jerarquia-completa${params}`);
-
-      apiLog('success', 'Reporte de jerarquía generado');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error generando reporte de jerarquía', error);
-      throw error;
-    }
+    const params = new URLSearchParams();
+    params.append('formato', formato);
+    
+    return await api.get(`/puc/reportes/jerarquia-completa?${params.toString()}`);
   },
 
   // ===============================================
-  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
+  // 📥 MÉTODOS DE IMPORTACIÓN EXCEL
   // ===============================================
 
-  // ===============================================
-  // 📥📤 MÉTODOS DE IMPORTACIÓN/EXPORTACIÓN
-  // ===============================================
+  async validarArchivoExcel(file, opciones = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const opcionesBackend = {
+      hoja: opciones.hoja || 'PUC',
+      fila_inicio: opciones.fila_inicio || 3,
+      validar_jerarquia: opciones.validar_jerarquia !== false
+    };
 
-  // Importar desde Excel
-  async importarDesdeExcel(archivo, opciones = {}) {
-    try {
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      
-      // Añadir opciones de importación
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, value);
-        }
-      });
+    Object.entries(opcionesBackend).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        formData.append(key, value.toString());
+      }
+    });
 
-      apiLog('info', 'Importando archivo Excel', { 
-        archivo: archivo.name, 
-        size: archivo.size,
-        opciones 
-      });
-
-      const response = await makeRequest('/puc/importar/excel', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          // No incluir Content-Type para FormData
-          'Authorization': getAuthHeaders().Authorization
-        }
-      });
-
-      apiLog('success', 'Importación completada', response);
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error en importación', error);
-      throw error;
-    }
+    return await api.post('/puc/validar/excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
 
-  // Exportar a Excel
+  async importarDesdeExcel(file, opciones = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const opcionesBackend = {
+      sobreescribir: opciones.sobreescribir || opciones.sobrescribir_existentes || false,
+      validar_jerarquia: opciones.validar_jerarquia !== false,
+      importar_saldos: opciones.importar_saldos !== false,
+      importar_fiscal: opciones.importar_fiscal !== false,
+      hoja: opciones.hoja || 'PUC',
+      fila_inicio: opciones.fila_inicio || 3
+    };
+
+    Object.entries(opcionesBackend).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        formData.append(key, value.toString());
+      }
+    });
+
+    return await api.post('/puc/importar/excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 300000
+    });
+  },
+
+  // ===============================================
+  // 📤 MÉTODOS DE EXPORTACIÓN
+  // ===============================================
+
   async exportarAExcel(opciones = {}) {
-    try {
-      const params = new URLSearchParams();
-      Object.entries(opciones).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value);
-        }
-      });
+    const params = new URLSearchParams();
+    
+    const opcionesBackend = {
+      incluir_saldos: opciones.incluir_saldos !== false,
+      incluir_movimientos: opciones.incluir_movimientos !== false,
+      incluir_fiscal: opciones.incluir_fiscal !== false,
+      filtro_estado: opciones.filtro_estado,
+      filtro_tipo: opciones.filtro_tipo,
+      filtro_clase: opciones.filtro_clase,
+      solo_movimientos: opciones.solo_movimientos || false,
+      incluir_inactivas: opciones.incluir_inactivas || false
+    };
 
-      const queryString = params.toString();
-      const endpoint = `/puc/exportar/excel${queryString ? `?${queryString}` : ''}`;
-
-      apiLog('info', 'Exportando a Excel', opciones);
-
-      // Para exportación, necesitamos manejar blob
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    Object.entries(opcionesBackend).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        params.append(key, value.toString());
       }
+    });
 
-      // Obtener el blob del archivo
-      const blob = await response.blob();
-      
-      // Crear nombre del archivo
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let fileName = 'puc_export.xlsx';
-      
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (fileNameMatch) {
-          fileName = fileNameMatch[1].replace(/['"]/g, '');
-        }
+    const response = await api.get(`/puc/exportar/excel?${params.toString()}`, {
+      responseType: 'blob',
+    });
+
+    const blob = new Blob([response.data], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = 'puc_export.xlsx';
+    
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (fileNameMatch) {
+        fileName = fileNameMatch[1];
       }
-
-      // Crear URL temporal y descargar
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      apiLog('success', 'Archivo exportado exitosamente', { fileName });
-      
-      return { 
-        success: true, 
-        message: 'Archivo exportado exitosamente',
-        fileName: fileName
-      };
-    } catch (error) {
-      apiLog('error', 'Error exportando a Excel', error);
-      throw error;
+    } else {
+      const fecha = new Date().toISOString().split('T')[0];
+      fileName = `puc_export_${fecha}.xlsx`;
     }
+    
+    link.download = fileName;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    return { 
+      success: true, 
+      message: 'Archivo descargado exitosamente',
+      fileName: fileName
+    };
   },
 
-  // Descargar template de importación
-  async descargarTemplate(conEjemplos = false) {
-    try {
-      const params = conEjemplos ? '?con_ejemplos=true' : '';
-      const endpoint = `/puc/exportar/template${params}`;
+  async descargarTemplate(conEjemplos = true) {
+    const params = new URLSearchParams();
+    params.append('con_ejemplos', conEjemplos.toString());
 
-      apiLog('info', 'Descargando template', { conEjemplos });
+    const response = await api.get(`/puc/exportar/template?${params.toString()}`, {
+      responseType: 'blob',
+    });
 
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
+    const blob = new Blob([response.data], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const fileName = `puc_template_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
+    link.download = fileName;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      const fileName = `template_puc_${conEjemplos ? 'con_ejemplos' : 'vacio'}.xlsx`;
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      apiLog('success', 'Template descargado', { fileName });
-
-      return { 
-        success: true, 
-        message: 'Template descargado exitosamente',
-        fileName: fileName
-      };
-    } catch (error) {
-      apiLog('error', 'Error descargando template', error);
-      throw error;
-    }
+    return { 
+      success: true, 
+      message: 'Template descargado exitosamente',
+      fileName: fileName
+    };
   },
 
   // ===============================================
@@ -593,36 +332,11 @@ export const pucApi = {
 
   // Recalcular jerarquía
   async recalcularJerarquia() {
-    try {
-      apiLog('info', 'Recalculando jerarquía PUC');
-      
-      const response = await makeRequest('/puc/mantenimiento/recalcular-jerarquia', {
-        method: 'POST'
-      });
-
-      apiLog('success', 'Jerarquía recalculada exitosamente');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error recalculando jerarquía', error);
-      throw error;
-    }
+    return await api.post('/puc/mantenimiento/recalcular-jerarquia');
   },
 
-  // Validar integridad del PUC
   async validarIntegridad() {
-    try {
-      apiLog('info', 'Validando integridad del PUC');
-      
-      const response = await makeRequest('/puc/mantenimiento/validar-integridad', {
-        method: 'POST'
-      });
-
-      apiLog('success', 'Validación de integridad completada');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error validando integridad', error);
-      throw error;
-    }
+    return await api.post('/puc/mantenimiento/validar-integridad');
   },
 
   // ===============================================
@@ -631,83 +345,46 @@ export const pucApi = {
 
   // Test de conectividad
   async test() {
-    try {
-      apiLog('info', 'Probando conectividad PUC API');
-      const response = await makeRequest('/puc/test');
-      apiLog('success', 'Test de conectividad exitoso');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error en test de conectividad', error);
-      throw error;
-    }
-  },
-
-  // Obtener información de la API
-  async obtenerInfo() {
-    try {
-      apiLog('info', 'Obteniendo información de la API');
-      const response = await makeRequest('/puc');
-      apiLog('success', 'Información obtenida');
-      return response;
-    } catch (error) {
-      apiLog('error', 'Error obteniendo información', error);
-      throw error;
-    }
+    return await api.get('/puc/test');
   },
 
   // ===============================================
   // 📋 MÉTODOS ESPECÍFICOS PARA COMPONENTES
   // ===============================================
 
-  // Método auxiliar para obtener opciones de clase
   async obtenerClases() {
     try {
       const response = await this.reportePorClase(false);
-      const clases = response.data.map(clase => ({
+      return response.data.map(clase => ({
         value: clase.codigo_clase,
         label: `${clase.codigo_clase} - ${this.obtenerNombreClase(clase.codigo_clase)}`,
         total_cuentas: clase.total_cuentas
       }));
-
-      apiLog('success', `${clases.length} clases obtenidas para selector`);
-      return clases;
     } catch (error) {
-      apiLog('error', 'Error obteniendo clases', error);
+      console.error('Error obteniendo clases:', error);
       return [];
     }
   },
 
-  // Método auxiliar para obtener cuenta por código
   async obtenerCuentaPorCodigo(codigo) {
     try {
-      const response = await this.obtenerCuentas({ codigo_completo: codigo });
-      const cuenta = response.data.length > 0 ? response.data[0] : null;
-      
-      if (cuenta) {
-        apiLog('success', `Cuenta encontrada: ${codigo}`);
-      } else {
-        apiLog('warning', `Cuenta no encontrada: ${codigo}`);
-      }
-      
-      return cuenta;
+      const response = await this.obtenerCuentas({ busqueda: codigo });
+      return response.data.find(cuenta => cuenta.codigo_completo === codigo) || null;
     } catch (error) {
-      apiLog('error', `Error obteniendo cuenta por código ${codigo}`, error);
+      console.error('Error obteniendo cuenta por código:', error);
       return null;
     }
   },
 
-  // Método auxiliar para verificar si existe una cuenta
   async existeCuenta(codigo) {
     try {
       const cuenta = await this.obtenerCuentaPorCodigo(codigo);
       return cuenta !== null;
     } catch (error) {
-      apiLog('error', `Error verificando existencia de cuenta ${codigo}`, error);
       return false;
     }
   },
 
-  // Método auxiliar para obtener el path completo de una cuenta
   async obtenerPathCuenta(codigo) {
     try {
       const path = [];
@@ -723,28 +400,24 @@ export const pucApi = {
         }
       }
       
-      apiLog('success', `Path obtenido para ${codigo}: ${path.length} niveles`);
       return path;
     } catch (error) {
-      apiLog('error', `Error obteniendo path de cuenta ${codigo}`, error);
+      console.error('Error obteniendo path de cuenta:', error);
       return [];
     }
   },
 
   // ===============================================
-  // 🔄 MÉTODOS DE IMPORTACIÓN ESPECIALES
+  // 🔧 MÉTODOS AUXILIARES
   // ===============================================
 
-  // Método para importar PUC estándar (simulado por ahora)
   async importarPucEstandar(opciones = {}) {
     try {
-      apiLog('info', 'Importando PUC estándar', opciones);
+      console.log('Importando PUC estándar con opciones:', opciones);
       
-      // Simular delay de importación
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const resultado = {
-        success: true,
+      return {
         data: {
           exito: true,
           mensaje: 'PUC estándar importado exitosamente',
@@ -759,29 +432,22 @@ export const pucApi = {
           advertencias: []
         }
       };
-
-      apiLog('success', 'PUC estándar importado exitosamente');
-      return resultado;
     } catch (error) {
-      apiLog('error', 'Error importando PUC estándar', error);
+      console.error('Error importando PUC estándar:', error);
       throw error;
     }
   },
 
-  // Método para obtener versión del PUC
   async obtenerVersionPuc() {
     try {
       const response = await this.obtenerEstadisticas();
-      const version = {
+      return {
         version: '1.0',
         fecha_actualizacion: new Date().toISOString(),
         total_cuentas: response.data.total || 0
       };
-
-      apiLog('success', 'Versión PUC obtenida', version);
-      return version;
     } catch (error) {
-      apiLog('error', 'Error obteniendo versión PUC', error);
+      console.error('Error obteniendo versión PUC:', error);
       return null;
     }
   },
@@ -803,10 +469,7 @@ export const pucApi = {
   }
 };
 
-// ===============================================
-// 🛠️ UTILIDADES PARA EL FRONTEND
-// ===============================================
-
+// Métodos de utilidad para el frontend actualizados para el nuevo esquema
 export const pucUtils = {
   // Determinar nivel de cuenta por longitud del código
   determinarNivel(codigo) {
@@ -824,8 +487,6 @@ export const pucUtils = {
   determinarNaturaleza(codigo) {
     if (!codigo) return 'DEBITO';
     const clase = codigo.charAt(0);
-    // Clases 1, 5, 6, 7, 8 son DEBITO
-    // Clases 2, 3, 4, 9 son CREDITO
     return ['1', '5', '6', '7', '8'].includes(clase) ? 'DEBITO' : 'CREDITO';
   },
 
@@ -833,12 +494,10 @@ export const pucUtils = {
   validarCodigo(codigo) {
     if (!codigo) return { valido: false, error: 'Código requerido' };
     
-    // Solo números
     if (!/^\d+$/.test(codigo)) {
       return { valido: false, error: 'El código debe contener solo números' };
     }
     
-    // Longitudes válidas
     const longitudesValidas = [1, 2, 4, 6, 8];
     if (!longitudesValidas.includes(codigo.length)) {
       return { 
@@ -853,75 +512,193 @@ export const pucUtils = {
   // Formatear código para mostrar
   formatearCodigo(codigo) {
     if (!codigo) return '';
+    return codigo.toString().padStart(Math.max(codigo.length, 6), '0');
+  },
+
+  // Formatear saldo
+  formatearSaldo(saldo, mostrarSigno = true) {
+    if (saldo === null || saldo === undefined) return '-';
     
-    // Agregar puntos para mejor legibilidad según nivel
-    const longitud = codigo.length;
-    switch (longitud) {
-      case 4: // 1234 -> 12.34
-        return `${codigo.substring(0, 2)}.${codigo.substring(2)}`;
-      case 6: // 123456 -> 12.34.56
-        return `${codigo.substring(0, 2)}.${codigo.substring(2, 4)}.${codigo.substring(4)}`;
-      case 8: // 12345678 -> 12.34.56.78
-        return `${codigo.substring(0, 2)}.${codigo.substring(2, 4)}.${codigo.substring(4, 6)}.${codigo.substring(6)}`;
-      default:
-        return codigo;
+    const numero = parseFloat(saldo);
+    if (isNaN(numero)) return '-';
+    
+    const formatoMoneda = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 2
+    });
+    
+    if (mostrarSigno) {
+      return formatoMoneda.format(numero);
+    } else {
+      return formatoMoneda.format(Math.abs(numero));
     }
   },
 
-  // Obtener código padre
-  obtenerCodigoPadre(codigo) {
+  // Obtener descripción de nivel
+  obtenerDescripcionNivel(nivel) {
+    const niveles = {
+      1: 'Clase',
+      2: 'Grupo',
+      3: 'Cuenta',
+      4: 'Subcuenta',
+      5: 'Detalle'
+    };
+    return niveles[nivel] || 'Desconocido';
+  },
+
+  // Obtener descripción de naturaleza
+  obtenerDescripcionNaturaleza(naturaleza) {
+    return naturaleza === 'DEBITO' ? 'Débito' : 'Crédito';
+  },
+
+  // Obtener color para el nivel
+  obtenerColorNivel(nivel) {
+    const colores = {
+      1: 'bg-red-100 text-red-800 border-red-200',
+      2: 'bg-orange-100 text-orange-800 border-orange-200',
+      3: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      4: 'bg-green-100 text-green-800 border-green-200',
+      5: 'bg-blue-100 text-blue-800 border-blue-200'
+    };
+    return colores[nivel] || 'bg-gray-100 text-gray-800 border-gray-200';
+  },
+
+  // Obtener color para naturaleza
+  obtenerColorNaturaleza(naturaleza) {
+    return naturaleza === 'DEBITO' 
+      ? 'bg-green-100 text-green-800 border-green-200'
+      : 'bg-blue-100 text-blue-800 border-blue-200';
+  },
+
+  // Generar código padre
+  generarCodigoPadre(codigo) {
     if (!codigo || codigo.length <= 1) return null;
     
-    const longitud = codigo.length;
-    if (longitud === 2) return codigo.substring(0, 1); // Grupo -> Clase
-    if (longitud === 4) return codigo.substring(0, 2); // Cuenta -> Grupo
-    if (longitud === 6) return codigo.substring(0, 4); // Subcuenta -> Cuenta
-    if (longitud >= 8) return codigo.substring(0, 6); // Auxiliar -> Subcuenta
+    if (codigo.length === 2) return codigo.substring(0, 1);
+    if (codigo.length === 4) return codigo.substring(0, 2);
+    if (codigo.length === 6) return codigo.substring(0, 4);
+    if (codigo.length >= 8) return codigo.substring(0, 6);
     
     return null;
   },
 
-  // Validar jerarquía
-  validarJerarquia(codigo, codigoPadre) {
-    if (!codigo) return { valido: false, error: 'Código requerido' };
+  // Construir árbol jerárquico
+  construirArbol(cuentas) {
+    const mapa = new Map();
+    const raices = [];
     
-    const padreEsperado = this.obtenerCodigoPadre(codigo);
+    cuentas.forEach(cuenta => {
+      cuenta.hijos = [];
+      mapa.set(cuenta.codigo_completo, cuenta);
+    });
     
-    if (!padreEsperado && codigoPadre) {
-      return { valido: false, error: 'Las cuentas de clase no deben tener padre' };
+    cuentas.forEach(cuenta => {
+      if (cuenta.codigo_padre) {
+        const padre = mapa.get(cuenta.codigo_padre);
+        if (padre) {
+          padre.hijos.push(cuenta);
+        } else {
+          raices.push(cuenta);
+        }
+      } else {
+        raices.push(cuenta);
+      }
+    });
+    
+    return raices;
+  },
+
+  // Filtrar cuentas por término de búsqueda
+  filtrarCuentas(cuentas, termino) {
+    if (!termino) return cuentas;
+    
+    const terminoLower = termino.toLowerCase();
+    return cuentas.filter(cuenta => 
+      cuenta.codigo_completo.includes(termino) ||
+      (cuenta.descripcion && cuenta.descripcion.toLowerCase().includes(terminoLower))
+    );
+  },
+
+  // Mapear cuenta del backend al frontend
+  mapearCuentaBackendAFrontend(cuentaBackend) {
+    return {
+      id: cuentaBackend.id,
+      codigo_completo: cuentaBackend.codigo_completo,
+      descripcion: cuentaBackend.descripcion, // Campo principal
+      codigo_clase: cuentaBackend.codigo_clase,
+      codigo_grupo: cuentaBackend.codigo_grupo,
+      codigo_cuenta: cuentaBackend.codigo_cuenta,
+      codigo_subcuenta: cuentaBackend.codigo_subcuenta,
+      codigo_detalle: cuentaBackend.codigo_detalle,
+      codigo_padre: cuentaBackend.codigo_padre,
+      tipo_cuenta: cuentaBackend.tipo_cuenta,
+      naturaleza: cuentaBackend.naturaleza,
+      estado: cuentaBackend.estado,
+      nivel: cuentaBackend.nivel,
+      tipo_cta: cuentaBackend.tipo_cta,
+      acepta_movimientos: cuentaBackend.acepta_movimientos,
+      requiere_tercero: cuentaBackend.requiere_tercero,
+      requiere_centro_costo: cuentaBackend.requiere_centro_costo,
+      activo: cuentaBackend.activo,
+      saldo_inicial: cuentaBackend.saldo_inicial,
+      saldo_final: cuentaBackend.saldo_final,
+      movimientos_debito: cuentaBackend.movimientos_debito,
+      movimientos_credito: cuentaBackend.movimientos_credito,
+      centro_costos: cuentaBackend.centro_costos,
+      aplica_dr110: cuentaBackend.aplica_dr110,
+      aplica_f350: cuentaBackend.aplica_f350,
+      aplica_f300: cuentaBackend.aplica_f300,
+      aplica_exogena: cuentaBackend.aplica_exogena,
+      aplica_ica: cuentaBackend.aplica_ica,
+      conciliacion_fiscal: cuentaBackend.conciliacion_fiscal,
+      tipo_om: cuentaBackend.tipo_om,
+      codigo_at: cuentaBackend.codigo_at,
+      codigo_ct: cuentaBackend.codigo_ct,
+      codigo_cc: cuentaBackend.codigo_cc,
+      codigo_ti: cuentaBackend.codigo_ti,
+      es_cuenta_niif: cuentaBackend.es_cuenta_niif,
+      codigo_niif: cuentaBackend.codigo_niif,
+      dinamica: cuentaBackend.dinamica,
+      id_movimiento: cuentaBackend.id_movimiento,
+      usuario_creacion: cuentaBackend.usuario_creacion,
+      fecha_creacion: cuentaBackend.fecha_creacion,
+      usuario_modificacion: cuentaBackend.usuario_modificacion,
+      fecha_modificacion: cuentaBackend.fecha_modificacion,
+      fila_excel: cuentaBackend.fila_excel,
+      observaciones: cuentaBackend.observaciones
+    };
+  },
+
+  // Validar integridad de cuenta
+  validarIntegridadCuenta(cuenta) {
+    const errores = [];
+
+    if (!cuenta.codigo_completo) {
+      errores.push('Código completo es requerido');
     }
-    
-    if (padreEsperado && padreEsperado !== codigoPadre) {
-      return { valido: false, error: `Código padre debe ser: ${padreEsperado}` };
+
+    if (!cuenta.descripcion || cuenta.descripcion.trim().length === 0) {
+      errores.push('Descripción es requerida');
     }
-    
-    return { valido: true };
+
+    if (cuenta.codigo_padre) {
+      const codigoPadreEsperado = this.generarCodigoPadre(cuenta.codigo_completo);
+      if (cuenta.codigo_padre !== codigoPadreEsperado) {
+        errores.push('Código padre no coincide con la jerarquía esperada');
+      }
+    }
+
+    const nivelEsperado = this.determinarNivel(cuenta.codigo_completo);
+    if (cuenta.nivel !== nivelEsperado) {
+      errores.push('Nivel no coincide con la estructura del código');
+    }
+
+    return {
+      valida: errores.length === 0,
+      errores
+    };
   }
 };
 
-// ===============================================
-// 🚨 MANEJO GLOBAL DE ERRORES DE API
-// ===============================================
-
-// Interceptor global para errores de autenticación
-const originalFetch = window.fetch;
-window.fetch = async (...args) => {
-  const response = await originalFetch(...args);
-  
-  // Si es 401, limpiar tokens y redirigir al login
-  if (response.status === 401 && args[0].includes('/api/v1/')) {
-    apiLog('warning', 'Token expirado, limpiando sesión');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('authToken');
-    
-    // Redirigir al login si no estamos ya ahí
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
-    }
-  }
-  
-  return response;
-};
-
-// Export por defecto
 export default pucApi;

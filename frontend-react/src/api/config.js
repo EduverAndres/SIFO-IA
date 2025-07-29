@@ -1,30 +1,32 @@
-// frontend-react/src/api/config.js
+// frontend-react/src/api/config.js - CONECTADO CON TU BACKEND
 import axios from 'axios';
 
-// Configuración base de la API
+// Configuración base de la API para conectar con tu backend NestJS
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1', // Corregida para tu backend
-  timeout: 30000, // 30 segundos
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1', // Tu estructura de backend
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 });
 
-// Interceptor de request - para agregar token de autenticación si es necesario
+// Interceptor de request
 api.interceptors.request.use(
   (config) => {
-    // Agregar token de autenticación si existe
+    // Agregar token si existe
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log de request en desarrollo
+    // Log en desarrollo
     if (process.env.NODE_ENV === 'development') {
-      console.log('API Request:', {
-        method: config.method,
+      console.log('🚀 API Request:', {
+        method: config.method?.toUpperCase(),
         url: config.url,
+        baseURL: config.baseURL,
+        fullURL: `${config.baseURL}${config.url}`,
         data: config.data,
       });
     }
@@ -32,17 +34,17 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('Request Error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Interceptor de response - para manejar errores globalmente
+// Interceptor de response
 api.interceptors.response.use(
   (response) => {
-    // Log de response en desarrollo
+    // Log en desarrollo
     if (process.env.NODE_ENV === 'development') {
-      console.log('API Response:', {
+      console.log('✅ API Response:', {
         status: response.status,
         url: response.config.url,
         data: response.data,
@@ -52,49 +54,35 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Manejo de errores comunes
+    // Manejo de errores
     if (error.response) {
-      // Error del servidor (4xx, 5xx)
       const { status, data } = error.response;
       
-      switch (status) {
-        case 401:
-          console.error('Error 401: No autorizado');
-          // Opcional: redirect a login
-          // window.location.href = '/login';
-          break;
-        case 403:
-          console.error('Error 403: Acceso denegado');
-          break;
-        case 404:
-          console.error('Error 404: Recurso no encontrado');
-          break;
-        case 500:
-          console.error('Error 500: Error interno del servidor');
-          break;
-        default:
-          console.error(`Error ${status}:`, data?.message || 'Error desconocido');
-      }
+      console.error(`❌ API Error ${status}:`, {
+        url: error.config?.url,
+        message: data?.message,
+        errors: data?.errors
+      });
       
-      // Retornar error estructurado
-      return Promise.reject({
+      // Crear error estructurado compatible con tu backend
+      const structuredError = {
         status,
         message: data?.message || `Error ${status}`,
         data: data?.data || null,
         errors: data?.errors || [],
-      });
+      };
+      
+      return Promise.reject(structuredError);
     } else if (error.request) {
-      // Error de red
-      console.error('Error de red:', error.message);
+      console.error('❌ Network Error:', error.message);
       return Promise.reject({
         status: 0,
-        message: 'Error de conexión. Verifica tu conexión a internet.',
+        message: 'Error de conexión. Verifica tu conexión a internet y que el servidor esté ejecutándose.',
         data: null,
         errors: [],
       });
     } else {
-      // Error de configuración
-      console.error('Error de configuración:', error.message);
+      console.error('❌ Request Setup Error:', error.message);
       return Promise.reject({
         status: -1,
         message: error.message,
