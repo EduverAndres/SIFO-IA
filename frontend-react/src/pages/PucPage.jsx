@@ -1,4 +1,4 @@
-// frontend-react/src/pages/PucPage.jsx - VERSIÓN CORREGIDA
+// frontend-react/src/pages/PucPage.jsx - VERSIÓN MEJORADA CON FILTROS JERÁRQUICOS
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FaPlus,
@@ -21,12 +21,14 @@ import {
   FaSort,
   FaSortUp,
   FaSortDown,
-  FaRedo, // ✅ CORREGIDO
+  FaRedo,
   FaCog,
   FaChevronDown,
   FaChevronUp,
   FaDatabase,
-  FaChartBar
+  FaChartBar,
+  FaList,
+  FaTree
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -76,8 +78,9 @@ const PucPage = () => {
 
   // Filtros mejorados y perfeccionados
   const [filtros, setFiltros] = useState({
-    busqueda: '',
-    estado: 'ACTIVA',
+    busquedaCodigo: '', // Búsqueda específica por código
+    busquedaDescripcion: '', // Búsqueda por descripción
+    estado: '',
     naturaleza: '',
     tipo_cuenta: '',
     jerarquia: '',
@@ -87,11 +90,13 @@ const PucPage = () => {
     acepta_movimientos: '',
     rango_nivel: { min: '', max: '' },
     fecha_creacion: { desde: '', hasta: '' },
-    limite: 50, // Opciones: 10, 25, 50, 100, 'todos'
+    limite: 50,
     pagina: 1,
     incluir_inactivas: false,
     solo_con_movimientos: false,
-    clase_contable: ''
+    clase_contable: '',
+    mostrar_todas: false, // Nueva opción para mostrar TODAS las cuentas
+    busqueda_jerarquica: true // Si debe incluir padres e hijos en la búsqueda
   });
 
   // Estados de paginación
@@ -113,13 +118,13 @@ const PucPage = () => {
   const obtenerNivelJerarquia = useCallback((cuenta) => {
     const codigo = cuenta.codigo_completo;
     if (!codigo) return 0;
-    
+
     if (codigo.length === 1) return 1; // Clase
     if (codigo.length === 2) return 2; // Grupo  
     if (codigo.length === 4) return 3; // Cuenta
     if (codigo.length === 6) return 4; // Subcuenta
     if (codigo.length >= 8) return 5; // Detalle
-    
+
     return 0;
   }, []);
 
@@ -149,27 +154,30 @@ const PucPage = () => {
   // 🔧 FUNCIONES PRINCIPALES OPTIMIZADAS
   // ===============================================
 
-  const cargarDatos = useCallback(async (nuevaPage = 1) => {
+  // Reemplaza tu función cargarDatos con esta versión corregida:
+
+  const cargarDatos = useCallback(async (nuevaPage = 1, mostrarTodas = false) => {
     setLoading(true);
     setLoadingAction('cargando');
-    
+
     try {
       // Construir parámetros de filtro
       const params = {
         ...filtros,
         pagina: nuevaPage,
-        // Si limite es 'todos', enviamos un número muy alto
-        limite: filtros.limite === 'todos' ? 10000 : filtros.limite
+        // Aumentamos el límite a 100,000 para asegurar que traiga todas las 17,000 cuentas
+        limite: (filtros.mostrar_todas || mostrarTodas || filtros.limite === 'todos') ? 100000 : filtros.limite,
+        estado: filtros.mostrar_todas ? '' : filtros.estado // Si mostramos todas, ignoramos el filtro de estado
       };
 
       console.log('📊 Cargando cuentas con parámetros:', params);
-      
+
       const response = await pucApi.obtenerCuentas(params);
       const cuentasData = response.data || [];
-      
+
       setCuentasOriginales(cuentasData);
       setCuentas(aplicarFiltrosLocales(cuentasData));
-      
+
       // Actualizar paginación si viene del backend
       if (response.pagination) {
         setPaginacion({
@@ -182,7 +190,9 @@ const PucPage = () => {
 
       // Cargar estadísticas
       await cargarEstadisticas();
-      
+
+      console.log(`✅ Cargadas ${cuentasData.length} cuentas de ${response.pagination?.total || cuentasData.length} totales`);
+
     } catch (err) {
       console.error('❌ Error cargando cuentas:', err);
       setError('Error cargando cuentas: ' + (err.message || 'Error desconocido'));
@@ -201,107 +211,167 @@ const PucPage = () => {
     }
   }, []);
 
-const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
-  let cuentasFiltradas = [...cuentasRaw];
+  const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
+    let cuentasFiltradas = [...cuentasRaw];
 
-  if (filtros.codigoFiltroExacto) {
-    const codigoFiltro = filtros.codigoFiltroExacto.trim();
-    
-    // Filtrar cuentas que inicien con el códigoFiltro
-    let codigosIncluidos = new Set(
-      cuentasFiltradas
-        .filter(c => c.codigo_completo && c.codigo_completo.startsWith(codigoFiltro))
-        .map(c => c.codigo_completo)
-    );
+    // Filtro por código específico con búsqueda jerárquica
+    if (filtros.busquedaCodigo) {
+      const codigoBusqueda = filtros.busquedaCodigo.trim();
 
-    // Función recursiva para incluir la jerarquía completa padres e hijos
-    const incluirJerarquiaCompleta = (codigosSet) => {
-      let cambio = false;
+      if (filtros.busqueda_jerarquica) {
+        // Búsqueda jerárquica: incluye padres e hijos
+        let codigosIncluidos = new Set();
 
-      // Incluir padres
-      cuentasRaw.forEach(cuenta => {
-        if (codigosSet.has(cuenta.codigo_completo) && cuenta.codigo_padre && !codigosSet.has(cuenta.codigo_padre)) {
-          codigosSet.add(cuenta.codigo_padre);
-          cambio = true;
-        }
-      });
+        // Encontrar todas las cuentas que coincidan exactamente o comiencen con el código
+        cuentasRaw.forEach(cuenta => {
+          if (cuenta.codigo_completo) {
+            // Coincidencia exacta
+            if (cuenta.codigo_completo === codigoBusqueda) {
+              codigosIncluidos.add(cuenta.codigo_completo);
+            }
+            // O que comience con el código buscado
+            else if (cuenta.codigo_completo.startsWith(codigoBusqueda)) {
+              codigosIncluidos.add(cuenta.codigo_completo);
+            }
+          }
+        });
 
-      // Incluir hijos
-      cuentasRaw.forEach(cuenta => {
-        if (cuenta.codigo_padre && codigosSet.has(cuenta.codigo_padre) && !codigosSet.has(cuenta.codigo_completo)) {
-          codigosSet.add(cuenta.codigo_completo);
-          cambio = true;
-        }
-      });
+        // Función recursiva para incluir toda la jerarquía
+        const incluirJerarquiaCompleta = (codigosSet) => {
+          let cambio = false;
 
-      if (cambio) incluirJerarquiaCompleta(codigosSet);
-    };
+          // Incluir todos los padres
+          cuentasRaw.forEach(cuenta => {
+            if (codigosSet.has(cuenta.codigo_completo) && cuenta.codigo_padre) {
+              // Buscar el padre
+              const padre = cuentasRaw.find(c => c.codigo_completo === cuenta.codigo_padre);
+              if (padre && !codigosSet.has(padre.codigo_completo)) {
+                codigosSet.add(padre.codigo_completo);
+                cambio = true;
+              }
+            }
+          });
 
-    incluirJerarquiaCompleta(codigosIncluidos);
+          // Incluir todos los hijos
+          cuentasRaw.forEach(cuenta => {
+            if (cuenta.codigo_padre && codigosSet.has(cuenta.codigo_padre) && !codigosSet.has(cuenta.codigo_completo)) {
+              codigosSet.add(cuenta.codigo_completo);
+              cambio = true;
+            }
+          });
 
-    cuentasFiltradas = cuentasRaw.filter(c => codigosIncluidos.has(c.codigo_completo));
-  }
+          // Si hubo cambios, repetir el proceso
+          if (cambio) {
+            incluirJerarquiaCompleta(codigosSet);
+          }
+        };
 
-  // Aquí sigue el resto de filtros que ya tienes (jerarquía, solo padres, rango nivel, etc.)
-  if (filtros.jerarquia) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-      const esPadre = esCuentaPadre(cuenta, cuentasRaw);
-      const nivel = obtenerNivelJerarquia(cuenta);
-      switch (filtros.jerarquia) {
-        case 'padre': return esPadre;
-        case 'hija': return !esPadre;
-        case 'nivel1': return nivel === 1;
-        case 'nivel2': return nivel === 2;
-        case 'nivel3': return nivel === 3;
-        case 'nivel4': return nivel === 4;
-        case 'nivel5': return nivel >= 5;
-        default: return true;
+        // Aplicar la inclusión jerárquica
+        incluirJerarquiaCompleta(codigosIncluidos);
+
+        // Filtrar solo las cuentas incluidas
+        cuentasFiltradas = cuentasRaw.filter(c => codigosIncluidos.has(c.codigo_completo));
+      } else {
+        // Búsqueda simple: solo cuentas que coincidan o comiencen con el código
+        cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
+          cuenta.codigo_completo && (
+            cuenta.codigo_completo === codigoBusqueda ||
+            cuenta.codigo_completo.startsWith(codigoBusqueda)
+          )
+        );
       }
-    });
-  }
-
-  if (filtros.solo_padres) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => esCuentaPadre(cuenta, cuentasRaw));
-  }
-
-  if (filtros.solo_hijas) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => !esCuentaPadre(cuenta, cuentasRaw));
-  }
-
-  if (filtros.codigo_padre) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_padre === filtros.codigo_padre);
-  }
-
-  if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-      const nivel = obtenerNivelJerarquia(cuenta);
-      const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
-      const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
-      return nivel >= min && nivel <= max;
-    });
-  }
-
-  if (filtros.clase_contable) {
-    cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable));
-  }
-
-  cuentasFiltradas.sort((a, b) => {
-    let valorA = a[ordenamiento.campo] || '';
-    let valorB = b[ordenamiento.campo] || '';
-    if (ordenamiento.campo === 'codigo_completo') {
-      valorA = valorA.padStart(15, '0');
-      valorB = valorB.padStart(15, '0');
     }
-    if (typeof valorA === 'string') {
-      valorA = valorA.toLowerCase();
-      valorB = valorB.toLowerCase();
+
+    // Filtro por descripción (independiente del código)
+    if (filtros.busquedaDescripcion) {
+      const busquedaDesc = filtros.busquedaDescripcion.toLowerCase().trim();
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
+        cuenta.descripcion && cuenta.descripcion.toLowerCase().includes(busquedaDesc)
+      );
     }
-    return ordenamiento.direccion === 'asc' ? (valorA > valorB ? 1 : -1) : (valorA < valorB ? 1 : -1);
-  });
 
-  return cuentasFiltradas;
-}, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
+    // Filtro por jerarquía
+    if (filtros.jerarquia) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+        const esPadre = esCuentaPadre(cuenta, cuentasRaw);
+        const nivel = obtenerNivelJerarquia(cuenta);
+        switch (filtros.jerarquia) {
+          case 'padre': return esPadre;
+          case 'hija': return !esPadre;
+          case 'nivel1': return nivel === 1;
+          case 'nivel2': return nivel === 2;
+          case 'nivel3': return nivel === 3;
+          case 'nivel4': return nivel === 4;
+          case 'nivel5': return nivel >= 5;
+          default: return true;
+        }
+      });
+    }
 
+    // Otros filtros existentes
+    if (filtros.solo_padres) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => esCuentaPadre(cuenta, cuentasRaw));
+    }
+
+    if (filtros.solo_hijas) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => !esCuentaPadre(cuenta, cuentasRaw));
+    }
+
+    if (filtros.codigo_padre) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_padre === filtros.codigo_padre);
+    }
+
+    if (filtros.acepta_movimientos !== '') {
+      const aceptaMov = filtros.acepta_movimientos === 'true';
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.acepta_movimientos === aceptaMov);
+    }
+
+    if (filtros.naturaleza) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.naturaleza === filtros.naturaleza);
+    }
+
+    if (filtros.tipo_cuenta) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.tipo_cuenta === filtros.tipo_cuenta);
+    }
+
+    if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+        const nivel = obtenerNivelJerarquia(cuenta);
+        const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
+        const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
+        return nivel >= min && nivel <= max;
+      });
+    }
+
+    if (filtros.clase_contable) {
+      cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
+        cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable)
+      );
+    }
+
+    // Ordenamiento
+    cuentasFiltradas.sort((a, b) => {
+      let valorA = a[ordenamiento.campo] || '';
+      let valorB = b[ordenamiento.campo] || '';
+
+      if (ordenamiento.campo === 'codigo_completo') {
+        // Ordenamiento numérico para códigos
+        valorA = valorA.padStart(15, '0');
+        valorB = valorB.padStart(15, '0');
+      }
+
+      if (typeof valorA === 'string') {
+        valorA = valorA.toLowerCase();
+        valorB = valorB.toLowerCase();
+      }
+
+      return ordenamiento.direccion === 'asc'
+        ? (valorA > valorB ? 1 : -1)
+        : (valorA < valorB ? 1 : -1);
+    });
+
+    return cuentasFiltradas;
+  }, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
 
   // Memoizar cuentas filtradas para optimización
   const cuentasMemo = useMemo(() => {
@@ -342,14 +412,14 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
 
   const crearCuenta = useCallback(async (e) => {
     e.preventDefault();
-    
+
     if (!formData.codigo_completo?.trim() || !formData.descripcion?.trim()) {
       setError('❌ Por favor complete todos los campos requeridos');
       return;
     }
 
     setLoadingAction('creando');
-    
+
     try {
       await pucApi.crearCuenta(formData);
       setSuccess('✅ Cuenta creada exitosamente');
@@ -387,14 +457,14 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
   const actualizarCuenta = useCallback(async (e) => {
     e.preventDefault();
     if (!selectedAccount) return;
-    
+
     if (!formData.descripcion?.trim()) {
       setError('❌ La descripción es requerida');
       return;
     }
 
     setLoadingAction('actualizando');
-    
+
     try {
       await pucApi.actualizarCuenta(selectedAccount.id, formData);
       setSuccess('✅ Cuenta actualizada exitosamente');
@@ -421,9 +491,9 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
 
   const confirmarEliminacion = useCallback(async () => {
     if (!accountToDelete) return;
-    
+
     setLoadingAction('eliminando');
-    
+
     try {
       await pucApi.eliminarCuenta(accountToDelete.id);
       setSuccess('✅ Cuenta eliminada exitosamente');
@@ -471,10 +541,18 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
   // 🔍 FUNCIONES DE FILTROS PERFECCIONADAS
   // ===============================================
 
-  const manejarBusqueda = useCallback((e) => {
+  const manejarBusquedaCodigo = useCallback((e) => {
     setFiltros(prev => ({
       ...prev,
-      busqueda: e.target.value,
+      busquedaCodigo: e.target.value,
+      pagina: 1
+    }));
+  }, []);
+
+  const manejarBusquedaDescripcion = useCallback((e) => {
+    setFiltros(prev => ({
+      ...prev,
+      busquedaDescripcion: e.target.value,
       pagina: 1
     }));
   }, []);
@@ -482,11 +560,10 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
   const filtrarPorPadre = useCallback((codigoPadre) => {
     setFiltros(prev => ({
       ...prev,
-      busqueda: '',
-      codigo_padre: codigoPadre,
-      solo_hijas: true,
-      solo_padres: false,
-      jerarquia: 'hija'
+      busquedaCodigo: codigoPadre,
+      busquedaDescripcion: '',
+      codigo_padre: '',
+      busqueda_jerarquica: true
     }));
   }, []);
 
@@ -496,8 +573,9 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
 
   const limpiarFiltros = useCallback(() => {
     setFiltros({
-      busqueda: '',
-      estado: 'ACTIVA',
+      busquedaCodigo: '',
+      busquedaDescripcion: '',
+      estado: '',
       naturaleza: '',
       tipo_cuenta: '',
       jerarquia: '',
@@ -511,7 +589,9 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
       pagina: 1,
       incluir_inactivas: false,
       solo_con_movimientos: false,
-      clase_contable: ''
+      clase_contable: '',
+      mostrar_todas: false,
+      busqueda_jerarquica: true
     });
     setOrdenamiento({ campo: 'codigo_completo', direccion: 'asc' });
   }, []);
@@ -537,6 +617,23 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
     }));
   }, []);
 
+  const toggleMostrarTodas = useCallback(() => {
+    setFiltros(prev => ({
+      ...prev,
+      mostrar_todas: !prev.mostrar_todas,
+      estado: !prev.mostrar_todas ? '' : 'ACTIVA',
+      limite: !prev.mostrar_todas ? 'todos' : 50,
+      pagina: 1
+    }));
+  }, []);
+
+  const toggleBusquedaJerarquica = useCallback(() => {
+    setFiltros(prev => ({
+      ...prev,
+      busqueda_jerarquica: !prev.busqueda_jerarquica
+    }));
+  }, []);
+
   // ===============================================
   // 🎨 FUNCIONES AUXILIARES
   // ===============================================
@@ -553,7 +650,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
   }, []);
 
   const obtenerColorNaturaleza = useCallback((naturaleza) => {
-    return naturaleza === 'DEBITO' 
+    return naturaleza === 'DEBITO'
       ? 'bg-green-100 text-green-800'
       : 'bg-blue-100 text-blue-800';
   }, []);
@@ -571,7 +668,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
 
   const obtenerIconoOrdenamiento = useCallback((campo) => {
     if (ordenamiento.campo !== campo) return <FaSort className="text-gray-400" />;
-    return ordenamiento.direccion === 'asc' 
+    return ordenamiento.direccion === 'asc'
       ? <FaSortUp className="text-blue-600" />
       : <FaSortDown className="text-blue-600" />;
   }, [ordenamiento]);
@@ -604,7 +701,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
 
   const EstadisticasHeader = () => (
     estadisticas && (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="flex items-center justify-between">
             <div>
@@ -614,7 +711,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             <FaDatabase className="text-blue-500 text-2xl" />
           </div>
         </div>
-        
+
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
           <div className="flex items-center justify-between">
             <div>
@@ -624,7 +721,17 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             <FaCheckCircle className="text-green-500 text-2xl" />
           </div>
         </div>
-        
+
+        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-600 text-sm font-medium">Inactivas</p>
+              <p className="text-2xl font-bold text-red-900">{estadisticas.inactivas || 0}</p>
+            </div>
+            <FaTimes className="text-red-500 text-2xl" />
+          </div>
+        </div>
+
         <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
           <div className="flex items-center justify-between">
             <div>
@@ -634,7 +741,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             <FaUsers className="text-purple-500 text-2xl" />
           </div>
         </div>
-        
+
         <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
           <div className="flex items-center justify-between">
             <div>
@@ -652,6 +759,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-gray-50 rounded-lg">
       <div className="flex items-center space-x-2">
         <span className="text-sm text-gray-600">Mostrar:</span>
+
         <Select
           value={filtros.limite}
           onChange={(e) => cambiarLimite(e.target.value)}
@@ -660,6 +768,9 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             { value: 25, label: '25 registros' },
             { value: 50, label: '50 registros' },
             { value: 100, label: '100 registros' },
+            { value: 500, label: '500 registros' },
+            { value: 1000, label: '1,000 registros' },
+            { value: 5000, label: '5,000 registros' },
             { value: 'todos', label: 'Todos los registros' }
           ]}
           className="min-w-32"
@@ -675,7 +786,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
           >
             Anterior
           </Button>
-          
+
           <div className="flex items-center space-x-1">
             {Array.from({ length: Math.min(5, paginacion.totalPaginas) }, (_, i) => {
               let pageNum;
@@ -688,23 +799,22 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               } else {
                 pageNum = paginacion.paginaActual - 2 + i;
               }
-              
+
               return (
                 <button
                   key={pageNum}
                   onClick={() => cambiarPagina(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    pageNum === paginacion.paginaActual
+                  className={`px-3 py-1 text-sm rounded ${pageNum === paginacion.paginaActual
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  }`}
+                    }`}
                 >
                   {pageNum}
                 </button>
               );
             })}
           </div>
-          
+
           <Button
             onClick={() => cambiarPagina(paginacion.paginaActual + 1)}
             disabled={paginacion.paginaActual >= paginacion.totalPaginas}
@@ -716,7 +826,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
       )}
 
       <div className="text-sm text-gray-600">
-        {filtros.limite === 'todos' 
+        {filtros.limite === 'todos'
           ? `Total: ${cuentas.length} registros`
           : `Página ${paginacion.paginaActual} de ${paginacion.totalPaginas} (${paginacion.total} total)`
         }
@@ -731,7 +841,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="p-6 space-y-6">
-        
+
         {/* Header perfeccionado */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
@@ -739,10 +849,10 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               Plan Único de Cuentas (PUC)
             </h1>
             <p className="text-gray-600">
-              Sistema perfeccionado de gestión contable con filtros avanzados y vista jerárquica
+              Sistema perfeccionado de gestión contable con búsqueda jerárquica avanzada
             </p>
           </div>
-          
+
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={() => cargarDatos(paginacion.paginaActual)}
@@ -752,7 +862,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Actualizar
             </Button>
-            
+
             <Button
               onClick={abrirModalCrear}
               className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
@@ -760,7 +870,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Nueva Cuenta
             </Button>
-            
+
             <Button
               onClick={abrirModalImportar}
               className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg"
@@ -768,7 +878,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Importar Excel
             </Button>
-            
+
             <Button
               onClick={abrirModalExportar}
               className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg"
@@ -782,93 +892,251 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
         {/* Estadísticas */}
         <EstadisticasHeader />
 
-{/* Filtros perfeccionados */}
-<div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-  <div className="flex flex-col space-y-4">
-    
-    {/* Primera fila - Filtros básicos */}
-    <div className="flex flex-col lg:flex-row gap-4">
-      <div className="flex-1">
-        <Input
-          placeholder="🔍 Buscar por código, descripción o cualquier campo..."
-          value={filtros.busqueda}
-          onChange={manejarBusqueda}
-          icon={FaSearch}
-        />
-      </div>
+        {/* Filtros perfeccionados con búsqueda jerárquica */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex flex-col space-y-4">
 
-      {/* Filtro puntual por código de cuenta (padre o hijo) */}
-      <Input
-        placeholder="Código de cuenta puntual"
-        value={filtros.codigoFiltroExacto}
-        onChange={(e) => setFiltros(prev => ({
-          ...prev,
-          codigoFiltroExacto: e.target.value,
-          pagina: 1
-        }))}
-        className="w-52"
-        maxLength={20}
-      />
+            {/* Primera fila - Búsqueda por código específico */}
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar por código de cuenta específico (ej: 1105, 110505)"
+                    value={filtros.busquedaCodigo}
+                    onChange={manejarBusquedaCodigo}
+                    icon={FaSearch}
+                    className="pr-32"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-2">
+                    <label className="flex items-center space-x-1 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={filtros.busqueda_jerarquica}
+                        onChange={toggleBusquedaJerarquica}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Jerárquica</span>
+                      <FaTree className="text-blue-500" />
+                    </label>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {filtros.busqueda_jerarquica
+                    ? "✓ Incluirá todas las cuentas padre e hijas relacionadas"
+                    : "Solo mostrará cuentas que coincidan o comiencen con el código"}
+                </p>
+              </div>
 
-      <div className="flex gap-3">
-        <Select
-          value={filtros.estado}
-          onChange={(e) => setFiltros(prev => ({...prev, estado: e.target.value, pagina: 1}))}
-          options={[
-            { value: '', label: 'Todos los estados' },
-            { value: 'ACTIVA', label: '✅ Activas' },
-            { value: 'INACTIVA', label: '❌ Inactivas' }
-          ]}
-          className="min-w-40"
-        />
-        <Select
-          value={filtros.clase_contable}
-          onChange={(e) => setFiltros(prev => ({...prev, clase_contable: e.target.value, pagina: 1}))}
-          options={[
-            { value: '', label: 'Todas las clases' },
-            { value: '1', label: '1 - Activos' },
-            { value: '2', label: '2 - Pasivos' },
-            { value: '3', label: '3 - Patrimonio' },
-            { value: '4', label: '4 - Ingresos' },
-            { value: '5', label: '5 - Gastos' },
-            { value: '6', label: '6 - Costos de Ventas' },
-            { value: '7', label: '7 - Costos de Producción' },
-            { value: '8', label: '8 - Cuentas de Orden Deudoras' },
-            { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
-          ]}
-          className="min-w-48"
-        />
-        <Button
-          onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
-          icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
-        >
-          <span>Filtros Avanzados</span>
-        </Button>
-        <Button
-          onClick={limpiarFiltros}
-          className="bg-gray-500 hover:bg-gray-600 text-white"
-          icon={FaTimes}
-        >
-          Limpiar
-        </Button>
-      </div>
-    </div>
+              <div className="flex-1">
+                <Input
+                  placeholder="Buscar por descripción"
+                  value={filtros.busquedaDescripcion}
+                  onChange={manejarBusquedaDescripcion}
+                  icon={FaFileAlt}
+                />
+              </div>
+            </div>
 
-    {/* Filtros avanzados (collapsible) */}
-    {mostrarFiltrosAvanzados && (
-      <div className="border-t pt-4 space-y-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaFilter className="mr-2" />
-          Filtros Avanzados
-        </h4>
-        {/* ...resto de filtros avanzados igual que ya tienes... */}
-        {/* Aquí tu código original de filtros avanzados */}
-      </div>
-    )}
-  </div>
-</div>
+            {/* Segunda fila - Filtros principales */}
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex gap-3 flex-1">
+                <Select
+                  value={filtros.estado}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value, pagina: 1 }))}
+                  options={[
+                    { value: '', label: 'Todos los estados' },
+                    { value: 'ACTIVA', label: '✅ Activas' },
+                    { value: 'INACTIVA', label: '❌ Inactivas' }
+                  ]}
+                  className="min-w-40"
+                />
 
+                <Select
+                  value={filtros.clase_contable}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, clase_contable: e.target.value, pagina: 1 }))}
+                  options={[
+                    { value: '', label: 'Todas las clases' },
+                    { value: '1', label: '1 - Activos' },
+                    { value: '2', label: '2 - Pasivos' },
+                    { value: '3', label: '3 - Patrimonio' },
+                    { value: '4', label: '4 - Ingresos' },
+                    { value: '5', label: '5 - Gastos' },
+                    { value: '6', label: '6 - Costos de Ventas' },
+                    { value: '7', label: '7 - Costos de Producción' },
+                    { value: '8', label: '8 - Cuentas de Orden Deudoras' },
+                    { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
+                  ]}
+                  className="min-w-48"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={toggleMostrarTodas}
+                  className={`${filtros.mostrar_todas
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-gray-600 hover:bg-gray-700'
+                    } text-white flex items-center space-x-2`}
+                  icon={FaList}
+                >
+                  <span>{filtros.mostrar_todas ? 'Mostrando Todas' : 'Mostrar Todas'}</span>
+                </Button>
+
+                <Button
+                  onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
+                  icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
+                >
+                  <span>Filtros Avanzados</span>
+                </Button>
+
+                <Button
+                  onClick={limpiarFiltros}
+                  className="bg-gray-500 hover:bg-gray-600 text-white"
+                  icon={FaTimes}
+                >
+                  Limpiar
+                </Button>
+              </div>
+            </div>
+
+            {/* Filtros avanzados (collapsible) */}
+            {mostrarFiltrosAvanzados && (
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <FaFilter className="mr-2" />
+                  Filtros Avanzados
+                </h4>
+
+                {/* Primera fila de filtros avanzados */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    value={filtros.naturaleza}
+                    onChange={(e) => setFiltros(prev => ({ ...prev, naturaleza: e.target.value, pagina: 1 }))}
+                    options={[
+                      { value: '', label: 'Todas las naturalezas' },
+                      { value: 'DEBITO', label: '📈 Débito' },
+                      { value: 'CREDITO', label: '📉 Crédito' }
+                    ]}
+                  />
+
+                  <Select
+                    value={filtros.tipo_cuenta}
+                    onChange={(e) => setFiltros(prev => ({ ...prev, tipo_cuenta: e.target.value, pagina: 1 }))}
+                    options={[
+                      { value: '', label: 'Todos los tipos' },
+                      { value: 'CLASE', label: '🏛️ Clase' },
+                      { value: 'GRUPO', label: '📁 Grupo' },
+                      { value: 'CUENTA', label: '📋 Cuenta' },
+                      { value: 'SUBCUENTA', label: '📄 Subcuenta' },
+                      { value: 'DETALLE', label: '🔸 Detalle' }
+                    ]}
+                  />
+
+                  <Select
+                    value={filtros.jerarquia}
+                    onChange={(e) => setFiltros(prev => ({ ...prev, jerarquia: e.target.value, pagina: 1 }))}
+                    options={[
+                      { value: '', label: 'Toda la jerarquía' },
+                      { value: 'padre', label: 'Solo cuentas padre' },
+                      { value: 'hija', label: 'Solo cuentas hija' },
+                      { value: 'nivel1', label: 'Nivel 1 - Clases' },
+                      { value: 'nivel2', label: 'Nivel 2 - Grupos' },
+                      { value: 'nivel3', label: 'Nivel 3 - Cuentas' },
+                      { value: 'nivel4', label: 'Nivel 4 - Subcuentas' },
+                      { value: 'nivel5', label: 'Nivel 5+ - Detalles' }
+                    ]}
+                  />
+                </div>
+
+                {/* Segunda fila de filtros avanzados */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    value={filtros.acepta_movimientos}
+                    onChange={(e) => setFiltros(prev => ({ ...prev, acepta_movimientos: e.target.value, pagina: 1 }))}
+                    options={[
+                      { value: '', label: 'Todas las cuentas' },
+                      { value: 'true', label: '✓ Acepta movimientos' },
+                      { value: 'false', label: '✗ No acepta movimientos' }
+                    ]}
+                  />
+
+                  <Input
+                    placeholder="Código padre específico"
+                    value={filtros.codigo_padre}
+                    onChange={(e) => setFiltros(prev => ({ ...prev, codigo_padre: e.target.value, pagina: 1 }))}
+                  />
+
+                  <div className="flex space-x-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.solo_padres}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev,
+                          solo_padres: e.target.checked,
+                          solo_hijas: false,
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">Solo padres</span>
+                    </label>
+
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={filtros.solo_hijas}
+                        onChange={(e) => setFiltros(prev => ({
+                          ...prev,
+                          solo_hijas: e.target.checked,
+                          solo_padres: false,
+                          pagina: 1
+                        }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">Solo hijas</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Tercera fila - Rango de niveles */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Rango de niveles:</span>
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={filtros.rango_nivel.min}
+                      onChange={(e) => setFiltros(prev => ({
+                        ...prev,
+                        rango_nivel: { ...prev.rango_nivel, min: e.target.value },
+                        pagina: 1
+                      }))}
+                      className="w-20"
+                      min="1"
+                      max="5"
+                    />
+                    <span className="text-gray-500">-</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={filtros.rango_nivel.max}
+                      onChange={(e) => setFiltros(prev => ({
+                        ...prev,
+                        rango_nivel: { ...prev.rango_nivel, max: e.target.value },
+                        pagina: 1
+                      }))}
+                      className="w-20"
+                      min="1"
+                      max="5"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Mensajes */}
         {error && (
@@ -901,7 +1169,15 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Cuentas del PUC</h2>
+              <h2 className="text-xl font-semibold text-gray-800">
+                Cuentas del PUC
+                {filtros.busquedaCodigo && (
+                  <span className="text-sm font-normal text-gray-600 ml-2">
+                    - Código: {filtros.busquedaCodigo}
+                    {filtros.busqueda_jerarquica && " (con jerarquía completa)"}
+                  </span>
+                )}
+              </h2>
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-500">
                   {loading ? 'Cargando...' : `${cuentas.length} cuentas mostradas`}
@@ -932,7 +1208,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 </div>
                 <p className="text-gray-500 text-lg">No se encontraron cuentas</p>
                 <p className="text-gray-400 text-sm">
-                  {filtros.busqueda || Object.values(filtros).some(v => v && v !== 'ACTIVA' && v !== 50 && v !== 1)
+                  {filtros.busquedaCodigo || filtros.busquedaDescripcion || Object.values(filtros).some(v => v && v !== '' && v !== 50 && v !== 1 && v !== true)
                     ? 'Intenta ajustar los filtros o crear una nueva cuenta'
                     : 'Haz clic en "Nueva Cuenta" para crear la primera'
                   }
@@ -943,7 +1219,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th 
+                      <th
                         className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                         onClick={() => cambiarOrdenamiento('codigo_completo')}
                       >
@@ -953,7 +1229,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                           {obtenerIconoOrdenamiento('codigo_completo')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                         onClick={() => cambiarOrdenamiento('descripcion')}
                       >
@@ -962,7 +1238,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                           {obtenerIconoOrdenamiento('descripcion')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                         onClick={() => cambiarOrdenamiento('tipo_cuenta')}
                       >
@@ -971,7 +1247,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                           {obtenerIconoOrdenamiento('tipo_cuenta')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                         onClick={() => cambiarOrdenamiento('naturaleza')}
                       >
@@ -980,7 +1256,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                           {obtenerIconoOrdenamiento('naturaleza')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                         onClick={() => cambiarOrdenamiento('estado')}
                       >
@@ -997,15 +1273,13 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                     {cuentas.map((cuenta, index) => {
                       const esPadre = esCuentaPadre(cuenta, cuentasOriginales);
                       const nivel = obtenerNivelJerarquia(cuenta);
-                      const indentacion = obtenerIndentacion(cuenta);
+                      const indentacion = vistaArbol ? obtenerIndentacion(cuenta) : 0;
                       const cuentasHijas = cuentasOriginales.filter(c => c.codigo_padre === cuenta.codigo_completo);
                       const claseContable = obtenerClaseContable(cuenta.codigo_completo);
 
-                      
-                      
                       return (
-                        <tr 
-                          key={cuenta.id} 
+                        <tr
+                          key={cuenta.id}
                           className={`
                             border-b border-gray-100 hover:bg-blue-50 transition-all duration-200
                             ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
@@ -1015,7 +1289,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                           <td className="py-3 px-4">
                             <div className="flex items-center space-x-2" style={{ paddingLeft: `${indentacion}px` }}>
                               {/* Indicador visual de jerarquía */}
-                              {nivel > 1 && (
+                              {nivel > 1 && vistaArbol && (
                                 <div className="flex items-center space-x-1">
                                   {Array.from({ length: nivel - 1 }).map((_, i) => (
                                     <div key={i} className="w-px h-4 bg-gray-300"></div>
@@ -1023,42 +1297,39 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                                   <div className="w-3 h-px bg-gray-300"></div>
                                 </div>
                               )}
-                              
+
                               {/* Icono de tipo de cuenta */}
                               <span className="text-lg">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
-                              
+
                               {/* Indicador padre/hija */}
                               {esPadre ? (
                                 <div className="w-2 h-2 bg-purple-500 rounded-full" title="Cuenta Padre"></div>
                               ) : (
                                 <div className="w-2 h-2 bg-blue-400 rounded-full" title="Cuenta Hija"></div>
                               )}
-                              
+
                               {/* Código de la cuenta */}
                               <div className="flex flex-col">
-                                <span className={`font-mono font-bold ${
-                                  esPadre ? 'text-purple-900' : 'text-gray-900'
-                                }`}>
+                                <span className={`font-mono font-bold ${esPadre ? 'text-purple-900' : 'text-gray-900'
+                                  }`}>
                                   {cuenta.codigo_completo}
                                 </span>
                                 <span className="text-xs text-gray-500">{claseContable}</span>
                               </div>
-                              
+
                               {/* Badge de nivel */}
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                esPadre 
-                                  ? 'bg-purple-100 text-purple-700' 
+                              <span className={`text-xs px-2 py-1 rounded-full ${esPadre
+                                  ? 'bg-purple-100 text-purple-700'
                                   : 'bg-blue-100 text-blue-700'
-                              }`}>
+                                }`}>
                                 N{nivel}
                               </span>
                             </div>
                           </td>
-                          
+
                           <td className="py-3 px-4">
-                            <div className={`font-medium ${
-                              esPadre ? 'text-purple-900 font-semibold' : 'text-gray-900'
-                            }`}>
+                            <div className={`font-medium ${esPadre ? 'text-purple-900 font-semibold' : 'text-gray-900'
+                              }`}>
                               {cuenta.descripcion || 'Sin descripción'}
                             </div>
                             {/* Mostrar código padre si existe */}
@@ -1069,34 +1340,32 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                             )}
                             {/* Mostrar si acepta movimientos */}
                             {cuenta.acepta_movimientos !== undefined && (
-                              <div className={`text-xs mt-1 ${
-                                cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'
-                              }`}>
+                              <div className={`text-xs mt-1 ${cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'
+                                }`}>
                                 {cuenta.acepta_movimientos ? '✓ Acepta mov.' : '✗ No acepta mov.'}
                               </div>
                             )}
                           </td>
-                          
+
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorTipoCuenta(cuenta.tipo_cuenta)}`}>
                               {cuenta.tipo_cuenta}
                             </span>
                           </td>
-                          
+
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
                               {cuenta.naturaleza}
                             </span>
                           </td>
-                          
+
                           <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              cuenta.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${cuenta.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
                               {cuenta.estado}
                             </span>
                           </td>
-                          
+
                           {/* Columna de jerarquía mejorada */}
                           <td className="py-3 px-4">
                             <div className="flex flex-col items-center space-y-1">
@@ -1121,7 +1390,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                               )}
                             </div>
                           </td>
-                          
+
                           <td className="py-3 px-4">
                             <div className="flex space-x-2">
                               <button
@@ -1148,16 +1417,16 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                               >
                                 <FaTrash />
                               </button>
-                              
-                              {/* Botón especial para cuentas padre */}
-                              {esPadre && cuentasHijas.length > 0 && (
+
+                              {/* Botón especial para cuentas padre o búsqueda jerárquica */}
+                              {(esPadre || cuenta.codigo_completo) && (
                                 <button
                                   onClick={() => filtrarPorPadre(cuenta.codigo_completo)}
                                   className="p-2 text-purple-600 hover:bg-purple-100 rounded transition-colors"
-                                  title={`Ver ${cuentasHijas.length} cuentas hijas`}
+                                  title={`Ver jerarquía completa de ${cuenta.codigo_completo}`}
                                   disabled={loadingAction}
                                 >
-                                  <FaUsers />
+                                  <FaTree />
                                 </button>
                               )}
                             </div>
@@ -1189,10 +1458,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
         )}
       </div>
 
-      {/* =============================================== */}
-      {/* 🔥 MODALES CRUD COMPLETOS */}
-      {/* =============================================== */}
-
+      {/* MODALES - Mantener los existentes sin cambios */}
       {/* Modal Crear Cuenta */}
       <Modal
         show={showCreateModal}
@@ -1211,21 +1477,21 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <span className="mr-2">📝</span>
               Información Básica
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Código Completo *"
                 placeholder="Ej: 1105001"
                 value={formData.codigo_completo}
-                onChange={(e) => setFormData({...formData, codigo_completo: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, codigo_completo: e.target.value })}
                 required
                 disabled={loadingAction === 'creando'}
               />
-              
+
               <Select
                 label="Tipo de Cuenta *"
                 value={formData.tipo_cuenta}
-                onChange={(e) => setFormData({...formData, tipo_cuenta: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, tipo_cuenta: e.target.value })}
                 options={[
                   { value: 'CLASE', label: '🏛️ Clase' },
                   { value: 'GRUPO', label: '📁 Grupo' },
@@ -1243,7 +1509,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 label="Descripción *"
                 placeholder="Descripción detallada de la cuenta"
                 value={formData.descripcion}
-                onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 required
                 disabled={loadingAction === 'creando'}
               />
@@ -1253,7 +1519,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <Select
                 label="Naturaleza *"
                 value={formData.naturaleza}
-                onChange={(e) => setFormData({...formData, naturaleza: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, naturaleza: e.target.value })}
                 options={[
                   { value: 'DEBITO', label: '📈 Débito' },
                   { value: 'CREDITO', label: '📉 Crédito' }
@@ -1266,7 +1532,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 label="Código Padre"
                 placeholder="Código cuenta padre (opcional)"
                 value={formData.codigo_padre}
-                onChange={(e) => setFormData({...formData, codigo_padre: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, codigo_padre: e.target.value })}
                 disabled={loadingAction === 'creando'}
               />
             </div>
@@ -1275,7 +1541,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <Select
                 label="Estado *"
                 value={formData.estado}
-                onChange={(e) => setFormData({...formData, estado: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
                 options={[
                   { value: 'ACTIVA', label: '✅ Activa' },
                   { value: 'INACTIVA', label: '❌ Inactiva' }
@@ -1289,7 +1555,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                   type="checkbox"
                   id="acepta_movimientos_crear"
                   checked={formData.acepta_movimientos}
-                  onChange={(e) => setFormData({...formData, acepta_movimientos: e.target.checked})}
+                  onChange={(e) => setFormData({ ...formData, acepta_movimientos: e.target.checked })}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   disabled={loadingAction === 'creando'}
                 />
@@ -1309,7 +1575,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Cancelar
             </Button>
-            
+
             <Button
               type="submit"
               className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white"
@@ -1322,6 +1588,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
         </form>
       </Modal>
 
+      {/* Los demás modales se mantienen igual... */}
       {/* Modal Editar Cuenta */}
       <Modal
         show={showEditModal}
@@ -1340,7 +1607,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <span className="mr-2">✏️</span>
               Modificar Información
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Código Completo (No editable)"
@@ -1348,11 +1615,11 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 disabled
                 className="bg-gray-100"
               />
-              
+
               <Select
                 label="Tipo de Cuenta *"
                 value={formData.tipo_cuenta}
-                onChange={(e) => setFormData({...formData, tipo_cuenta: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, tipo_cuenta: e.target.value })}
                 options={[
                   { value: 'CLASE', label: '🏛️ Clase' },
                   { value: 'GRUPO', label: '📁 Grupo' },
@@ -1370,7 +1637,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 label="Descripción *"
                 placeholder="Descripción detallada de la cuenta"
                 value={formData.descripcion}
-                onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 required
                 disabled={loadingAction === 'actualizando'}
               />
@@ -1380,7 +1647,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <Select
                 label="Naturaleza *"
                 value={formData.naturaleza}
-                onChange={(e) => setFormData({...formData, naturaleza: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, naturaleza: e.target.value })}
                 options={[
                   { value: 'DEBITO', label: '📈 Débito' },
                   { value: 'CREDITO', label: '📉 Crédito' }
@@ -1393,7 +1660,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 label="Código Padre"
                 placeholder="Código cuenta padre (opcional)"
                 value={formData.codigo_padre}
-                onChange={(e) => setFormData({...formData, codigo_padre: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, codigo_padre: e.target.value })}
                 disabled={loadingAction === 'actualizando'}
               />
             </div>
@@ -1402,7 +1669,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               <Select
                 label="Estado *"
                 value={formData.estado}
-                onChange={(e) => setFormData({...formData, estado: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
                 options={[
                   { value: 'ACTIVA', label: '✅ Activa' },
                   { value: 'INACTIVA', label: '❌ Inactiva' }
@@ -1416,7 +1683,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                   type="checkbox"
                   id="acepta_movimientos_editar"
                   checked={formData.acepta_movimientos}
-                  onChange={(e) => setFormData({...formData, acepta_movimientos: e.target.checked})}
+                  onChange={(e) => setFormData({ ...formData, acepta_movimientos: e.target.checked })}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   disabled={loadingAction === 'actualizando'}
                 />
@@ -1436,7 +1703,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Cancelar
             </Button>
-            
+
             <Button
               type="submit"
               className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
@@ -1469,7 +1736,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 ¿Estás seguro de eliminar esta cuenta?
               </h3>
             </div>
-            
+
             {accountToDelete && (
               <div className="space-y-2">
                 <p className="text-gray-700">
@@ -1486,10 +1753,10 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 </p>
               </div>
             )}
-            
+
             <div className="mt-4 p-4 bg-red-100 rounded-lg">
               <p className="text-red-800 text-sm">
-                <strong>⚠️ Advertencia:</strong> Esta acción eliminará físicamente la cuenta del sistema. 
+                <strong>⚠️ Advertencia:</strong> Esta acción eliminará físicamente la cuenta del sistema.
                 Solo procede si estás completamente seguro.
               </p>
             </div>
@@ -1504,7 +1771,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
             >
               Cancelar
             </Button>
-            
+
             <Button
               onClick={confirmarEliminacion}
               className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white"
@@ -1544,7 +1811,7 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                 </div>
               </div>
             </div>
-            
+
             {/* Información detallada */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
@@ -1569,9 +1836,8 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Estado:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        selectedAccount.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${selectedAccount.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
                         {selectedAccount.estado}
                       </span>
                     </div>
@@ -1591,11 +1857,10 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Acepta Movimientos:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        selectedAccount.acepta_movimientos 
-                          ? 'bg-green-100 text-green-800' 
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${selectedAccount.acepta_movimientos
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
-                      }`}>
+                        }`}>
                         {selectedAccount.acepta_movimientos ? 'Sí' : 'No'}
                       </span>
                     </div>
@@ -1607,11 +1872,10 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Es Padre:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        esCuentaPadre(selectedAccount, cuentasOriginales)
-                          ? 'bg-purple-100 text-purple-800' 
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${esCuentaPadre(selectedAccount, cuentasOriginales)
+                          ? 'bg-purple-100 text-purple-800'
                           : 'bg-blue-100 text-blue-800'
-                      }`}>
+                        }`}>
                         {esCuentaPadre(selectedAccount, cuentasOriginales) ? 'Sí' : 'No'}
                       </span>
                     </div>
@@ -1659,9 +1923,8 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
                       <div key={hija.id} className="flex items-center justify-between bg-white p-2 rounded text-sm">
                         <span className="font-mono">{hija.codigo_completo}</span>
                         <span className="text-gray-600 flex-1 px-2">{hija.descripcion}</span>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          hija.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
+                        <span className={`px-2 py-1 rounded text-xs ${hija.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
                           {hija.estado}
                         </span>
                       </div>
@@ -1683,20 +1946,18 @@ const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
               >
                 Editar
               </Button>
-              
-              {esCuentaPadre(selectedAccount, cuentasOriginales) && (
-                <Button
-                  onClick={() => {
-                    cerrarModalDetalle();
-                    filtrarPorPadre(selectedAccount.codigo_completo);
-                  }}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
-                  icon={FaUsers}
-                >
-                  Ver Hijas
-                </Button>
-              )}
-              
+
+              <Button
+                onClick={() => {
+                  cerrarModalDetalle();
+                  filtrarPorPadre(selectedAccount.codigo_completo);
+                }}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+                icon={FaTree}
+              >
+                Ver Jerarquía
+              </Button>
+
               <Button
                 onClick={cerrarModalDetalle}
                 className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
