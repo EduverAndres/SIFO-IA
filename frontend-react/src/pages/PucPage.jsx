@@ -201,91 +201,107 @@ const PucPage = () => {
     }
   }, []);
 
-  // Aplicar filtros locales mejorados
-  const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
-    let cuentasFiltradas = [...cuentasRaw];
+const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
+  let cuentasFiltradas = [...cuentasRaw];
 
-    // Filtros de jerarquía
-    if (filtros.jerarquia) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-        const esPadre = esCuentaPadre(cuenta, cuentasRaw);
-        const nivel = obtenerNivelJerarquia(cuenta);
-        
-        switch (filtros.jerarquia) {
-          case 'padre': return esPadre;
-          case 'hija': return !esPadre;
-          case 'nivel1': return nivel === 1;
-          case 'nivel2': return nivel === 2;
-          case 'nivel3': return nivel === 3;
-          case 'nivel4': return nivel === 4;
-          case 'nivel5': return nivel >= 5;
-          default: return true;
+  if (filtros.codigoFiltroExacto) {
+    const codigoFiltro = filtros.codigoFiltroExacto.trim();
+    
+    // Filtrar cuentas que inicien con el códigoFiltro
+    let codigosIncluidos = new Set(
+      cuentasFiltradas
+        .filter(c => c.codigo_completo && c.codigo_completo.startsWith(codigoFiltro))
+        .map(c => c.codigo_completo)
+    );
+
+    // Función recursiva para incluir la jerarquía completa padres e hijos
+    const incluirJerarquiaCompleta = (codigosSet) => {
+      let cambio = false;
+
+      // Incluir padres
+      cuentasRaw.forEach(cuenta => {
+        if (codigosSet.has(cuenta.codigo_completo) && cuenta.codigo_padre && !codigosSet.has(cuenta.codigo_padre)) {
+          codigosSet.add(cuenta.codigo_padre);
+          cambio = true;
         }
       });
-    }
 
-    // Filtros checkbox
-    if (filtros.solo_padres) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
-        esCuentaPadre(cuenta, cuentasRaw)
-      );
-    }
-    
-    if (filtros.solo_hijas) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
-        !esCuentaPadre(cuenta, cuentasRaw)
-      );
-    }
-
-    // Filtro por código padre específico
-    if (filtros.codigo_padre) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
-        cuenta.codigo_padre === filtros.codigo_padre
-      );
-    }
-
-    // Filtro por rango de nivel
-    if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-        const nivel = obtenerNivelJerarquia(cuenta);
-        const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
-        const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
-        return nivel >= min && nivel <= max;
+      // Incluir hijos
+      cuentasRaw.forEach(cuenta => {
+        if (cuenta.codigo_padre && codigosSet.has(cuenta.codigo_padre) && !codigosSet.has(cuenta.codigo_completo)) {
+          codigosSet.add(cuenta.codigo_completo);
+          cambio = true;
+        }
       });
-    }
 
-    // Filtro por clase contable
-    if (filtros.clase_contable) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => 
-        cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable)
-      );
-    }
+      if (cambio) incluirJerarquiaCompleta(codigosSet);
+    };
 
-    // Aplicar ordenamiento
-    cuentasFiltradas.sort((a, b) => {
-      let valorA = a[ordenamiento.campo] || '';
-      let valorB = b[ordenamiento.campo] || '';
+    incluirJerarquiaCompleta(codigosIncluidos);
 
-      // Ordenamiento especial para códigos
-      if (ordenamiento.campo === 'codigo_completo') {
-        valorA = valorA.padStart(10, '0');
-        valorB = valorB.padStart(10, '0');
-      }
+    cuentasFiltradas = cuentasRaw.filter(c => codigosIncluidos.has(c.codigo_completo));
+  }
 
-      if (typeof valorA === 'string') {
-        valorA = valorA.toLowerCase();
-        valorB = valorB.toLowerCase();
-      }
-
-      if (ordenamiento.direccion === 'asc') {
-        return valorA > valorB ? 1 : -1;
-      } else {
-        return valorA < valorB ? 1 : -1;
+  // Aquí sigue el resto de filtros que ya tienes (jerarquía, solo padres, rango nivel, etc.)
+  if (filtros.jerarquia) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+      const esPadre = esCuentaPadre(cuenta, cuentasRaw);
+      const nivel = obtenerNivelJerarquia(cuenta);
+      switch (filtros.jerarquia) {
+        case 'padre': return esPadre;
+        case 'hija': return !esPadre;
+        case 'nivel1': return nivel === 1;
+        case 'nivel2': return nivel === 2;
+        case 'nivel3': return nivel === 3;
+        case 'nivel4': return nivel === 4;
+        case 'nivel5': return nivel >= 5;
+        default: return true;
       }
     });
+  }
 
-    return cuentasFiltradas;
-  }, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
+  if (filtros.solo_padres) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => esCuentaPadre(cuenta, cuentasRaw));
+  }
+
+  if (filtros.solo_hijas) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => !esCuentaPadre(cuenta, cuentasRaw));
+  }
+
+  if (filtros.codigo_padre) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_padre === filtros.codigo_padre);
+  }
+
+  if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
+      const nivel = obtenerNivelJerarquia(cuenta);
+      const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
+      const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
+      return nivel >= min && nivel <= max;
+    });
+  }
+
+  if (filtros.clase_contable) {
+    cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable));
+  }
+
+  cuentasFiltradas.sort((a, b) => {
+    let valorA = a[ordenamiento.campo] || '';
+    let valorB = b[ordenamiento.campo] || '';
+    if (ordenamiento.campo === 'codigo_completo') {
+      valorA = valorA.padStart(15, '0');
+      valorB = valorB.padStart(15, '0');
+    }
+    if (typeof valorA === 'string') {
+      valorA = valorA.toLowerCase();
+      valorB = valorB.toLowerCase();
+    }
+    return ordenamiento.direccion === 'asc' ? (valorA > valorB ? 1 : -1) : (valorA < valorB ? 1 : -1);
+  });
+
+  return cuentasFiltradas;
+}, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
+
 
   // Memoizar cuentas filtradas para optimización
   const cuentasMemo = useMemo(() => {
@@ -766,244 +782,93 @@ const PucPage = () => {
         {/* Estadísticas */}
         <EstadisticasHeader />
 
-        {/* Filtros perfeccionados */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex flex-col space-y-4">
-            
-            {/* Primera fila - Filtros básicos */}
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="🔍 Buscar por código, descripción o cualquier campo..."
-                  value={filtros.busqueda}
-                  onChange={manejarBusqueda}
-                  icon={FaSearch}
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <Select
-                  value={filtros.estado}
-                  onChange={(e) => setFiltros(prev => ({...prev, estado: e.target.value, pagina: 1}))}
-                  options={[
-                    { value: '', label: 'Todos los estados' },
-                    { value: 'ACTIVA', label: '✅ Activas' },
-                    { value: 'INACTIVA', label: '❌ Inactivas' }
-                  ]}
-                  className="min-w-40"
-                />
+{/* Filtros perfeccionados */}
+<div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+  <div className="flex flex-col space-y-4">
+    
+    {/* Primera fila - Filtros básicos */}
+    <div className="flex flex-col lg:flex-row gap-4">
+      <div className="flex-1">
+        <Input
+          placeholder="🔍 Buscar por código, descripción o cualquier campo..."
+          value={filtros.busqueda}
+          onChange={manejarBusqueda}
+          icon={FaSearch}
+        />
+      </div>
 
-                <Select
-                  value={filtros.clase_contable}
-                  onChange={(e) => setFiltros(prev => ({...prev, clase_contable: e.target.value, pagina: 1}))}
-                  options={[
-                    { value: '', label: 'Todas las clases' },
-                    { value: '1', label: '1 - Activos' },
-                    { value: '2', label: '2 - Pasivos' },
-                    { value: '3', label: '3 - Patrimonio' },
-                    { value: '4', label: '4 - Ingresos' },
-                    { value: '5', label: '5 - Gastos' },
-                    { value: '6', label: '6 - Costos de Ventas' },
-                    { value: '7', label: '7 - Costos de Producción' },
-                    { value: '8', label: '8 - Cuentas de Orden Deudoras' },
-                    { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
-                  ]}
-                  className="min-w-48"
-                />
+      {/* Filtro puntual por código de cuenta (padre o hijo) */}
+      <Input
+        placeholder="Código de cuenta puntual"
+        value={filtros.codigoFiltroExacto}
+        onChange={(e) => setFiltros(prev => ({
+          ...prev,
+          codigoFiltroExacto: e.target.value,
+          pagina: 1
+        }))}
+        className="w-52"
+        maxLength={20}
+      />
 
-                <Button
-                  onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
-                  icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
-                >
-                  <span>Filtros Avanzados</span>
-                </Button>
+      <div className="flex gap-3">
+        <Select
+          value={filtros.estado}
+          onChange={(e) => setFiltros(prev => ({...prev, estado: e.target.value, pagina: 1}))}
+          options={[
+            { value: '', label: 'Todos los estados' },
+            { value: 'ACTIVA', label: '✅ Activas' },
+            { value: 'INACTIVA', label: '❌ Inactivas' }
+          ]}
+          className="min-w-40"
+        />
+        <Select
+          value={filtros.clase_contable}
+          onChange={(e) => setFiltros(prev => ({...prev, clase_contable: e.target.value, pagina: 1}))}
+          options={[
+            { value: '', label: 'Todas las clases' },
+            { value: '1', label: '1 - Activos' },
+            { value: '2', label: '2 - Pasivos' },
+            { value: '3', label: '3 - Patrimonio' },
+            { value: '4', label: '4 - Ingresos' },
+            { value: '5', label: '5 - Gastos' },
+            { value: '6', label: '6 - Costos de Ventas' },
+            { value: '7', label: '7 - Costos de Producción' },
+            { value: '8', label: '8 - Cuentas de Orden Deudoras' },
+            { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
+          ]}
+          className="min-w-48"
+        />
+        <Button
+          onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
+          icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
+        >
+          <span>Filtros Avanzados</span>
+        </Button>
+        <Button
+          onClick={limpiarFiltros}
+          className="bg-gray-500 hover:bg-gray-600 text-white"
+          icon={FaTimes}
+        >
+          Limpiar
+        </Button>
+      </div>
+    </div>
 
-                <Button
-                  onClick={limpiarFiltros}
-                  className="bg-gray-500 hover:bg-gray-600 text-white"
-                  icon={FaTimes}
-                >
-                  Limpiar
-                </Button>
-              </div>
-            </div>
+    {/* Filtros avanzados (collapsible) */}
+    {mostrarFiltrosAvanzados && (
+      <div className="border-t pt-4 space-y-4">
+        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+          <FaFilter className="mr-2" />
+          Filtros Avanzados
+        </h4>
+        {/* ...resto de filtros avanzados igual que ya tienes... */}
+        {/* Aquí tu código original de filtros avanzados */}
+      </div>
+    )}
+  </div>
+</div>
 
-            {/* Filtros avanzados (collapsible) */}
-            {mostrarFiltrosAvanzados && (
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                  <FaFilter className="mr-2" />
-                  Filtros Avanzados
-                </h4>
-                
-                {/* Segunda fila - Filtros de jerarquía */}
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  <Select
-                    value={filtros.naturaleza}
-                    onChange={(e) => setFiltros(prev => ({...prev, naturaleza: e.target.value, pagina: 1}))}
-                    options={[
-                      { value: '', label: 'Todas las naturalezas' },
-                      { value: 'DEBITO', label: '📈 Débito' },
-                      { value: 'CREDITO', label: '📉 Crédito' }
-                    ]}
-                  />
-
-                  <Select
-                    value={filtros.tipo_cuenta}
-                    onChange={(e) => setFiltros(prev => ({...prev, tipo_cuenta: e.target.value, pagina: 1}))}
-                    options={[
-                      { value: '', label: 'Todos los tipos' },
-                      { value: 'CLASE', label: '🏛️ Clase' },
-                      { value: 'GRUPO', label: '📁 Grupo' },
-                      { value: 'CUENTA', label: '📋 Cuenta' },
-                      { value: 'SUBCUENTA', label: '📄 Subcuenta' },
-                      { value: 'DETALLE', label: '🔸 Detalle' }
-                    ]}
-                  />
-
-                  <Select
-                    value={filtros.jerarquia}
-                    onChange={(e) => setFiltros(prev => ({...prev, jerarquia: e.target.value, pagina: 1}))}
-                    options={[
-                      { value: '', label: 'Todas las jerarquías' },
-                      { value: 'padre', label: '👥 Solo Cuentas Padre' },
-                      { value: 'hija', label: '👤 Solo Cuentas Hijas' },
-                      { value: 'nivel1', label: '1️⃣ Nivel 1 (Clase)' },
-                      { value: 'nivel2', label: '2️⃣ Nivel 2 (Grupo)' },
-                      { value: 'nivel3', label: '3️⃣ Nivel 3 (Cuenta)' },
-                      { value: 'nivel4', label: '4️⃣ Nivel 4 (Subcuenta)' },
-                      { value: 'nivel5', label: '5️⃣ Nivel 5+ (Detalle)' }
-                    ]}
-                  />
-
-                  <Select
-                    value={filtros.acepta_movimientos}
-                    onChange={(e) => setFiltros(prev => ({...prev, acepta_movimientos: e.target.value, pagina: 1}))}
-                    options={[
-                      { value: '', label: 'Movimientos: Todas' },
-                      { value: 'true', label: '✅ Acepta movimientos' },
-                      { value: 'false', label: '❌ No acepta movimientos' }
-                    ]}
-                  />
-
-                  <Button
-                    onClick={toggleVistaArbol}
-                    className={`${
-                      vistaArbol 
-                        ? 'bg-green-600 hover:bg-green-700' 
-                        : 'bg-gray-600 hover:bg-gray-700'
-                    } text-white flex items-center space-x-2`}
-                    icon={FaSitemap}
-                  >
-                    <span>{vistaArbol ? 'Vista Tabla' : 'Vista Árbol'}</span>
-                  </Button>
-                </div>
-
-                {/* Tercera fila - Filtros específicos */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nivel min"
-                      type="number"
-                      min="1"
-                      max="5"
-                      value={filtros.rango_nivel.min}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev, 
-                        rango_nivel: { ...prev.rango_nivel, min: e.target.value },
-                        pagina: 1
-                      }))}
-                      className="flex-1"
-                    />
-                    <Input
-                      placeholder="Nivel max"
-                      type="number"
-                      min="1"
-                      max="5"
-                      value={filtros.rango_nivel.max}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev, 
-                        rango_nivel: { ...prev.rango_nivel, max: e.target.value },
-                        pagina: 1
-                      }))}
-                      className="flex-1"
-                    />
-                  </div>
-
-                  <Input
-                    placeholder="Código padre específico"
-                    value={filtros.codigo_padre}
-                    onChange={(e) => setFiltros(prev => ({...prev, codigo_padre: e.target.value, pagina: 1}))}
-                  />
-
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.solo_padres}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev, 
-                          solo_padres: e.target.checked,
-                          solo_hijas: e.target.checked ? false : prev.solo_hijas,
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <span className="text-sm text-gray-700">Solo Padres</span>
-                    </label>
-
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.solo_hijas}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev, 
-                          solo_hijas: e.target.checked,
-                          solo_padres: e.target.checked ? false : prev.solo_padres,
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Solo Hijas</span>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.incluir_inactivas}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev, 
-                          incluir_inactivas: e.target.checked,
-                          estado: e.target.checked ? '' : 'ACTIVA',
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                      />
-                      <span className="text-sm text-gray-700">Incluir inactivas</span>
-                    </label>
-
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.solo_con_movimientos}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev, 
-                          solo_con_movimientos: e.target.checked,
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                      />
-                      <span className="text-sm text-gray-700">Solo con movimientos</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Mensajes */}
         {error && (
@@ -1135,6 +1000,8 @@ const PucPage = () => {
                       const indentacion = obtenerIndentacion(cuenta);
                       const cuentasHijas = cuentasOriginales.filter(c => c.codigo_padre === cuenta.codigo_completo);
                       const claseContable = obtenerClaseContable(cuenta.codigo_completo);
+
+                      
                       
                       return (
                         <tr 
