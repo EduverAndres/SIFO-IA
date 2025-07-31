@@ -1,5 +1,5 @@
 // frontend-react/src/pages/PucPage.jsx - VISTA OPTIMIZADA CON JERARQUÍA INTELIGENTE
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   FaPlus, 
   FaEdit, 
@@ -27,7 +27,11 @@ import {
   FaCompress,
   FaSortAmountDown,
   FaLayerGroup,
-  FaInfoCircle
+  FaInfoCircle,
+  FaChevronDown,
+  FaChevronRight,
+  FaFolderOpen,
+  FaFolder
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -77,7 +81,7 @@ const PucPage = () => {
     orden: 'ASC' // ✅ ASCENDENTE POR DEFECTO PARA MANTENER JERARQUÍA
   });
   
-  const [vistaArbol, setVistaArbol] = useState(false);
+  const [vistaArbol, setVistaArbol] = useState(true); // ✅ VISTA ÁRBOL POR DEFECTO
   const [vistaExpandida, setVistaExpandida] = useState(false);
   const [estadisticas, setEstadisticas] = useState(null);
   const [paginacion, setPaginacion] = useState({
@@ -85,6 +89,10 @@ const PucPage = () => {
     totalPaginas: 0,
     paginaActual: 1
   });
+
+  // ✅ NUEVO: Estados específicos para el árbol jerárquico
+  const [nodosExpandidos, setNodosExpandidos] = useState(new Set(['1', '2', '3', '4', '5', '6'])); // Expandir clases por defecto
+  const [arbolConstruido, setArbolConstruido] = useState([]);
 
   // ===============================================
   // 🧮 FUNCIONES UTILITARIAS PARA JERARQUÍA PUC
@@ -210,6 +218,98 @@ const PucPage = () => {
       codigo_detalle: codigo.length > 6 ? codigo : ''
     };
   };
+
+  // ===============================================
+  // 🌳 FUNCIONES ESPECÍFICAS PARA ÁRBOL JERÁRQUICO
+  // ===============================================
+
+  /**
+   * Construye el árbol jerárquico completo
+   */
+  const construirArbolJerarquico = useMemo(() => {
+    if (!cuentas || cuentas.length === 0) return [];
+
+    // Crear mapa de cuentas por código
+    const cuentasMap = {};
+    const cuentasEnriquecidas = cuentas.map(cuenta => ({
+      ...cuenta,
+      hijos: [],
+      nivel_calculado: determinarNivelPorCodigo(cuenta.codigo_completo),
+      tipo_calculado: determinarTipoPorCodigo(cuenta.codigo_completo),
+      padre_calculado: sugerirCodigoPadre(cuenta.codigo_completo)
+    }));
+
+    // Poblar el mapa
+    cuentasEnriquecidas.forEach(cuenta => {
+      cuentasMap[cuenta.codigo_completo] = cuenta;
+    });
+
+    // Construir la jerarquía
+    const raices = [];
+    cuentasEnriquecidas.forEach(cuenta => {
+      const codigoPadre = cuenta.codigo_padre || cuenta.padre_calculado;
+      
+      if (codigoPadre && cuentasMap[codigoPadre]) {
+        // Tiene padre - agregarlo como hijo
+        cuentasMap[codigoPadre].hijos.push(cuenta);
+      } else {
+        // Es raíz (generalmente clases)
+        raices.push(cuenta);
+      }
+    });
+
+    // Ordenar recursivamente todo el árbol
+    const ordenarNodos = (nodos) => {
+      return nodos
+        .sort((a, b) => a.codigo_completo.localeCompare(b.codigo_completo))
+        .map(nodo => ({
+          ...nodo,
+          hijos: ordenarNodos(nodo.hijos || [])
+        }));
+    };
+
+    return ordenarNodos(raices);
+  }, [cuentas]);
+
+  /**
+   * Maneja la expansión/contracción de nodos
+   */
+  const toggleNodo = useCallback((codigo) => {
+    setNodosExpandidos(prev => {
+      const nuevosExpandidos = new Set(prev);
+      if (nuevosExpandidos.has(codigo)) {
+        nuevosExpandidos.delete(codigo);
+      } else {
+        nuevosExpandidos.add(codigo);
+      }
+      return nuevosExpandidos;
+    });
+  }, []);
+
+  /**
+   * Expande todos los nodos
+   */
+  const expandirTodos = useCallback(() => {
+    const todosLosCodigos = cuentas.map(c => c.codigo_completo);
+    setNodosExpandidos(new Set(todosLosCodigos));
+  }, [cuentas]);
+
+  /**
+   * Contrae todos los nodos
+   */
+  const contraerTodos = useCallback(() => {
+    setNodosExpandidos(new Set());
+  }, []);
+
+  /**
+   * Expande solo las clases (nivel 1)
+   */
+  const expandirSoloClases = useCallback(() => {
+    const clases = cuentas
+      .filter(c => determinarNivelPorCodigo(c.codigo_completo) === 1)
+      .map(c => c.codigo_completo);
+    setNodosExpandidos(new Set(clases));
+  }, [cuentas]);
 
   // ===============================================
   // 🔄 EFECTOS Y CARGA INICIAL
@@ -462,11 +562,11 @@ const PucPage = () => {
 
   const obtenerColorNivel = (nivel) => {
     const colores = {
-      1: 'bg-red-100 text-red-800 border-red-200',
-      2: 'bg-orange-100 text-orange-800 border-orange-200',
-      3: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      4: 'bg-green-100 text-green-800 border-green-200',
-      5: 'bg-blue-100 text-blue-800 border-blue-200'
+      1: 'bg-purple-100 text-purple-800 border-purple-200',
+      2: 'bg-blue-100 text-blue-800 border-blue-200',
+      3: 'bg-green-100 text-green-800 border-green-200',
+      4: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      5: 'bg-orange-100 text-orange-800 border-orange-200'
     };
     return colores[nivel] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
@@ -488,143 +588,154 @@ const PucPage = () => {
     return iconos[tipo] || '📌';
   };
 
-  // ✅ FUNCIÓN PARA RENDERIZAR VISTA JERÁRQUICA
-  const renderizarVistaArbol = (cuentas) => {
-    return cuentas.map((cuenta, index) => {
-      const nivel = cuenta.nivel_calculado || cuenta.nivel || 1;
-      const indentacion = '  '.repeat(nivel - 1);
-      
-      return (
-        <tr 
-          key={cuenta.id} 
-          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
-            index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+  // ===============================================
+  // 🎨 COMPONENTE NODO DEL ÁRBOL JERÁRQUICO
+  // ===============================================
+  const NodoArbol = React.memo(({ nodo, profundidad = 0 }) => {
+    const tieneHijos = nodo.hijos && nodo.hijos.length > 0;
+    const estaExpandido = nodosExpandidos.has(nodo.codigo_completo);
+    const indentacion = profundidad * 24;
+
+    return (
+      <div className="select-none">
+        {/* Línea principal del nodo */}
+        <div 
+          className={`flex items-center py-2 px-3 border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer ${
+            nodo.nivel_calculado === 1 ? 'bg-purple-25 border-l-4 border-purple-500' :
+            nodo.nivel_calculado === 2 ? 'bg-blue-25 border-l-4 border-blue-500' :
+            nodo.nivel_calculado === 3 ? 'bg-green-25 border-l-4 border-green-500' :
+            nodo.nivel_calculado === 4 ? 'bg-yellow-25 border-l-4 border-yellow-500' :
+            'bg-orange-25 border-l-4 border-orange-500'
           }`}
+          style={{ paddingLeft: `${indentacion + 12}px` }}
+          onClick={() => tieneHijos && toggleNodo(nodo.codigo_completo)}
         >
-          {/* Columna jerárquica con indentación */}
-          <td className="py-3 px-4 border-r border-gray-100">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-gray-400 font-mono">{indentacion}</span>
-              <span className="text-lg">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
-              <div>
-                <div className="font-mono font-bold text-gray-900">{cuenta.codigo_completo}</div>
-                <div className="text-sm text-gray-600 truncate max-w-xs" title={cuenta.descripcion}>
-                  {cuenta.descripcion || 'Sin descripción'}
+          {/* ✅ Indicador de expansión mejorado */}
+          <div className="w-6 h-6 flex items-center justify-center mr-2">
+            {tieneHijos ? (
+              <button className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 transition-colors">
+                {estaExpandido ? (
+                  <FaChevronDown className="text-xs text-gray-600" />
+                ) : (
+                  <FaChevronRight className="text-xs text-gray-600" />
+                )}
+              </button>
+            ) : (
+              <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+            )}
+          </div>
+
+          {/* ✅ Icono jerárquico por tipo */}
+          <div className="mr-3 flex items-center">
+            {nodo.nivel_calculado === 1 && <FaLayerGroup className="text-purple-600" />}
+            {nodo.nivel_calculado === 2 && <FaBuilding className="text-blue-600" />}
+            {nodo.nivel_calculado === 3 && <FaBalanceScale className="text-green-600" />}
+            {nodo.nivel_calculado === 4 && <FaMoneyBillWave className="text-yellow-600" />}
+            {nodo.nivel_calculado === 5 && <FaChartLine className="text-orange-600" />}
+          </div>
+
+          {/* ✅ Información principal del nodo */}
+          <div className="flex-1 flex items-center justify-between min-w-0">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-3">
+                <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded text-gray-800 font-bold">
+                  {nodo.codigo_completo}
+                </code>
+                <span className="font-medium text-gray-900 truncate">
+                  {nodo.descripcion || 'Sin descripción'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 mt-1">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                  nodo.nivel_calculado === 1 ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                  nodo.nivel_calculado === 2 ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                  nodo.nivel_calculado === 3 ? 'bg-green-100 text-green-800 border-green-200' :
+                  nodo.nivel_calculado === 4 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                  'bg-orange-100 text-orange-800 border-orange-200'
+                }`}>
+                  {nodo.tipo_calculado}
+                </span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${obtenerColorNaturaleza(nodo.naturaleza)}`}>
+                  {nodo.naturaleza}
+                </span>
+                {nodo.acepta_movimientos && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                    ✓ Mov
+                  </span>
+                )}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(nodo.nivel_calculado)}`}>
+                  N{nodo.nivel_calculado}
+                </span>
+              </div>
+            </div>
+
+            {/* ✅ Saldos y acciones */}
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <div className={`font-mono text-sm ${
+                  nodo.saldo_final > 0 ? 'text-green-600' : 
+                  nodo.saldo_final < 0 ? 'text-red-600' : 'text-gray-500'
+                }`}>
+                  {formatearSaldo(nodo.saldo_final)}
                 </div>
+                {tieneHijos && (
+                  <div className="text-xs text-gray-500">
+                    {nodo.hijos.length} cuenta{nodo.hijos.length !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+
+              {/* Acciones */}
+              <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                <button 
+                  onClick={() => verDetalleCuenta(nodo)}
+                  className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 transition-colors"
+                  title="Ver detalles"
+                >
+                  <FaEye className="text-xs" />
+                </button>
+                <button 
+                  onClick={() => editarCuenta(nodo)}
+                  className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-green-600 transition-colors"
+                  title="Editar"
+                >
+                  <FaEdit className="text-xs" />
+                </button>
+                {nodo.acepta_movimientos && (
+                  <button 
+                    onClick={() => eliminarCuenta(nodo.id)}
+                    className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-red-600 transition-colors"
+                    title="Eliminar"
+                  >
+                    <FaTrash className="text-xs" />
+                  </button>
+                )}
               </div>
             </div>
-          </td>
-          
-          {/* Información de clasificación */}
-          <td className="py-3 px-4 border-r border-gray-100">
-            <div className="space-y-1">
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                cuenta.tipo_cuenta === 'CLASE' ? 'bg-purple-100 text-purple-800' :
-                cuenta.tipo_cuenta === 'GRUPO' ? 'bg-blue-100 text-blue-800' :
-                cuenta.tipo_cuenta === 'CUENTA' ? 'bg-green-100 text-green-800' :
-                cuenta.tipo_cuenta === 'SUBCUENTA' ? 'bg-yellow-100 text-yellow-800' :
-                cuenta.tipo_cuenta === 'DETALLE' ? 'bg-orange-100 text-orange-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {cuenta.tipo_cuenta}
-              </span>
-              <div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(nivel)}`}>
-                  Nivel {nivel}
-                </span>
-              </div>
-            </div>
-          </td>
-          
-          {/* Naturaleza y estado */}
-          <td className="py-3 px-4 border-r border-gray-100">
-            <div className="space-y-1">
-              <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
-                {cuenta.naturaleza}
-              </span>
-              <div className="flex items-center space-x-1">
-                <span className={`w-2 h-2 rounded-full ${
-                  cuenta.estado === 'ACTIVA' ? 'bg-green-500' : 'bg-red-500'
-                }`}></span>
-                <span className={`text-xs ${
-                  cuenta.estado === 'ACTIVA' ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {cuenta.estado}
-                </span>
-              </div>
-            </div>
-          </td>
-          
-          {/* Saldos */}
-          <td className="py-3 px-4 border-r border-gray-100 text-right">
-            <div className="space-y-1 text-xs">
-              <div>
-                <span className="text-gray-500">Inicial:</span>
-                <span className="ml-1 font-mono text-blue-600">
-                  {formatearSaldo(cuenta.saldo_inicial)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Final:</span>
-                <span className={`ml-1 font-mono ${
-                  (cuenta.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatearSaldo(cuenta.saldo_final)}
-                </span>
-              </div>
-            </div>
-          </td>
-          
-          {/* Configuración */}
-          <td className="py-3 px-4 border-r border-gray-100 text-center">
-            <div className="space-y-1">
-              <div>
-                <span className={`text-xs ${cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'}`}>
-                  {cuenta.acepta_movimientos ? '✓ Mov' : '✗ Mov'}
-                </span>
-              </div>
-              <div>
-                <span className={`text-xs ${cuenta.requiere_tercero ? 'text-green-600' : 'text-red-600'}`}>
-                  {cuenta.requiere_tercero ? '✓ Ter' : '✗ Ter'}
-                </span>
-              </div>
-            </div>
-          </td>
-          
-          {/* Acciones */}
-          <td className="py-3 px-4">
-            <div className="flex space-x-1">
-              <button
-                onClick={() => verDetalleCuenta(cuenta)}
-                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                title="Ver detalles"
-              >
-                <FaEye className="text-sm" />
-              </button>
-              <button
-                onClick={() => editarCuenta(cuenta)}
-                className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors"
-                title="Editar"
-              >
-                <FaEdit className="text-sm" />
-              </button>
-              <button
-                onClick={() => {
-                  const confirmar = window.confirm(
-                    `¿Eliminar cuenta ${cuenta.codigo_completo}?\n${cuenta.descripcion}`
-                  );
-                  if (confirmar) eliminarCuenta(cuenta.id);
-                }}
-                className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                title="Eliminar"
-              >
-                <FaTrash className="text-sm" />
-              </button>
-            </div>
-          </td>
-        </tr>
-      );
-    });
+          </div>
+        </div>
+
+        {/* ✅ Renderizado recursivo de hijos */}
+        {tieneHijos && estaExpandido && (
+          <div>
+            {nodo.hijos.map(hijo => (
+              <NodoArbol 
+                key={hijo.codigo_completo} 
+                nodo={hijo} 
+                profundidad={profundidad + 1} 
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  });
+
+  // ✅ FUNCIÓN PARA RENDERIZAR VISTA JERÁRQUICA MEJORADA
+  const renderizarVistaArbol = (cuentas) => {
+    return construirArbolJerarquico.map(nodo => (
+      <NodoArbol key={nodo.codigo_completo} nodo={nodo} profundidad={0} />
+    ));
   };
 
   // ===============================================
@@ -636,7 +747,8 @@ const PucPage = () => {
         {/* Header con estadísticas */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent flex items-center">
+              <FaTree className="mr-3 text-green-600" />
               Plan Único de Cuentas (PUC)
             </h1>
             <p className="text-gray-600">
@@ -804,6 +916,33 @@ const PucPage = () => {
               >
                 {vistaExpandida ? 'Compacta' : 'Expandida'}
               </Button>
+              
+              {/* ✅ CONTROLES DE ÁRBOL */}
+              {vistaArbol && (
+                <>
+                  <Button
+                    onClick={expandirTodos}
+                    className="px-3 py-1 text-sm bg-green-100 hover:bg-green-200 text-green-700"
+                    icon={FaExpand}
+                  >
+                    Expandir Todo
+                  </Button>
+                  <Button
+                    onClick={contraerTodos}
+                    className="px-3 py-1 text-sm bg-red-100 hover:bg-red-200 text-red-700"
+                    icon={FaCompress}
+                  >
+                    Contraer Todo
+                  </Button>
+                  <Button
+                    onClick={expandirSoloClases}
+                    className="px-3 py-1 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700"
+                    icon={FaLayerGroup}
+                  >
+                    Solo Clases
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           
@@ -998,7 +1137,7 @@ const PucPage = () => {
           </div>
         </div>
 
-        {/* ✅ TABLA MEJORADA CON VISTA JERÁRQUICA */}
+        {/* ✅ TABLA/ÁRBOL MEJORADO CON VISTA JERÁRQUICA COMPLETA */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -1012,6 +1151,14 @@ const PucPage = () => {
                 <span>{cuentas.length} cuentas mostradas</span>
                 <span>•</span>
                 <span>{paginacion.total} total</span>
+                {vistaArbol && (
+                  <>
+                    <span>•</span>
+                    <span>{construirArbolJerarquico.length} nodos raíz</span>
+                    <span>•</span>
+                    <span>{nodosExpandidos.size} expandidos</span>
+                  </>
+                )}
                 {paginacion.totalPaginas > 1 && (
                   <>
                     <span>•</span>
@@ -1036,55 +1183,51 @@ const PucPage = () => {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        {vistaArbol ? (
-                          // ✅ CABECERAS PARA VISTA ÁRBOL
-                          <>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[400px]">
-                              Estructura Jerárquica
-                            </th>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[150px]">
-                              Clasificación
-                            </th>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
-                              Naturaleza/Estado
-                            </th>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[150px]">
-                              Saldos
-                            </th>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">
-                              Config
-                            </th>
-                            <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">
-                              Acciones
-                            </th>
-                          </>
-                        ) : (
-                          // ✅ CABECERAS PARA VISTA LISTA (ORIGINAL)
-                          <>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">ID</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Código</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[250px]">Descripción</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">Tipo</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[90px]">Naturaleza</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[60px]">Nivel</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Final</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">Estado</th>
-                            <th className="text-left py-3 px-2 font-medium text-gray-700 min-w-[120px]">Acciones</th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vistaArbol ? (
-                        // ✅ RENDERIZAR VISTA ÁRBOL
-                        renderizarVistaArbol(cuentas)
+                {vistaArbol ? (
+                  /* ✅ VISTA DE ÁRBOL JERÁRQUICO COMPLETA */
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900">Estructura Jerárquica del PUC</h4>
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <span>{construirArbolJerarquico.length} nodos raíz</span>
+                          <span>•</span>
+                          <span>{nodosExpandidos.size} expandidos</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="max-h-[800px] overflow-y-auto">
+                      {construirArbolJerarquico.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FaExclamationTriangle className="text-4xl text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500">No hay datos para mostrar en el árbol</p>
+                        </div>
                       ) : (
-                        // ✅ RENDERIZAR VISTA LISTA
-                        cuentas.map((cuenta, index) => (
+                        <div>
+                          {renderizarVistaArbol(cuentas)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Vista de lista original (sin cambios) */
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">ID</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Código</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[250px]">Descripción</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">Tipo</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[90px]">Naturaleza</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[60px]">Nivel</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Final</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">Estado</th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 min-w-[120px]">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cuentas.map((cuenta, index) => (
                           <tr 
                             key={cuenta.id} 
                             className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
@@ -1098,7 +1241,6 @@ const PucPage = () => {
                               <div className="flex items-center space-x-1">
                                 <span className="text-sm">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
                                 <span className="font-mono font-bold text-gray-900">{cuenta.codigo_completo}</span>
-                                {/* ✅ INDICADOR DE JERARQUÍA */}
                                 <span className={`px-1 py-0.5 rounded text-xs ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
                                   N{cuenta.nivel_calculado || cuenta.nivel}
                                 </span>
@@ -1109,7 +1251,6 @@ const PucPage = () => {
                                 <div className="font-medium text-gray-900 truncate" title={cuenta.descripcion}>
                                   {cuenta.descripcion || 'Sin descripción'}
                                 </div>
-                                {/* ✅ MOSTRAR CÓDIGO PADRE SI EXISTE */}
                                 {cuenta.codigo_padre && (
                                   <div className="text-xs text-gray-500">
                                     Padre: {cuenta.codigo_padre}
@@ -1189,42 +1330,42 @@ const PucPage = () => {
                               </div>
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                {/* Controles de Paginación */}
-                <div className="mt-6 bg-gray-50 rounded-lg p-4">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    
-                    {/* Información de registros */}
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span>
-                        Mostrando {((paginacion.paginaActual - 1) * filtros.limite) + 1} - {Math.min(paginacion.paginaActual * filtros.limite, paginacion.total)} de {paginacion.total} resultados
-                      </span>
+                {/* Controles de Paginación - solo para vista lista */}
+                {!vistaArbol && paginacion.totalPaginas > 1 && (
+                  <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                       
-                      <div className="flex items-center space-x-2">
-                        <span>Mostrar:</span>
-                        <select 
-                          value={filtros.limite} 
-                          onChange={(e) => setFiltros({...filtros, limite: parseInt(e.target.value), pagina: 1})}
-                          className="border border-gray-300 rounded px-2 py-1 text-sm"
-                        >
-                          <option value={25}>25</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                          <option value={200}>200</option>
-                          <option value={500}>500</option>
-                          <option value={paginacion.total}>Todos ({paginacion.total})</option>
-                        </select>
-                        <span>por página</span>
+                      {/* Información de registros */}
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>
+                          Mostrando {((paginacion.paginaActual - 1) * filtros.limite) + 1} - {Math.min(paginacion.paginaActual * filtros.limite, paginacion.total)} de {paginacion.total} resultados
+                        </span>
+                        
+                        <div className="flex items-center space-x-2">
+                          <span>Mostrar:</span>
+                          <select 
+                            value={filtros.limite} 
+                            onChange={(e) => setFiltros({...filtros, limite: parseInt(e.target.value), pagina: 1})}
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                            <option value={500}>500</option>
+                            <option value={paginacion.total}>Todos ({paginacion.total})</option>
+                          </select>
+                          <span>por página</span>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Controles de navegación */}
-                    {paginacion.totalPaginas > 1 && (
+                      {/* Controles de navegación */}
                       <div className="flex items-center space-x-2">
                         <Button
                           onClick={() => cambiarPagina(1)}
@@ -1276,9 +1417,9 @@ const PucPage = () => {
                           »»
                         </Button>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -1665,6 +1806,108 @@ const PucPage = () => {
                     <div>• Subcuenta: 6 dígitos (ej: 110501)</div>
                     <div>• Detalle: 7+ dígitos (ej: 11050101)</div>
                   </div>
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <div className="text-xs text-gray-500">
+                      <strong>Controles del Árbol:</strong> Click en nodos para expandir/contraer
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ LEYENDA DE COLORES Y NIVELES */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FaInfoCircle className="mr-2 text-blue-500" />
+            Leyenda de Niveles Jerárquicos PUC
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {[
+              { 
+                tipo: 'CLASE', 
+                descripcion: '1 dígito', 
+                color: 'bg-purple-100 text-purple-800 border-purple-200', 
+                ejemplo: '1, 2, 3, 4, 5, 6',
+                icono: '🏛️',
+                explicacion: 'Categorías principales del balance'
+              },
+              { 
+                tipo: 'GRUPO', 
+                descripcion: '2 dígitos', 
+                color: 'bg-blue-100 text-blue-800 border-blue-200', 
+                ejemplo: '11, 21, 31, 41, 51',
+                icono: '📁',
+                explicacion: 'Subdivisiones de cada clase'
+              },
+              { 
+                tipo: 'CUENTA', 
+                descripcion: '4 dígitos', 
+                color: 'bg-green-100 text-green-800 border-green-200', 
+                ejemplo: '1105, 2105, 4135',
+                icono: '📋',
+                explicacion: 'Conceptos contables específicos'
+              },
+              { 
+                tipo: 'SUBCUENTA', 
+                descripción: '6 dígitos', 
+                color: 'bg-yellow-100 text-yellow-800 border-yellow-200', 
+                ejemplo: '110505, 210505',
+                icono: '📄',
+                explicacion: 'Detalles operativos básicos'
+              },
+              { 
+                tipo: 'DETALLE', 
+                descripcion: '8+ dígitos', 
+                color: 'bg-orange-100 text-orange-800 border-orange-200', 
+                ejemplo: '11050501, 21050501',
+                icono: '🔸',
+                explicacion: 'Máximo nivel de detalle'
+              }
+            ].map((item, index) => (
+              <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="text-center mb-3">
+                  <div className="text-3xl mb-2">{item.icono}</div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${item.color}`}>
+                    {item.tipo}
+                  </span>
+                </div>
+                <div className="text-sm space-y-2">
+                  <div className="font-medium text-gray-700">{item.descripcion}</div>
+                  <div className="text-gray-600">{item.explicacion}</div>
+                  <div className="font-mono text-xs text-gray-500 bg-white p-2 rounded">
+                    Ej: {item.ejemplo}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Información adicional sobre naturalezas */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <h5 className="font-semibold text-gray-700 mb-3">Naturalezas Contables por Clase:</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h6 className="font-medium text-green-800 mb-2 flex items-center">
+                  <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                  DÉBITO
+                </h6>
+                <div className="text-sm text-green-700">
+                  <div><strong>Clases:</strong> 1, 5, 6, 7, 8</div>
+                  <div><strong>Ejemplos:</strong> Activos, Gastos, Costos</div>
+                  <div className="text-xs mt-1">Se incrementa por el débito, disminuye por el crédito</div>
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h6 className="font-medium text-blue-800 mb-2 flex items-center">
+                  <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                  CRÉDITO
+                </h6>
+                <div className="text-sm text-blue-700">
+                  <div><strong>Clases:</strong> 2, 3, 4, 9</div>
+                  <div><strong>Ejemplos:</strong> Pasivos, Patrimonio, Ingresos</div>
+                  <div className="text-xs mt-1">Se incrementa por el crédito, disminuye por el débito</div>
                 </div>
               </div>
             </div>
@@ -1687,6 +1930,26 @@ const PucPage = () => {
           background-color: #fafafa;
         }
         
+        .bg-purple-25 {
+          background-color: #faf5ff;
+        }
+        
+        .bg-blue-25 {
+          background-color: #eff6ff;
+        }
+        
+        .bg-green-25 {
+          background-color: #f0fdf4;
+        }
+        
+        .bg-yellow-25 {
+          background-color: #fefce8;
+        }
+        
+        .bg-orange-25 {
+          background-color: #fff7ed;
+        }
+        
         .hover\\:scale-105:hover {
           transform: scale(1.05);
         }
@@ -1696,22 +1959,54 @@ const PucPage = () => {
         }
 
         /* Scroll personalizado para tablas */
-        .overflow-x-auto::-webkit-scrollbar {
+        .overflow-x-auto::-webkit-scrollbar,
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
           height: 8px;
         }
         
-        .overflow-x-auto::-webkit-scrollbar-track {
+        .overflow-x-auto::-webkit-scrollbar-track,
+        .overflow-y-auto::-webkit-scrollbar-track {
           background: #f1f5f9;
           border-radius: 4px;
         }
         
-        .overflow-x-auto::-webkit-scrollbar-thumb {
+        .overflow-x-auto::-webkit-scrollbar-thumb,
+        .overflow-y-auto::-webkit-scrollbar-thumb {
           background: #cbd5e1;
           border-radius: 4px;
         }
         
-        .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        .overflow-x-auto::-webkit-scrollbar-thumb:hover,
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
+        }
+
+        /* Mejoras para la vista de árbol */
+        .select-none {
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          user-select: none;
+        }
+
+        /* Efectos hover mejorados */
+        .transition-colors {
+          transition-property: color, background-color, border-color;
+          transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+          transition-duration: 150ms;
+        }
+
+        /* Animaciones para los nodos del árbol */
+        .tree-node-enter {
+          opacity: 0;
+          transform: translateX(-10px);
+        }
+        
+        .tree-node-enter-active {
+          opacity: 1;
+          transform: translateX(0);
+          transition: opacity 300ms, transform 300ms;
         }
       `}</style>
     </div>
