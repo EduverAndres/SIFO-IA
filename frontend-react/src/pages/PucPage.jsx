@@ -1,34 +1,33 @@
-// frontend-react/src/pages/PucPage.jsx - VERSIÓN MEJORADA CON FILTROS JERÁRQUICOS
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaDownload,
-  FaUpload,
-  FaFileAlt,
+// frontend-react/src/pages/PucPage.jsx - VISTA OPTIMIZADA CON JERARQUÍA INTELIGENTE
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  FaPlus, 
+  FaEdit, 
+  FaTrash, 
+  FaDownload, 
+  FaUpload, 
+  FaFileAlt,  
   FaTimes,
+  FaTree,
+  FaList,
+  FaSearch,
   FaSpinner,
   FaExclamationTriangle,
   FaCheckCircle,
+  FaQuestion,
+  FaBookOpen,
   FaEye,
-  FaSave,
-  FaSearch,
-  FaUsers,
-  FaUser,
-  FaSitemap,
+  FaMoneyBillWave,
+  FaBalanceScale,
+  FaBuilding,
+  FaClipboardList,
+  FaChartLine,
   FaFilter,
-  FaSort,
-  FaSortUp,
-  FaSortDown,
-  FaRedo,
-  FaCog,
-  FaChevronDown,
-  FaChevronUp,
-  FaDatabase,
-  FaChartBar,
-  FaList,
-  FaTree
+  FaExpand,
+  FaCompress,
+  FaSortAmountDown,
+  FaLayerGroup,
+  FaInfoCircle
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -39,166 +38,208 @@ import ExportPucModal from '../components/puc/ExportPucModal';
 import { pucApi } from '../api/pucApi';
 
 const PucPage = () => {
-  // Estados principales
+  // ===============================================
+  // 🔄 ESTADOS PRINCIPALES
+  // ===============================================
   const [cuentas, setCuentas] = useState([]);
-  const [cuentasOriginales, setCuentasOriginales] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingAction, setLoadingAction] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [estadisticas, setEstadisticas] = useState(null);
 
   // Estados de modales
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-
-  // Estados de datos
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
-  const [accountToDelete, setAccountToDelete] = useState(null);
 
-  // Estados de UI
-  const [vistaArbol, setVistaArbol] = useState(false);
-  const [mostrarFiltrosAvanzados, setMostrarFiltrosAvanzados] = useState(false);
-  const [ordenamiento, setOrdenamiento] = useState({ campo: 'codigo_completo', direccion: 'asc' });
-
-  // Form data para crear/editar
+  // Estados de formularios
+  const [editingAccount, setEditingAccount] = useState(null);
   const [formData, setFormData] = useState({
     codigo_completo: '',
     descripcion: '',
     naturaleza: 'DEBITO',
     tipo_cuenta: 'DETALLE',
     acepta_movimientos: true,
-    codigo_padre: '',
-    estado: 'ACTIVA'
+    codigo_padre: ''
   });
 
-  // Filtros mejorados y perfeccionados
+  // Estados de filtros y vista - MEJORADO CON ORDENAMIENTO POR DEFECTO
   const [filtros, setFiltros] = useState({
-    busquedaCodigo: '', // Búsqueda específica por código
-    busquedaDescripcion: '', // Búsqueda por descripción
-    estado: '',
+    busqueda: '',
+    estado: 'ACTIVA',
+    tipo: '',
     naturaleza: '',
-    tipo_cuenta: '',
-    jerarquia: '',
-    solo_padres: false,
-    solo_hijas: false,
     codigo_padre: '',
-    acepta_movimientos: '',
-    rango_nivel: { min: '', max: '' },
-    fecha_creacion: { desde: '', hasta: '' },
     limite: 50,
     pagina: 1,
-    incluir_inactivas: false,
-    solo_con_movimientos: false,
-    clase_contable: '',
-    mostrar_todas: false, // Nueva opción para mostrar TODAS las cuentas
-    busqueda_jerarquica: true // Si debe incluir padres e hijos en la búsqueda
+    ordenar_por: 'codigo_completo', // ✅ ORDENAMIENTO POR DEFECTO
+    orden: 'ASC' // ✅ ASCENDENTE POR DEFECTO PARA MANTENER JERARQUÍA
   });
-
-  // Estados de paginación
+  
+  const [vistaArbol, setVistaArbol] = useState(false);
+  const [vistaExpandida, setVistaExpandida] = useState(false);
+  const [estadisticas, setEstadisticas] = useState(null);
   const [paginacion, setPaginacion] = useState({
     total: 0,
     totalPaginas: 0,
-    paginaActual: 1,
-    limite: 50
+    paginaActual: 1
   });
 
   // ===============================================
-  // 🔧 FUNCIONES DE JERARQUÍA MEJORADAS
+  // 🧮 FUNCIONES UTILITARIAS PARA JERARQUÍA PUC
   // ===============================================
-
-  const esCuentaPadre = useCallback((cuenta, todasLasCuentas) => {
-    return todasLasCuentas.some(c => c.codigo_padre === cuenta.codigo_completo);
-  }, []);
-
-  const obtenerNivelJerarquia = useCallback((cuenta) => {
-    const codigo = cuenta.codigo_completo;
-    if (!codigo) return 0;
-
-    if (codigo.length === 1) return 1; // Clase
-    if (codigo.length === 2) return 2; // Grupo  
-    if (codigo.length === 4) return 3; // Cuenta
-    if (codigo.length === 6) return 4; // Subcuenta
-    if (codigo.length >= 8) return 5; // Detalle
-
-    return 0;
-  }, []);
-
-  const obtenerIndentacion = useCallback((cuenta) => {
-    const nivel = obtenerNivelJerarquia(cuenta);
-    return nivel * 20;
-  }, [obtenerNivelJerarquia]);
-
-  const obtenerClaseContable = useCallback((codigo) => {
+  
+  /**
+   * Determina el tipo de cuenta basado en la longitud del código
+   */
+  const determinarTipoPorCodigo = (codigo) => {
     if (!codigo) return '';
+    const longitud = codigo.length;
+    switch(longitud) {
+      case 1: return 'CLASE';
+      case 2: return 'GRUPO'; 
+      case 4: return 'CUENTA';
+      case 6: return 'SUBCUENTA';
+      default: return longitud > 6 ? 'DETALLE' : '';
+    }
+  };
+
+  /**
+   * Determina el nivel jerárquico basado en la longitud del código
+   */
+  const determinarNivelPorCodigo = (codigo) => {
+    if (!codigo) return 0;
+    const longitud = codigo.length;
+    if (longitud === 1) return 1; // Clase
+    if (longitud === 2) return 2; // Grupo
+    if (longitud === 4) return 3; // Cuenta
+    if (longitud === 6) return 4; // Subcuenta
+    if (longitud >= 7) return 5; // Detalle
+    return 0;
+  };
+
+  /**
+   * Determina la naturaleza automáticamente por clase
+   */
+  const determinarNaturalezaPorClase = (codigo) => {
+    if (!codigo) return 'DEBITO';
     const clase = codigo.charAt(0);
-    const clases = {
-      '1': 'ACTIVOS',
-      '2': 'PASIVOS',
-      '3': 'PATRIMONIO',
-      '4': 'INGRESOS',
-      '5': 'GASTOS',
-      '6': 'COSTOS DE VENTAS',
-      '7': 'COSTOS DE PRODUCCIÓN',
-      '8': 'CUENTAS DE ORDEN DEUDORAS',
-      '9': 'CUENTAS DE ORDEN ACREEDORAS'
+    return ['1', '5', '6', '7', '8'].includes(clase) ? 'DEBITO' : 'CREDITO';
+  };
+
+  /**
+   * Valida que el código cumpla con las reglas jerárquicas
+   */
+  const validarCodigoJerarquia = (codigo, tipo, codigoPadre = '') => {
+    const errores = [];
+    
+    if (!codigo) {
+      errores.push('El código es requerido');
+      return { valido: false, errores };
+    }
+
+    // Validar que solo contenga números
+    if (!/^\d+$/.test(codigo)) {
+      errores.push('El código debe contener solo números');
+    }
+
+    // Validar longitud según tipo
+    const longitudEsperada = {
+      'CLASE': 1,
+      'GRUPO': 2,
+      'CUENTA': 4,
+      'SUBCUENTA': 6,
+      'DETALLE': 7 // mínimo para detalle
     };
-    return clases[clase] || `CLASE ${clase}`;
-  }, []);
 
-  // ===============================================
-  // 🔧 FUNCIONES PRINCIPALES OPTIMIZADAS
-  // ===============================================
+    const longitud = codigo.length;
+    const longitudRequerida = longitudEsperada[tipo];
 
-  // Reemplaza tu función cargarDatos con esta versión corregida:
+    if (tipo !== 'DETALLE' && longitud !== longitudRequerida) {
+      errores.push(`${tipo} debe tener exactamente ${longitudRequerida} dígito(s). Actual: ${longitud}`);
+    } else if (tipo === 'DETALLE' && longitud < longitudRequerida) {
+      errores.push(`${tipo} debe tener al menos ${longitudRequerida} dígitos. Actual: ${longitud}`);
+    }
 
-  const cargarDatos = useCallback(async (nuevaPage = 1, mostrarTodas = false) => {
-    setLoading(true);
-    setLoadingAction('cargando');
-
-    try {
-      // Construir parámetros de filtro
-      const params = {
-        ...filtros,
-        pagina: nuevaPage,
-        // Aumentamos el límite a 100,000 para asegurar que traiga todas las 17,000 cuentas
-        limite: (filtros.mostrar_todas || mostrarTodas || filtros.limite === 'todos') ? 100000 : filtros.limite,
-        estado: filtros.mostrar_todas ? '' : filtros.estado // Si mostramos todas, ignoramos el filtro de estado
-      };
-
-      console.log('📊 Cargando cuentas con parámetros:', params);
-
-      const response = await pucApi.obtenerCuentas(params);
-      const cuentasData = response.data || [];
-
-      setCuentasOriginales(cuentasData);
-      setCuentas(aplicarFiltrosLocales(cuentasData));
-
-      // Actualizar paginación si viene del backend
-      if (response.pagination) {
-        setPaginacion({
-          total: response.pagination.total,
-          totalPaginas: response.pagination.totalPages,
-          paginaActual: response.pagination.currentPage,
-          limite: response.pagination.limit
-        });
+    // Validar jerarquía con código padre
+    if (codigoPadre) {
+      if (!codigo.startsWith(codigoPadre)) {
+        errores.push(`El código debe comenzar con el código padre: ${codigoPadre}`);
       }
+      
+      if (codigo.length <= codigoPadre.length) {
+        errores.push(`El código hijo debe ser más largo que el código padre`);
+      }
+    } else if (tipo !== 'CLASE') {
+      errores.push(`${tipo} requiere un código padre`);
+    }
 
-      // Cargar estadísticas
-      await cargarEstadisticas();
+    return {
+      valido: errores.length === 0,
+      errores
+    };
+  };
 
-      console.log(`✅ Cargadas ${cuentasData.length} cuentas de ${response.pagination?.total || cuentasData.length} totales`);
+  /**
+   * Encuentra el código padre sugerido para un código dado
+   */
+  const sugerirCodigoPadre = (codigo) => {
+    if (!codigo || codigo.length <= 1) return '';
+    
+    const longitud = codigo.length;
+    if (longitud === 2) return codigo.charAt(0); // Grupo -> Clase
+    if (longitud === 4) return codigo.substring(0, 2); // Cuenta -> Grupo
+    if (longitud === 6) return codigo.substring(0, 4); // Subcuenta -> Cuenta
+    if (longitud > 6) return codigo.substring(0, 6); // Detalle -> Subcuenta
+    
+    return '';
+  };
 
+  /**
+   * Extrae los códigos jerárquicos de un código completo
+   */
+  const extraerCodigosJerarquia = (codigo) => {
+    if (!codigo) return {};
+    
+    return {
+      codigo_clase: codigo.length >= 1 ? codigo.substring(0, 1) : '',
+      codigo_grupo: codigo.length >= 2 ? codigo.substring(0, 2) : '',
+      codigo_cuenta: codigo.length >= 4 ? codigo.substring(0, 4) : '',
+      codigo_subcuenta: codigo.length >= 6 ? codigo.substring(0, 6) : '',
+      codigo_detalle: codigo.length > 6 ? codigo : ''
+    };
+  };
+
+  // ===============================================
+  // 🔄 EFECTOS Y CARGA INICIAL
+  // ===============================================
+  
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await pucApi.obtenerCuentas(filtros);
+      let cuentasData = response.data || [];
+      
+      // ✅ PROCESAR DATOS PARA ENRIQUECER CON INFORMACIÓN JERÁRQUICA
+      cuentasData = cuentasData.map(cuenta => ({
+        ...cuenta,
+        ...extraerCodigosJerarquia(cuenta.codigo_completo),
+        nivel_calculado: determinarNivelPorCodigo(cuenta.codigo_completo),
+        tipo_sugerido: determinarTipoPorCodigo(cuenta.codigo_completo),
+        naturaleza_sugerida: determinarNaturalezaPorClase(cuenta.codigo_completo)
+      }));
+
+      setCuentas(cuentasData);
+      setPaginacion({
+        total: response.total || 0,
+        totalPaginas: response.totalPaginas || 0,
+        paginaActual: response.pagina || 1
+      });
     } catch (err) {
-      console.error('❌ Error cargando cuentas:', err);
-      setError('Error cargando cuentas: ' + (err.message || 'Error desconocido'));
+      setError('Error cargando cuentas: ' + err.message);
     } finally {
       setLoading(false);
-      setLoadingAction(null);
     }
   }, [filtros]);
 
@@ -207,479 +248,14 @@ const PucPage = () => {
       const response = await pucApi.obtenerEstadisticas();
       setEstadisticas(response.data);
     } catch (err) {
-      console.warn('⚠️ No se pudieron cargar las estadísticas:', err);
+      console.error('Error cargando estadísticas:', err);
     }
   }, []);
-
-  const aplicarFiltrosLocales = useCallback((cuentasRaw) => {
-    let cuentasFiltradas = [...cuentasRaw];
-
-    // Filtro por código específico con búsqueda jerárquica
-    if (filtros.busquedaCodigo) {
-      const codigoBusqueda = filtros.busquedaCodigo.trim();
-
-      if (filtros.busqueda_jerarquica) {
-        // Búsqueda jerárquica: incluye padres e hijos
-        let codigosIncluidos = new Set();
-
-        // Encontrar todas las cuentas que coincidan exactamente o comiencen con el código
-        cuentasRaw.forEach(cuenta => {
-          if (cuenta.codigo_completo) {
-            // Coincidencia exacta
-            if (cuenta.codigo_completo === codigoBusqueda) {
-              codigosIncluidos.add(cuenta.codigo_completo);
-            }
-            // O que comience con el código buscado
-            else if (cuenta.codigo_completo.startsWith(codigoBusqueda)) {
-              codigosIncluidos.add(cuenta.codigo_completo);
-            }
-          }
-        });
-
-        // Función recursiva para incluir toda la jerarquía
-        const incluirJerarquiaCompleta = (codigosSet) => {
-          let cambio = false;
-
-          // Incluir todos los padres
-          cuentasRaw.forEach(cuenta => {
-            if (codigosSet.has(cuenta.codigo_completo) && cuenta.codigo_padre) {
-              // Buscar el padre
-              const padre = cuentasRaw.find(c => c.codigo_completo === cuenta.codigo_padre);
-              if (padre && !codigosSet.has(padre.codigo_completo)) {
-                codigosSet.add(padre.codigo_completo);
-                cambio = true;
-              }
-            }
-          });
-
-          // Incluir todos los hijos
-          cuentasRaw.forEach(cuenta => {
-            if (cuenta.codigo_padre && codigosSet.has(cuenta.codigo_padre) && !codigosSet.has(cuenta.codigo_completo)) {
-              codigosSet.add(cuenta.codigo_completo);
-              cambio = true;
-            }
-          });
-
-          // Si hubo cambios, repetir el proceso
-          if (cambio) {
-            incluirJerarquiaCompleta(codigosSet);
-          }
-        };
-
-        // Aplicar la inclusión jerárquica
-        incluirJerarquiaCompleta(codigosIncluidos);
-
-        // Filtrar solo las cuentas incluidas
-        cuentasFiltradas = cuentasRaw.filter(c => codigosIncluidos.has(c.codigo_completo));
-      } else {
-        // Búsqueda simple: solo cuentas que coincidan o comiencen con el código
-        cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
-          cuenta.codigo_completo && (
-            cuenta.codigo_completo === codigoBusqueda ||
-            cuenta.codigo_completo.startsWith(codigoBusqueda)
-          )
-        );
-      }
-    }
-
-    // Filtro por descripción (independiente del código)
-    if (filtros.busquedaDescripcion) {
-      const busquedaDesc = filtros.busquedaDescripcion.toLowerCase().trim();
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
-        cuenta.descripcion && cuenta.descripcion.toLowerCase().includes(busquedaDesc)
-      );
-    }
-
-    // Filtro por jerarquía
-    if (filtros.jerarquia) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-        const esPadre = esCuentaPadre(cuenta, cuentasRaw);
-        const nivel = obtenerNivelJerarquia(cuenta);
-        switch (filtros.jerarquia) {
-          case 'padre': return esPadre;
-          case 'hija': return !esPadre;
-          case 'nivel1': return nivel === 1;
-          case 'nivel2': return nivel === 2;
-          case 'nivel3': return nivel === 3;
-          case 'nivel4': return nivel === 4;
-          case 'nivel5': return nivel >= 5;
-          default: return true;
-        }
-      });
-    }
-
-    // Otros filtros existentes
-    if (filtros.solo_padres) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => esCuentaPadre(cuenta, cuentasRaw));
-    }
-
-    if (filtros.solo_hijas) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => !esCuentaPadre(cuenta, cuentasRaw));
-    }
-
-    if (filtros.codigo_padre) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.codigo_padre === filtros.codigo_padre);
-    }
-
-    if (filtros.acepta_movimientos !== '') {
-      const aceptaMov = filtros.acepta_movimientos === 'true';
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.acepta_movimientos === aceptaMov);
-    }
-
-    if (filtros.naturaleza) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.naturaleza === filtros.naturaleza);
-    }
-
-    if (filtros.tipo_cuenta) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => cuenta.tipo_cuenta === filtros.tipo_cuenta);
-    }
-
-    if (filtros.rango_nivel.min || filtros.rango_nivel.max) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta => {
-        const nivel = obtenerNivelJerarquia(cuenta);
-        const min = filtros.rango_nivel.min ? parseInt(filtros.rango_nivel.min) : 0;
-        const max = filtros.rango_nivel.max ? parseInt(filtros.rango_nivel.max) : Infinity;
-        return nivel >= min && nivel <= max;
-      });
-    }
-
-    if (filtros.clase_contable) {
-      cuentasFiltradas = cuentasFiltradas.filter(cuenta =>
-        cuenta.codigo_completo && cuenta.codigo_completo.startsWith(filtros.clase_contable)
-      );
-    }
-
-    // Ordenamiento
-    cuentasFiltradas.sort((a, b) => {
-      let valorA = a[ordenamiento.campo] || '';
-      let valorB = b[ordenamiento.campo] || '';
-
-      if (ordenamiento.campo === 'codigo_completo') {
-        // Ordenamiento numérico para códigos
-        valorA = valorA.padStart(15, '0');
-        valorB = valorB.padStart(15, '0');
-      }
-
-      if (typeof valorA === 'string') {
-        valorA = valorA.toLowerCase();
-        valorB = valorB.toLowerCase();
-      }
-
-      return ordenamiento.direccion === 'asc'
-        ? (valorA > valorB ? 1 : -1)
-        : (valorA < valorB ? 1 : -1);
-    });
-
-    return cuentasFiltradas;
-  }, [filtros, esCuentaPadre, obtenerNivelJerarquia, ordenamiento]);
-
-  // Memoizar cuentas filtradas para optimización
-  const cuentasMemo = useMemo(() => {
-    return aplicarFiltrosLocales(cuentasOriginales);
-  }, [cuentasOriginales, aplicarFiltrosLocales]);
-
-  // Actualizar cuentas cuando cambien los filtros locales
-  useEffect(() => {
-    setCuentas(cuentasMemo);
-  }, [cuentasMemo]);
-
-  const resetForm = useCallback(() => {
-    setFormData({
-      codigo_completo: '',
-      descripcion: '',
-      naturaleza: 'DEBITO',
-      tipo_cuenta: 'DETALLE',
-      acepta_movimientos: true,
-      codigo_padre: '',
-      estado: 'ACTIVA'
-    });
-  }, []);
-
-  // ===============================================
-  // 🎯 FUNCIONES CRUD OPTIMIZADAS
-  // ===============================================
-
-  const abrirModalCrear = useCallback(() => {
-    resetForm();
-    setShowCreateModal(true);
-  }, [resetForm]);
-
-  const cerrarModalCrear = useCallback(() => {
-    setShowCreateModal(false);
-    resetForm();
-    setError(null);
-  }, [resetForm]);
-
-  const crearCuenta = useCallback(async (e) => {
-    e.preventDefault();
-
-    if (!formData.codigo_completo?.trim() || !formData.descripcion?.trim()) {
-      setError('❌ Por favor complete todos los campos requeridos');
-      return;
-    }
-
-    setLoadingAction('creando');
-
-    try {
-      await pucApi.crearCuenta(formData);
-      setSuccess('✅ Cuenta creada exitosamente');
-      setShowCreateModal(false);
-      resetForm();
-      cargarDatos(paginacion.paginaActual);
-    } catch (err) {
-      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al crear la cuenta'));
-    } finally {
-      setLoadingAction(null);
-    }
-  }, [formData, resetForm, cargarDatos, paginacion.paginaActual]);
-
-  const abrirModalEditar = useCallback((cuenta) => {
-    setSelectedAccount(cuenta);
-    setFormData({
-      codigo_completo: cuenta.codigo_completo || '',
-      descripcion: cuenta.descripcion || '',
-      naturaleza: cuenta.naturaleza || 'DEBITO',
-      tipo_cuenta: cuenta.tipo_cuenta || 'DETALLE',
-      acepta_movimientos: cuenta.acepta_movimientos !== undefined ? cuenta.acepta_movimientos : true,
-      codigo_padre: cuenta.codigo_padre || '',
-      estado: cuenta.estado || 'ACTIVA'
-    });
-    setShowEditModal(true);
-  }, []);
-
-  const cerrarModalEditar = useCallback(() => {
-    setShowEditModal(false);
-    setSelectedAccount(null);
-    resetForm();
-    setError(null);
-  }, [resetForm]);
-
-  const actualizarCuenta = useCallback(async (e) => {
-    e.preventDefault();
-    if (!selectedAccount) return;
-
-    if (!formData.descripcion?.trim()) {
-      setError('❌ La descripción es requerida');
-      return;
-    }
-
-    setLoadingAction('actualizando');
-
-    try {
-      await pucApi.actualizarCuenta(selectedAccount.id, formData);
-      setSuccess('✅ Cuenta actualizada exitosamente');
-      setShowEditModal(false);
-      setSelectedAccount(null);
-      resetForm();
-      cargarDatos(paginacion.paginaActual);
-    } catch (err) {
-      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al actualizar la cuenta'));
-    } finally {
-      setLoadingAction(null);
-    }
-  }, [selectedAccount, formData, resetForm, cargarDatos, paginacion.paginaActual]);
-
-  const abrirModalEliminar = useCallback((cuenta) => {
-    setAccountToDelete(cuenta);
-    setShowDeleteModal(true);
-  }, []);
-
-  const cerrarModalEliminar = useCallback(() => {
-    setShowDeleteModal(false);
-    setAccountToDelete(null);
-  }, []);
-
-  const confirmarEliminacion = useCallback(async () => {
-    if (!accountToDelete) return;
-
-    setLoadingAction('eliminando');
-
-    try {
-      await pucApi.eliminarCuenta(accountToDelete.id);
-      setSuccess('✅ Cuenta eliminada exitosamente');
-      setShowDeleteModal(false);
-      setAccountToDelete(null);
-      cargarDatos(paginacion.paginaActual);
-    } catch (err) {
-      setError('❌ ' + (err.response?.data?.message || err.message || 'Error al eliminar la cuenta'));
-    } finally {
-      setLoadingAction(null);
-    }
-  }, [accountToDelete, cargarDatos, paginacion.paginaActual]);
-
-  const abrirModalDetalle = useCallback((cuenta) => {
-    setSelectedAccount(cuenta);
-    setShowDetailModal(true);
-  }, []);
-
-  const cerrarModalDetalle = useCallback(() => {
-    setShowDetailModal(false);
-    setSelectedAccount(null);
-  }, []);
-
-  // ===============================================
-  // 📊 FUNCIONES DE IMPORTAR/EXPORTAR
-  // ===============================================
-
-  const abrirModalImportar = useCallback(() => {
-    setShowImportModal(true);
-  }, []);
-
-  const cerrarModalImportar = useCallback(() => {
-    setShowImportModal(false);
-  }, []);
-
-  const abrirModalExportar = useCallback(() => {
-    setShowExportModal(true);
-  }, []);
-
-  const cerrarModalExportar = useCallback(() => {
-    setShowExportModal(false);
-  }, []);
-
-  // ===============================================
-  // 🔍 FUNCIONES DE FILTROS PERFECCIONADAS
-  // ===============================================
-
-  const manejarBusquedaCodigo = useCallback((e) => {
-    setFiltros(prev => ({
-      ...prev,
-      busquedaCodigo: e.target.value,
-      pagina: 1
-    }));
-  }, []);
-
-  const manejarBusquedaDescripcion = useCallback((e) => {
-    setFiltros(prev => ({
-      ...prev,
-      busquedaDescripcion: e.target.value,
-      pagina: 1
-    }));
-  }, []);
-
-  const filtrarPorPadre = useCallback((codigoPadre) => {
-    setFiltros(prev => ({
-      ...prev,
-      busquedaCodigo: codigoPadre,
-      busquedaDescripcion: '',
-      codigo_padre: '',
-      busqueda_jerarquica: true
-    }));
-  }, []);
-
-  const toggleVistaArbol = useCallback(() => {
-    setVistaArbol(!vistaArbol);
-  }, [vistaArbol]);
-
-  const limpiarFiltros = useCallback(() => {
-    setFiltros({
-      busquedaCodigo: '',
-      busquedaDescripcion: '',
-      estado: '',
-      naturaleza: '',
-      tipo_cuenta: '',
-      jerarquia: '',
-      solo_padres: false,
-      solo_hijas: false,
-      codigo_padre: '',
-      acepta_movimientos: '',
-      rango_nivel: { min: '', max: '' },
-      fecha_creacion: { desde: '', hasta: '' },
-      limite: 50,
-      pagina: 1,
-      incluir_inactivas: false,
-      solo_con_movimientos: false,
-      clase_contable: '',
-      mostrar_todas: false,
-      busqueda_jerarquica: true
-    });
-    setOrdenamiento({ campo: 'codigo_completo', direccion: 'asc' });
-  }, []);
-
-  const cambiarOrdenamiento = useCallback((campo) => {
-    setOrdenamiento(prev => ({
-      campo,
-      direccion: prev.campo === campo && prev.direccion === 'asc' ? 'desc' : 'asc'
-    }));
-  }, []);
-
-  const cambiarPagina = useCallback((nuevaPagina) => {
-    if (nuevaPagina >= 1 && nuevaPagina <= paginacion.totalPaginas) {
-      cargarDatos(nuevaPagina);
-    }
-  }, [cargarDatos, paginacion.totalPaginas]);
-
-  const cambiarLimite = useCallback((nuevoLimite) => {
-    setFiltros(prev => ({
-      ...prev,
-      limite: nuevoLimite,
-      pagina: 1
-    }));
-  }, []);
-
-  const toggleMostrarTodas = useCallback(() => {
-    setFiltros(prev => ({
-      ...prev,
-      mostrar_todas: !prev.mostrar_todas,
-      estado: !prev.mostrar_todas ? '' : 'ACTIVA',
-      limite: !prev.mostrar_todas ? 'todos' : 50,
-      pagina: 1
-    }));
-  }, []);
-
-  const toggleBusquedaJerarquica = useCallback(() => {
-    setFiltros(prev => ({
-      ...prev,
-      busqueda_jerarquica: !prev.busqueda_jerarquica
-    }));
-  }, []);
-
-  // ===============================================
-  // 🎨 FUNCIONES AUXILIARES
-  // ===============================================
-
-  const obtenerIconoTipoCuenta = useCallback((tipo) => {
-    const iconos = {
-      'CLASE': '🏛️',
-      'GRUPO': '📁',
-      'CUENTA': '📋',
-      'SUBCUENTA': '📄',
-      'DETALLE': '🔸'
-    };
-    return iconos[tipo] || '📌';
-  }, []);
-
-  const obtenerColorNaturaleza = useCallback((naturaleza) => {
-    return naturaleza === 'DEBITO'
-      ? 'bg-green-100 text-green-800'
-      : 'bg-blue-100 text-blue-800';
-  }, []);
-
-  const obtenerColorTipoCuenta = useCallback((tipo) => {
-    const colores = {
-      'CLASE': 'bg-purple-100 text-purple-800',
-      'GRUPO': 'bg-blue-100 text-blue-800',
-      'CUENTA': 'bg-green-100 text-green-800',
-      'SUBCUENTA': 'bg-yellow-100 text-yellow-800',
-      'DETALLE': 'bg-orange-100 text-orange-800'
-    };
-    return colores[tipo] || 'bg-gray-100 text-gray-800';
-  }, []);
-
-  const obtenerIconoOrdenamiento = useCallback((campo) => {
-    if (ordenamiento.campo !== campo) return <FaSort className="text-gray-400" />;
-    return ordenamiento.direccion === 'asc'
-      ? <FaSortUp className="text-blue-600" />
-      : <FaSortDown className="text-blue-600" />;
-  }, [ordenamiento]);
-
-  // ===============================================
-  // ⚡ EFFECTS OPTIMIZADOS
-  // ===============================================
 
   useEffect(() => {
     cargarDatos();
-  }, [cargarDatos]);
+    cargarEstadisticas();
+  }, [cargarDatos, cargarEstadisticas]);
 
   useEffect(() => {
     if (success) {
@@ -696,507 +272,756 @@ const PucPage = () => {
   }, [error]);
 
   // ===============================================
-  // 🎨 COMPONENTES DE RENDERIZADO
+  // 📥 FUNCIÓN DE IMPORTACIÓN
   // ===============================================
-
-  const EstadisticasHeader = () => (
-    estadisticas && (
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-600 text-sm font-medium">Total Cuentas</p>
-              <p className="text-2xl font-bold text-blue-900">{estadisticas.total || 0}</p>
-            </div>
-            <FaDatabase className="text-blue-500 text-2xl" />
-          </div>
-        </div>
-
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-600 text-sm font-medium">Activas</p>
-              <p className="text-2xl font-bold text-green-900">{estadisticas.activas || 0}</p>
-            </div>
-            <FaCheckCircle className="text-green-500 text-2xl" />
-          </div>
-        </div>
-
-        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-600 text-sm font-medium">Inactivas</p>
-              <p className="text-2xl font-bold text-red-900">{estadisticas.inactivas || 0}</p>
-            </div>
-            <FaTimes className="text-red-500 text-2xl" />
-          </div>
-        </div>
-
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-600 text-sm font-medium">Cuentas Padre</p>
-              <p className="text-2xl font-bold text-purple-900">{estadisticas.padres || 0}</p>
-            </div>
-            <FaUsers className="text-purple-500 text-2xl" />
-          </div>
-        </div>
-
-        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-600 text-sm font-medium">Niveles</p>
-              <p className="text-2xl font-bold text-orange-900">{estadisticas.niveles || 0}</p>
-            </div>
-            <FaChartBar className="text-orange-500 text-2xl" />
-          </div>
-        </div>
-      </div>
-    )
-  );
-
-  const PaginacionControles = () => (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-gray-50 rounded-lg">
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-600">Mostrar:</span>
-
-        <Select
-          value={filtros.limite}
-          onChange={(e) => cambiarLimite(e.target.value)}
-          options={[
-            { value: 10, label: '10 registros' },
-            { value: 25, label: '25 registros' },
-            { value: 50, label: '50 registros' },
-            { value: 100, label: '100 registros' },
-            { value: 500, label: '500 registros' },
-            { value: 1000, label: '1,000 registros' },
-            { value: 5000, label: '5,000 registros' },
-            { value: 'todos', label: 'Todos los registros' }
-          ]}
-          className="min-w-32"
-        />
-      </div>
-
-      {filtros.limite !== 'todos' && paginacion.totalPaginas > 1 && (
-        <div className="flex items-center space-x-2">
-          <Button
-            onClick={() => cambiarPagina(paginacion.paginaActual - 1)}
-            disabled={paginacion.paginaActual <= 1}
-            className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700"
-          >
-            Anterior
-          </Button>
-
-          <div className="flex items-center space-x-1">
-            {Array.from({ length: Math.min(5, paginacion.totalPaginas) }, (_, i) => {
-              let pageNum;
-              if (paginacion.totalPaginas <= 5) {
-                pageNum = i + 1;
-              } else if (paginacion.paginaActual <= 3) {
-                pageNum = i + 1;
-              } else if (paginacion.paginaActual >= paginacion.totalPaginas - 2) {
-                pageNum = paginacion.totalPaginas - 4 + i;
-              } else {
-                pageNum = paginacion.paginaActual - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => cambiarPagina(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${pageNum === paginacion.paginaActual
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                    }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-
-          <Button
-            onClick={() => cambiarPagina(paginacion.paginaActual + 1)}
-            disabled={paginacion.paginaActual >= paginacion.totalPaginas}
-            className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700"
-          >
-            Siguiente
-          </Button>
-        </div>
-      )}
-
-      <div className="text-sm text-gray-600">
-        {filtros.limite === 'todos'
-          ? `Total: ${cuentas.length} registros`
-          : `Página ${paginacion.paginaActual} de ${paginacion.totalPaginas} (${paginacion.total} total)`
-        }
-      </div>
-    </div>
-  );
+  const handleImportSuccess = async (result) => {
+    try {
+      setSuccess(`Importación completada: ${result.resumen.insertadas} insertadas, ${result.resumen.actualizadas} actualizadas`);
+      await cargarDatos();
+      await cargarEstadisticas();
+      setShowImportModal(false);
+    } catch (err) {
+      console.error('Error al actualizar después de importar:', err);
+    }
+  };
 
   // ===============================================
-  // 🎨 RENDERIZADO PRINCIPAL
+  // 📤 FUNCIONES DE EXPORTACIÓN
   // ===============================================
+  const descargarTemplate = async () => {
+    setLoading(true);
+    try {
+      await pucApi.descargarTemplate(true);
+      setSuccess('Template descargado exitosamente');
+    } catch (err) {
+      setError('Error descargando template: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // ===============================================
+  // 📝 FUNCIONES CRUD MEJORADAS
+  // ===============================================
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      // ✅ VALIDAR JERARQUÍA ANTES DE ENVIAR
+      const validacion = validarCodigoJerarquia(
+        formData.codigo_completo, 
+        formData.tipo_cuenta, 
+        formData.codigo_padre
+      );
+
+      if (!validacion.valido) {
+        setError(`Errores de validación:\n${validacion.errores.join('\n')}`);
+        setLoading(false);
+        return;
+      }
+
+      // ✅ ENRIQUECER DATOS CON INFORMACIÓN CALCULADA
+      const datosEnriquecidos = {
+        ...formData,
+        nivel: determinarNivelPorCodigo(formData.codigo_completo),
+        naturaleza: formData.naturaleza || determinarNaturalezaPorClase(formData.codigo_completo),
+        ...extraerCodigosJerarquia(formData.codigo_completo)
+      };
+      
+      if (editingAccount) {
+        await pucApi.actualizarCuenta(editingAccount.id, datosEnriquecidos);
+        setSuccess('Cuenta actualizada exitosamente');
+      } else {
+        await pucApi.crearCuenta(datosEnriquecidos);
+        setSuccess('Cuenta creada exitosamente');
+      }
+      
+      setShowModal(false);
+      resetForm();
+      await cargarDatos();
+      await cargarEstadisticas();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const eliminarCuenta = async (id) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta cuenta?')) return;
+    
+    setLoading(true);
+    try {
+      await pucApi.eliminarCuenta(id);
+      setSuccess('Cuenta eliminada exitosamente');
+      await cargarDatos();
+      await cargarEstadisticas();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const editarCuenta = (cuenta) => {
+    setEditingAccount(cuenta);
+    setFormData({
+      codigo_completo: cuenta.codigo_completo,
+      descripcion: cuenta.descripcion || '',
+      naturaleza: cuenta.naturaleza,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      codigo_padre: cuenta.codigo_padre || ''
+    });
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setEditingAccount(null);
+    setFormData({
+      codigo_completo: '',
+      descripcion: '',
+      naturaleza: 'DEBITO',
+      tipo_cuenta: 'DETALLE',
+      acepta_movimientos: true,
+      codigo_padre: ''
+    });
+  };
+
+  const verDetalleCuenta = (cuenta) => {
+    setSelectedAccount(cuenta);
+    setShowDetailModal(true);
+  };
+
+  // ===============================================
+  // 🔧 FUNCIONES AUXILIARES MEJORADAS
+  // ===============================================
+  const cambiarPagina = (nuevaPagina) => {
+    setFiltros(prev => ({ ...prev, pagina: nuevaPagina }));
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      busqueda: '',
+      estado: '',
+      tipo: '',
+      naturaleza: '',
+      codigo_padre: '',
+      limite: 50,
+      pagina: 1,
+      ordenar_por: 'codigo_completo', // ✅ MANTENER ORDENAMIENTO JERÁRQUICO
+      orden: 'ASC'
+    });
+  };
+
+  // ✅ FILTRO INTELIGENTE POR TIPO CON VALIDACIÓN DE DÍGITOS
+  const aplicarFiltroInteligentePorTipo = (tipoSeleccionado) => {
+    const filtrosActualizados = { ...filtros, tipo: tipoSeleccionado, pagina: 1 };
+    
+    // Limpiar filtros específicos anteriores
+    delete filtrosActualizados.codigo_clase;
+    delete filtrosActualizados.codigo_grupo;
+    delete filtrosActualizados.nivel;
+    
+    // Aplicar filtro específico por longitud de código
+    switch(tipoSeleccionado) {
+      case 'CLASE':
+        filtrosActualizados.longitud_codigo = 1;
+        filtrosActualizados.nivel = 1;
+        break;
+      case 'GRUPO':
+        filtrosActualizados.longitud_codigo = 2;
+        filtrosActualizados.nivel = 2;
+        break;
+      case 'CUENTA':
+        filtrosActualizados.longitud_codigo = 4;
+        filtrosActualizados.nivel = 3;
+        break;
+      case 'SUBCUENTA':
+        filtrosActualizados.longitud_codigo = 6;
+        filtrosActualizados.nivel = 4;
+        break;
+      case 'DETALLE':
+        filtrosActualizados.longitud_codigo_min = 7;
+        filtrosActualizados.nivel = 5;
+        break;
+    }
+    
+    setFiltros(filtrosActualizados);
+  };
+
+  const formatearSaldo = (saldo) => {
+    if (!saldo) return '$0';
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(saldo);
+  };
+
+  const obtenerColorNivel = (nivel) => {
+    const colores = {
+      1: 'bg-red-100 text-red-800 border-red-200',
+      2: 'bg-orange-100 text-orange-800 border-orange-200',
+      3: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      4: 'bg-green-100 text-green-800 border-green-200',
+      5: 'bg-blue-100 text-blue-800 border-blue-200'
+    };
+    return colores[nivel] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const obtenerColorNaturaleza = (naturaleza) => {
+    return naturaleza === 'DEBITO' 
+      ? 'bg-green-100 text-green-800 border-green-200'
+      : 'bg-blue-100 text-blue-800 border-blue-200';
+  };
+
+  const obtenerIconoTipoCuenta = (tipo) => {
+    const iconos = {
+      'CLASE': '🏛️',
+      'GRUPO': '📁',
+      'CUENTA': '📋',
+      'SUBCUENTA': '📄',
+      'DETALLE': '🔸'
+    };
+    return iconos[tipo] || '📌';
+  };
+
+  // ✅ FUNCIÓN PARA RENDERIZAR VISTA JERÁRQUICA
+  const renderizarVistaArbol = (cuentas) => {
+    return cuentas.map((cuenta, index) => {
+      const nivel = cuenta.nivel_calculado || cuenta.nivel || 1;
+      const indentacion = '  '.repeat(nivel - 1);
+      
+      return (
+        <tr 
+          key={cuenta.id} 
+          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
+            index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+          }`}
+        >
+          {/* Columna jerárquica con indentación */}
+          <td className="py-3 px-4 border-r border-gray-100">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-gray-400 font-mono">{indentacion}</span>
+              <span className="text-lg">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
+              <div>
+                <div className="font-mono font-bold text-gray-900">{cuenta.codigo_completo}</div>
+                <div className="text-sm text-gray-600 truncate max-w-xs" title={cuenta.descripcion}>
+                  {cuenta.descripcion || 'Sin descripción'}
+                </div>
+              </div>
+            </div>
+          </td>
+          
+          {/* Información de clasificación */}
+          <td className="py-3 px-4 border-r border-gray-100">
+            <div className="space-y-1">
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                cuenta.tipo_cuenta === 'CLASE' ? 'bg-purple-100 text-purple-800' :
+                cuenta.tipo_cuenta === 'GRUPO' ? 'bg-blue-100 text-blue-800' :
+                cuenta.tipo_cuenta === 'CUENTA' ? 'bg-green-100 text-green-800' :
+                cuenta.tipo_cuenta === 'SUBCUENTA' ? 'bg-yellow-100 text-yellow-800' :
+                cuenta.tipo_cuenta === 'DETALLE' ? 'bg-orange-100 text-orange-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {cuenta.tipo_cuenta}
+              </span>
+              <div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(nivel)}`}>
+                  Nivel {nivel}
+                </span>
+              </div>
+            </div>
+          </td>
+          
+          {/* Naturaleza y estado */}
+          <td className="py-3 px-4 border-r border-gray-100">
+            <div className="space-y-1">
+              <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
+                {cuenta.naturaleza}
+              </span>
+              <div className="flex items-center space-x-1">
+                <span className={`w-2 h-2 rounded-full ${
+                  cuenta.estado === 'ACTIVA' ? 'bg-green-500' : 'bg-red-500'
+                }`}></span>
+                <span className={`text-xs ${
+                  cuenta.estado === 'ACTIVA' ? 'text-green-700' : 'text-red-700'
+                }`}>
+                  {cuenta.estado}
+                </span>
+              </div>
+            </div>
+          </td>
+          
+          {/* Saldos */}
+          <td className="py-3 px-4 border-r border-gray-100 text-right">
+            <div className="space-y-1 text-xs">
+              <div>
+                <span className="text-gray-500">Inicial:</span>
+                <span className="ml-1 font-mono text-blue-600">
+                  {formatearSaldo(cuenta.saldo_inicial)}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Final:</span>
+                <span className={`ml-1 font-mono ${
+                  (cuenta.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {formatearSaldo(cuenta.saldo_final)}
+                </span>
+              </div>
+            </div>
+          </td>
+          
+          {/* Configuración */}
+          <td className="py-3 px-4 border-r border-gray-100 text-center">
+            <div className="space-y-1">
+              <div>
+                <span className={`text-xs ${cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'}`}>
+                  {cuenta.acepta_movimientos ? '✓ Mov' : '✗ Mov'}
+                </span>
+              </div>
+              <div>
+                <span className={`text-xs ${cuenta.requiere_tercero ? 'text-green-600' : 'text-red-600'}`}>
+                  {cuenta.requiere_tercero ? '✓ Ter' : '✗ Ter'}
+                </span>
+              </div>
+            </div>
+          </td>
+          
+          {/* Acciones */}
+          <td className="py-3 px-4">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => verDetalleCuenta(cuenta)}
+                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                title="Ver detalles"
+              >
+                <FaEye className="text-sm" />
+              </button>
+              <button
+                onClick={() => editarCuenta(cuenta)}
+                className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors"
+                title="Editar"
+              >
+                <FaEdit className="text-sm" />
+              </button>
+              <button
+                onClick={() => {
+                  const confirmar = window.confirm(
+                    `¿Eliminar cuenta ${cuenta.codigo_completo}?\n${cuenta.descripcion}`
+                  );
+                  if (confirmar) eliminarCuenta(cuenta.id);
+                }}
+                className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                title="Eliminar"
+              >
+                <FaTrash className="text-sm" />
+              </button>
+            </div>
+          </td>
+        </tr>
+      );
+    });
+  };
+
+  // ===============================================
+  // 🎨 COMPONENTE PRINCIPAL
+  // ===============================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="p-6 space-y-6">
-
-        {/* Header perfeccionado */}
+        {/* Header con estadísticas */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent">
               Plan Único de Cuentas (PUC)
             </h1>
             <p className="text-gray-600">
-              Sistema perfeccionado de gestión contable con búsqueda jerárquica avanzada
+              Gestión inteligente con jerarquía automática y validaciones PUC estándar colombiano
             </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={() => cargarDatos(paginacion.paginaActual)}
-              className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg"
-              icon={FaRedo}
-              loading={loadingAction === 'cargando'}
-            >
-              Actualizar
-            </Button>
-
-            <Button
-              onClick={abrirModalCrear}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
-              icon={FaPlus}
-            >
-              Nueva Cuenta
-            </Button>
-
-            <Button
-              onClick={abrirModalImportar}
-              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg"
-              icon={FaUpload}
-            >
-              Importar Excel
-            </Button>
-
-            <Button
-              onClick={abrirModalExportar}
-              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg"
-              icon={FaDownload}
-            >
-              Exportar
-            </Button>
-          </div>
-        </div>
-
-        {/* Estadísticas */}
-        <EstadisticasHeader />
-
-        {/* Filtros perfeccionados con búsqueda jerárquica */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex flex-col space-y-4">
-
-            {/* Primera fila - Búsqueda por código específico */}
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Input
-                    placeholder="Buscar por código de cuenta específico (ej: 1105, 110505)"
-                    value={filtros.busquedaCodigo}
-                    onChange={manejarBusquedaCodigo}
-                    icon={FaSearch}
-                    className="pr-32"
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-                    <label className="flex items-center space-x-1 text-sm text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={filtros.busqueda_jerarquica}
-                        onChange={toggleBusquedaJerarquica}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>Jerárquica</span>
-                      <FaTree className="text-blue-500" />
-                    </label>
+            
+            {/* ✅ ESTADÍSTICAS MEJORADAS CON INFORMACIÓN JERÁRQUICA */}
+            {estadisticas && (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaClipboardList className="text-blue-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Total</span>
+                    <span className="font-bold text-blue-600">{estadisticas.total}</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {filtros.busqueda_jerarquica
-                    ? "✓ Incluirá todas las cuentas padre e hijas relacionadas"
-                    : "Solo mostrará cuentas que coincidan o comiencen con el código"}
-                </p>
-              </div>
-
-              <div className="flex-1">
-                <Input
-                  placeholder="Buscar por descripción"
-                  value={filtros.busquedaDescripcion}
-                  onChange={manejarBusquedaDescripcion}
-                  icon={FaFileAlt}
-                />
-              </div>
-            </div>
-
-            {/* Segunda fila - Filtros principales */}
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex gap-3 flex-1">
-                <Select
-                  value={filtros.estado}
-                  onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value, pagina: 1 }))}
-                  options={[
-                    { value: '', label: 'Todos los estados' },
-                    { value: 'ACTIVA', label: '✅ Activas' },
-                    { value: 'INACTIVA', label: '❌ Inactivas' }
-                  ]}
-                  className="min-w-40"
-                />
-
-                <Select
-                  value={filtros.clase_contable}
-                  onChange={(e) => setFiltros(prev => ({ ...prev, clase_contable: e.target.value, pagina: 1 }))}
-                  options={[
-                    { value: '', label: 'Todas las clases' },
-                    { value: '1', label: '1 - Activos' },
-                    { value: '2', label: '2 - Pasivos' },
-                    { value: '3', label: '3 - Patrimonio' },
-                    { value: '4', label: '4 - Ingresos' },
-                    { value: '5', label: '5 - Gastos' },
-                    { value: '6', label: '6 - Costos de Ventas' },
-                    { value: '7', label: '7 - Costos de Producción' },
-                    { value: '8', label: '8 - Cuentas de Orden Deudoras' },
-                    { value: '9', label: '9 - Cuentas de Orden Acreedoras' }
-                  ]}
-                  className="min-w-48"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  onClick={toggleMostrarTodas}
-                  className={`${filtros.mostrar_todas
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-gray-600 hover:bg-gray-700'
-                    } text-white flex items-center space-x-2`}
-                  icon={FaList}
-                >
-                  <span>{filtros.mostrar_todas ? 'Mostrando Todas' : 'Mostrar Todas'}</span>
-                </Button>
-
-                <Button
-                  onClick={() => setMostrarFiltrosAvanzados(!mostrarFiltrosAvanzados)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-2"
-                  icon={mostrarFiltrosAvanzados ? FaChevronUp : FaChevronDown}
-                >
-                  <span>Filtros Avanzados</span>
-                </Button>
-
-                <Button
-                  onClick={limpiarFiltros}
-                  className="bg-gray-500 hover:bg-gray-600 text-white"
-                  icon={FaTimes}
-                >
-                  Limpiar
-                </Button>
-              </div>
-            </div>
-
-            {/* Filtros avanzados (collapsible) */}
-            {mostrarFiltrosAvanzados && (
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                  <FaFilter className="mr-2" />
-                  Filtros Avanzados
-                </h4>
-
-                {/* Primera fila de filtros avanzados */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select
-                    value={filtros.naturaleza}
-                    onChange={(e) => setFiltros(prev => ({ ...prev, naturaleza: e.target.value, pagina: 1 }))}
-                    options={[
-                      { value: '', label: 'Todas las naturalezas' },
-                      { value: 'DEBITO', label: '📈 Débito' },
-                      { value: 'CREDITO', label: '📉 Crédito' }
-                    ]}
-                  />
-
-                  <Select
-                    value={filtros.tipo_cuenta}
-                    onChange={(e) => setFiltros(prev => ({ ...prev, tipo_cuenta: e.target.value, pagina: 1 }))}
-                    options={[
-                      { value: '', label: 'Todos los tipos' },
-                      { value: 'CLASE', label: '🏛️ Clase' },
-                      { value: 'GRUPO', label: '📁 Grupo' },
-                      { value: 'CUENTA', label: '📋 Cuenta' },
-                      { value: 'SUBCUENTA', label: '📄 Subcuenta' },
-                      { value: 'DETALLE', label: '🔸 Detalle' }
-                    ]}
-                  />
-
-                  <Select
-                    value={filtros.jerarquia}
-                    onChange={(e) => setFiltros(prev => ({ ...prev, jerarquia: e.target.value, pagina: 1 }))}
-                    options={[
-                      { value: '', label: 'Toda la jerarquía' },
-                      { value: 'padre', label: 'Solo cuentas padre' },
-                      { value: 'hija', label: 'Solo cuentas hija' },
-                      { value: 'nivel1', label: 'Nivel 1 - Clases' },
-                      { value: 'nivel2', label: 'Nivel 2 - Grupos' },
-                      { value: 'nivel3', label: 'Nivel 3 - Cuentas' },
-                      { value: 'nivel4', label: 'Nivel 4 - Subcuentas' },
-                      { value: 'nivel5', label: 'Nivel 5+ - Detalles' }
-                    ]}
-                  />
-                </div>
-
-                {/* Segunda fila de filtros avanzados */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select
-                    value={filtros.acepta_movimientos}
-                    onChange={(e) => setFiltros(prev => ({ ...prev, acepta_movimientos: e.target.value, pagina: 1 }))}
-                    options={[
-                      { value: '', label: 'Todas las cuentas' },
-                      { value: 'true', label: '✓ Acepta movimientos' },
-                      { value: 'false', label: '✗ No acepta movimientos' }
-                    ]}
-                  />
-
-                  <Input
-                    placeholder="Código padre específico"
-                    value={filtros.codigo_padre}
-                    onChange={(e) => setFiltros(prev => ({ ...prev, codigo_padre: e.target.value, pagina: 1 }))}
-                  />
-
-                  <div className="flex space-x-4">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.solo_padres}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev,
-                          solo_padres: e.target.checked,
-                          solo_hijas: false,
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">Solo padres</span>
-                    </label>
-
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={filtros.solo_hijas}
-                        onChange={(e) => setFiltros(prev => ({
-                          ...prev,
-                          solo_hijas: e.target.checked,
-                          solo_padres: false,
-                          pagina: 1
-                        }))}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">Solo hijas</span>
-                    </label>
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaLayerGroup className="text-purple-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Clases</span>
+                    <span className="font-bold text-purple-600">{estadisticas.por_tipo?.clases || 0}</span>
                   </div>
                 </div>
-
-                {/* Tercera fila - Rango de niveles */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Rango de niveles:</span>
-                    <Input
-                      type="number"
-                      placeholder="Min"
-                      value={filtros.rango_nivel.min}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev,
-                        rango_nivel: { ...prev.rango_nivel, min: e.target.value },
-                        pagina: 1
-                      }))}
-                      className="w-20"
-                      min="1"
-                      max="5"
-                    />
-                    <span className="text-gray-500">-</span>
-                    <Input
-                      type="number"
-                      placeholder="Max"
-                      value={filtros.rango_nivel.max}
-                      onChange={(e) => setFiltros(prev => ({
-                        ...prev,
-                        rango_nivel: { ...prev.rango_nivel, max: e.target.value },
-                        pagina: 1
-                      }))}
-                      className="w-20"
-                      min="1"
-                      max="5"
-                    />
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaBuilding className="text-orange-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Grupos</span>
+                    <span className="font-bold text-orange-600">{estadisticas.por_tipo?.grupos || 0}</span>
+                  </div>
+                </div>
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaChartLine className="text-green-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Con Movimientos</span>
+                    <span className="font-bold text-green-600">{estadisticas.acepta_movimientos}</span>
+                  </div>
+                </div>
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaMoneyBillWave className="text-red-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Débito</span>
+                    <span className="font-bold text-red-600">{estadisticas.por_naturaleza?.debito || 0}</span>
+                  </div>
+                </div>
+                <div className="bg-white px-4 py-3 rounded-lg shadow-sm border flex items-center space-x-2">
+                  <FaBalanceScale className="text-indigo-600" />
+                  <div>
+                    <span className="text-xs text-gray-600 block">Crédito</span>
+                    <span className="font-bold text-indigo-600">{estadisticas.por_naturaleza?.credito || 0}</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
+          
+          {/* Botones de acción */}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              icon={FaPlus}
+            >
+              Nueva Cuenta
+            </Button>
+            
+            <Button
+              onClick={() => setShowImportModal(true)}
+              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              icon={FaUpload}
+            >
+              Importar Excel
+            </Button>
+            
+            <Button
+              onClick={() => setShowExportModal(true)}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              icon={FaDownload}
+            >
+              Exportar
+            </Button>
+
+            <Button
+              onClick={descargarTemplate}
+              className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              icon={FaFileAlt}
+              loading={loading}
+            >
+              Template
+            </Button>
+          </div>
         </div>
 
-        {/* Mensajes */}
+        {/* Mensajes de notificación */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3 animate-fade-in">
             <FaExclamationTriangle className="text-red-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-red-800 font-medium">Error</p>
-              <p className="text-red-600 text-sm">{error}</p>
+              <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>
             </div>
-            <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+            <button 
+              onClick={() => setError(null)} 
+              className="ml-auto text-red-500 hover:text-red-700 transition-colors"
+            >
               <FaTimes />
             </button>
           </div>
         )}
 
         {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-3">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-3 animate-fade-in">
             <FaCheckCircle className="text-green-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-green-800 font-medium">Éxito</p>
               <p className="text-green-600 text-sm">{success}</p>
             </div>
-            <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
+            <button 
+              onClick={() => setSuccess(null)} 
+              className="ml-auto text-green-500 hover:text-green-700 transition-colors"
+            >
               <FaTimes />
             </button>
           </div>
         )}
 
-        {/* Tabla perfeccionada con jerarquía visual */}
+        {/* ✅ PANEL DE FILTROS MEJORADO CON JERARQUÍA INTELIGENTE */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
+              <FaFilter className="text-blue-600" />
+              <span>Filtros Inteligentes PUC</span>
+              {Object.values(filtros).some(value => value && value !== '' && value !== 'todos') && (
+                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                  Filtros activos
+                </span>
+              )}
+            </h2>
+            <div className="flex space-x-2">
+              <Button
+                onClick={limpiarFiltros}
+                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+                icon={FaTimes}
+              >
+                Limpiar Todos
+              </Button>
+              <Button
+                onClick={() => setVistaArbol(!vistaArbol)}
+                className={`px-3 py-1 text-sm transition-colors ${
+                  vistaArbol 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+                icon={vistaArbol ? FaTree : FaList}
+              >
+                {vistaArbol ? 'Vista Árbol' : 'Vista Lista'}
+              </Button>
+              <Button
+                onClick={() => setVistaExpandida(!vistaExpandida)}
+                className={`px-3 py-1 text-sm transition-colors ${
+                  vistaExpandida 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+                icon={vistaExpandida ? FaCompress : FaExpand}
+              >
+                {vistaExpandida ? 'Compacta' : 'Expandida'}
+              </Button>
+            </div>
+          </div>
+          
+          {/* ✅ SECCIÓN 1: FILTROS BÁSICOS Y JERARQUÍA INTELIGENTE */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+              <FaSearch className="mr-2 text-blue-600" />
+              Búsqueda y Jerarquía PUC
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              <div className="xl:col-span-2">
+                <Input
+                  label="Buscar"
+                  placeholder="Código, descripción..."
+                  value={filtros.busqueda}
+                  onChange={(e) => setFiltros({...filtros, busqueda: e.target.value, pagina: 1})}
+                  icon={FaSearch}
+                />
+              </div>
+              
+              {/* ✅ FILTRO INTELIGENTE POR TIPO */}
+              <Select
+                label="Tipo de Cuenta (Inteligente)"
+                value={filtros.tipo}
+                onChange={(e) => aplicarFiltroInteligentePorTipo(e.target.value)}
+                options={[
+                  { value: '', label: 'Todos los tipos' },
+                  { value: 'CLASE', label: '🏛️ Clase (1 dígito)' },
+                  { value: 'GRUPO', label: '📁 Grupo (2 dígitos)' },
+                  { value: 'CUENTA', label: '📋 Cuenta (4 dígitos)' },
+                  { value: 'SUBCUENTA', label: '📄 Subcuenta (6 dígitos)' },
+                  { value: 'DETALLE', label: '🔸 Detalle (7+ dígitos)' }
+                ]}
+              />
+              
+              <Select
+                label="Nivel Jerárquico"
+                value={filtros.nivel}
+                onChange={(e) => setFiltros({...filtros, nivel: e.target.value, pagina: 1})}
+                options={[
+                  { value: '', label: 'Todos los niveles' },
+                  { value: '1', label: 'Nivel 1 - Clase' },
+                  { value: '2', label: 'Nivel 2 - Grupo' },
+                  { value: '3', label: 'Nivel 3 - Cuenta' },
+                  { value: '4', label: 'Nivel 4 - Subcuenta' },
+                  { value: '5', label: 'Nivel 5 - Detalle' }
+                ]}
+              />
+              
+              <Select
+                label="Naturaleza"
+                value={filtros.naturaleza}
+                onChange={(e) => setFiltros({...filtros, naturaleza: e.target.value, pagina: 1})}
+                options={[
+                  { value: '', label: 'Todas las naturalezas' },
+                  { value: 'DEBITO', label: 'Débito (1,5,6,7,8)' },
+                  { value: 'CREDITO', label: 'Crédito (2,3,4,9)' }
+                ]}
+              />
+              
+              <Select
+                label="Estado"
+                value={filtros.estado}
+                onChange={(e) => setFiltros({...filtros, estado: e.target.value, pagina: 1})}
+                options={[
+                  { value: '', label: 'Todos los estados' },
+                  { value: 'ACTIVA', label: 'Activa' },
+                  { value: 'INACTIVA', label: 'Inactiva' }
+                ]}
+              />
+              
+              <Input
+                label="Cuenta Padre"
+                placeholder="Código padre..."
+                value={filtros.codigo_padre}
+                onChange={(e) => setFiltros({...filtros, codigo_padre: e.target.value, pagina: 1})}
+              />
+            </div>
+          </div>
+
+          {/* ✅ FILTROS RÁPIDOS POR CLASE */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+              <FaLayerGroup className="mr-2 text-purple-600" />
+              Filtros Rápidos por Clase PUC
+            </h3>
+            <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-9 gap-2">
+              {[
+                { codigo: '1', nombre: 'ACTIVOS', color: 'bg-green-100 text-green-800' },
+                { codigo: '2', nombre: 'PASIVOS', color: 'bg-red-100 text-red-800' },
+                { codigo: '3', nombre: 'PATRIMONIO', color: 'bg-blue-100 text-blue-800' },
+                { codigo: '4', nombre: 'INGRESOS', color: 'bg-purple-100 text-purple-800' },
+                { codigo: '5', nombre: 'GASTOS', color: 'bg-orange-100 text-orange-800' },
+                { codigo: '6', nombre: 'COSTOS', color: 'bg-yellow-100 text-yellow-800' },
+                { codigo: '7', nombre: 'COSTOS PROD.', color: 'bg-indigo-100 text-indigo-800' },
+                { codigo: '8', nombre: 'CTA ORD. DEUD.', color: 'bg-pink-100 text-pink-800' },
+                { codigo: '9', nombre: 'CTA ORD. ACRE.', color: 'bg-teal-100 text-teal-800' }
+              ].map(clase => (
+                <button
+                  key={clase.codigo}
+                  onClick={() => setFiltros({...filtros, codigo_clase: clase.codigo, pagina: 1})}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-80 ${
+                    filtros.codigo_clase === clase.codigo 
+                      ? clase.color + ' ring-2 ring-offset-1 ring-blue-500' 
+                      : clase.color
+                  }`}
+                  title={`Filtrar por ${clase.nombre}`}
+                >
+                  {clase.codigo} - {clase.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Configuración de Vista y Ordenamiento */}
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+              <FaSortAmountDown className="mr-2 text-blue-600" />
+              Configuración de Vista
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              <Select
+                label="Registros por página"
+                value={filtros.limite}
+                onChange={(e) => setFiltros({...filtros, limite: parseInt(e.target.value), pagina: 1})}
+                options={[
+                  { value: 25, label: '25 registros' },
+                  { value: 50, label: '50 registros' },
+                  { value: 100, label: '100 registros' },
+                  { value: 200, label: '200 registros' },
+                  { value: 500, label: '500 registros' },
+                  { value: 999999, label: 'Todos los registros' }
+                ]}
+              />
+              
+              <Select
+                label="Ordenar por"
+                value={filtros.ordenar_por}
+                onChange={(e) => setFiltros({...filtros, ordenar_por: e.target.value, pagina: 1})}
+                options={[
+                  { value: 'codigo_completo', label: '🏗️ Código (Jerárquico)' },
+                  { value: 'descripcion', label: 'Descripción' },
+                  { value: 'nivel', label: 'Nivel' },
+                  { value: 'tipo_cuenta', label: 'Tipo Cuenta' },
+                  { value: 'saldo_inicial', label: 'Saldo Inicial' },
+                  { value: 'fecha_creacion', label: 'Fecha Creación' }
+                ]}
+              />
+              
+              <Select
+                label="Orden"
+                value={filtros.orden}
+                onChange={(e) => setFiltros({...filtros, orden: e.target.value, pagina: 1})}
+                options={[
+                  { value: 'ASC', label: '↑ Ascendente (recomendado)' },
+                  { value: 'DESC', label: '↓ Descendente' }
+                ]}
+              />
+              
+              <div className="flex flex-col space-y-2 pt-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={filtros.solo_movimiento}
+                    onChange={(e) => setFiltros({...filtros, solo_movimiento: e.target.checked, pagina: 1})}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">Solo con movimientos</span>
+                </label>
+              </div>
+              
+              <div className="flex flex-col justify-center">
+                <Button
+                  onClick={() => cargarDatos()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                  icon={FaSearch}
+                >
+                  Aplicar Filtros
+                </Button>
+              </div>
+              
+              <div className="flex flex-col justify-center">
+                <Button
+                  onClick={() => setShowExportModal(true)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm"
+                  icon={FaDownload}
+                >
+                  Exportar Filtrados
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ TABLA MEJORADA CON VISTA JERÁRQUICA */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Cuentas del PUC
-                {filtros.busquedaCodigo && (
-                  <span className="text-sm font-normal text-gray-600 ml-2">
-                    - Código: {filtros.busquedaCodigo}
-                    {filtros.busqueda_jerarquica && " (con jerarquía completa)"}
-                  </span>
-                )}
-              </h2>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-500">
-                  {loading ? 'Cargando...' : `${cuentas.length} cuentas mostradas`}
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center space-x-2">
+                {vistaArbol ? <FaTree className="text-green-600" /> : <FaList className="text-blue-600" />}
+                <span>
+                  {vistaArbol ? 'Vista Árbol Jerárquico' : 'Vista Lista Detallada'} - Cuentas PUC
                 </span>
-                {/* Indicadores de jerarquía */}
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-3 h-3 bg-purple-200 rounded"></div>
-                    <span>Padre</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className="w-3 h-3 bg-blue-200 rounded"></div>
-                    <span>Hija</span>
-                  </div>
-                </div>
+              </h2>
+              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                <span>{cuentas.length} cuentas mostradas</span>
+                <span>•</span>
+                <span>{paginacion.total} total</span>
+                {paginacion.totalPaginas > 1 && (
+                  <>
+                    <span>•</span>
+                    <span>Página {paginacion.paginaActual} de {paginacion.totalPaginas}</span>
+                  </>
+                )}
               </div>
             </div>
 
-            {loading && loadingAction === 'cargando' ? (
+            {loading ? (
               <div className="flex items-center justify-center py-12">
                 <FaSpinner className="animate-spin text-3xl text-blue-600" />
                 <span className="ml-3 text-gray-600">Cargando cuentas...</span>
@@ -1207,785 +1032,688 @@ const PucPage = () => {
                   <FaFileAlt className="text-6xl mx-auto mb-4" />
                 </div>
                 <p className="text-gray-500 text-lg">No se encontraron cuentas</p>
-                <p className="text-gray-400 text-sm">
-                  {filtros.busquedaCodigo || filtros.busquedaDescripcion || Object.values(filtros).some(v => v && v !== '' && v !== 50 && v !== 1 && v !== true)
-                    ? 'Intenta ajustar los filtros o crear una nueva cuenta'
-                    : 'Haz clic en "Nueva Cuenta" para crear la primera'
-                  }
-                </p>
+                <p className="text-gray-400 text-sm">Intenta ajustar los filtros o importar cuentas desde Excel</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th
-                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => cambiarOrdenamiento('codigo_completo')}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span>Código</span>
-                          <span className="text-xs text-gray-500">(Jerarquía)</span>
-                          {obtenerIconoOrdenamiento('codigo_completo')}
-                        </div>
-                      </th>
-                      <th
-                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => cambiarOrdenamiento('descripcion')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Descripción</span>
-                          {obtenerIconoOrdenamiento('descripcion')}
-                        </div>
-                      </th>
-                      <th
-                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => cambiarOrdenamiento('tipo_cuenta')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Tipo</span>
-                          {obtenerIconoOrdenamiento('tipo_cuenta')}
-                        </div>
-                      </th>
-                      <th
-                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => cambiarOrdenamiento('naturaleza')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Naturaleza</span>
-                          {obtenerIconoOrdenamiento('naturaleza')}
-                        </div>
-                      </th>
-                      <th
-                        className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => cambiarOrdenamiento('estado')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Estado</span>
-                          {obtenerIconoOrdenamiento('estado')}
-                        </div>
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Jerarquía</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cuentas.map((cuenta, index) => {
-                      const esPadre = esCuentaPadre(cuenta, cuentasOriginales);
-                      const nivel = obtenerNivelJerarquia(cuenta);
-                      const indentacion = vistaArbol ? obtenerIndentacion(cuenta) : 0;
-                      const cuentasHijas = cuentasOriginales.filter(c => c.codigo_padre === cuenta.codigo_completo);
-                      const claseContable = obtenerClaseContable(cuenta.codigo_completo);
-
-                      return (
-                        <tr
-                          key={cuenta.id}
-                          className={`
-                            border-b border-gray-100 hover:bg-blue-50 transition-all duration-200
-                            ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                            ${esPadre ? 'border-l-4 border-l-purple-400' : 'border-l-4 border-l-blue-200'}
-                          `}
-                        >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2" style={{ paddingLeft: `${indentacion}px` }}>
-                              {/* Indicador visual de jerarquía */}
-                              {nivel > 1 && vistaArbol && (
-                                <div className="flex items-center space-x-1">
-                                  {Array.from({ length: nivel - 1 }).map((_, i) => (
-                                    <div key={i} className="w-px h-4 bg-gray-300"></div>
-                                  ))}
-                                  <div className="w-3 h-px bg-gray-300"></div>
-                                </div>
-                              )}
-
-                              {/* Icono de tipo de cuenta */}
-                              <span className="text-lg">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
-
-                              {/* Indicador padre/hija */}
-                              {esPadre ? (
-                                <div className="w-2 h-2 bg-purple-500 rounded-full" title="Cuenta Padre"></div>
-                              ) : (
-                                <div className="w-2 h-2 bg-blue-400 rounded-full" title="Cuenta Hija"></div>
-                              )}
-
-                              {/* Código de la cuenta */}
-                              <div className="flex flex-col">
-                                <span className={`font-mono font-bold ${esPadre ? 'text-purple-900' : 'text-gray-900'
-                                  }`}>
-                                  {cuenta.codigo_completo}
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        {vistaArbol ? (
+                          // ✅ CABECERAS PARA VISTA ÁRBOL
+                          <>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[400px]">
+                              Estructura Jerárquica
+                            </th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[150px]">
+                              Clasificación
+                            </th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
+                              Naturaleza/Estado
+                            </th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[150px]">
+                              Saldos
+                            </th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">
+                              Config
+                            </th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">
+                              Acciones
+                            </th>
+                          </>
+                        ) : (
+                          // ✅ CABECERAS PARA VISTA LISTA (ORIGINAL)
+                          <>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">ID</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Código</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[250px]">Descripción</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">Tipo</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[90px]">Naturaleza</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[60px]">Nivel</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Final</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">Estado</th>
+                            <th className="text-left py-3 px-2 font-medium text-gray-700 min-w-[120px]">Acciones</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vistaArbol ? (
+                        // ✅ RENDERIZAR VISTA ÁRBOL
+                        renderizarVistaArbol(cuentas)
+                      ) : (
+                        // ✅ RENDERIZAR VISTA LISTA
+                        cuentas.map((cuenta, index) => (
+                          <tr 
+                            key={cuenta.id} 
+                            className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
+                              index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                            }`}
+                          >
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <span className="font-mono font-bold text-blue-600">#{cuenta.id}</span>
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <div className="flex items-center space-x-1">
+                                <span className="text-sm">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
+                                <span className="font-mono font-bold text-gray-900">{cuenta.codigo_completo}</span>
+                                {/* ✅ INDICADOR DE JERARQUÍA */}
+                                <span className={`px-1 py-0.5 rounded text-xs ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
+                                  N{cuenta.nivel_calculado || cuenta.nivel}
                                 </span>
-                                <span className="text-xs text-gray-500">{claseContable}</span>
                               </div>
-
-                              {/* Badge de nivel */}
-                              <span className={`text-xs px-2 py-1 rounded-full ${esPadre
-                                  ? 'bg-purple-100 text-purple-700'
-                                  : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                N{nivel}
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-gray-900 truncate" title={cuenta.descripcion}>
+                                  {cuenta.descripcion || 'Sin descripción'}
+                                </div>
+                                {/* ✅ MOSTRAR CÓDIGO PADRE SI EXISTE */}
+                                {cuenta.codigo_padre && (
+                                  <div className="text-xs text-gray-500">
+                                    Padre: {cuenta.codigo_padre}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                cuenta.tipo_cuenta === 'CLASE' ? 'bg-purple-100 text-purple-800' :
+                                cuenta.tipo_cuenta === 'GRUPO' ? 'bg-blue-100 text-blue-800' :
+                                cuenta.tipo_cuenta === 'CUENTA' ? 'bg-green-100 text-green-800' :
+                                cuenta.tipo_cuenta === 'SUBCUENTA' ? 'bg-yellow-100 text-yellow-800' :
+                                cuenta.tipo_cuenta === 'DETALLE' ? 'bg-orange-100 text-orange-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {cuenta.tipo_cuenta}
                               </span>
-                            </div>
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <div className={`font-medium ${esPadre ? 'text-purple-900 font-semibold' : 'text-gray-900'
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
+                                {cuenta.naturaleza}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
+                                {cuenta.nivel_calculado || cuenta.nivel}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
+                              <span className={`font-mono ${
+                                (cuenta.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
-                              {cuenta.descripcion || 'Sin descripción'}
-                            </div>
-                            {/* Mostrar código padre si existe */}
-                            {cuenta.codigo_padre && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Padre: {cuenta.codigo_padre}
-                              </div>
-                            )}
-                            {/* Mostrar si acepta movimientos */}
-                            {cuenta.acepta_movimientos !== undefined && (
-                              <div className={`text-xs mt-1 ${cuenta.acepta_movimientos ? 'text-green-600' : 'text-red-600'
+                                {formatearSaldo(cuenta.saldo_final)}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs">
+                              <div className="flex items-center space-x-1">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  cuenta.estado === 'ACTIVA' ? 'bg-green-500' : 'bg-red-500'
+                                }`}></span>
+                                <span className={`text-xs ${
+                                  cuenta.estado === 'ACTIVA' ? 'text-green-700' : 'text-red-700'
                                 }`}>
-                                {cuenta.acepta_movimientos ? '✓ Acepta mov.' : '✗ No acepta mov.'}
+                                  {cuenta.estado}
+                                </span>
                               </div>
-                            )}
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorTipoCuenta(cuenta.tipo_cuenta)}`}>
-                              {cuenta.tipo_cuenta}
-                            </span>
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
-                              {cuenta.naturaleza}
-                            </span>
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${cuenta.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                              {cuenta.estado}
-                            </span>
-                          </td>
-
-                          {/* Columna de jerarquía mejorada */}
-                          <td className="py-3 px-4">
-                            <div className="flex flex-col items-center space-y-1">
-                              {esPadre ? (
-                                <>
-                                  <span className="text-xs font-medium text-purple-700">PADRE</span>
-                                  <div className="flex items-center space-x-1">
-                                    <FaUsers className="text-purple-500 text-xs" />
-                                    <span className="text-xs text-gray-500">
-                                      {cuentasHijas.length} hija{cuentasHijas.length !== 1 ? 's' : ''}
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="text-xs font-medium text-blue-700">HIJA</span>
-                                  <div className="flex items-center space-x-1">
-                                    <FaUser className="text-blue-500 text-xs" />
-                                    <span className="text-xs text-gray-500">Nivel {nivel}</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => abrirModalDetalle(cuenta)}
-                                className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                                title="Ver detalles"
-                                disabled={loadingAction}
-                              >
-                                <FaEye />
-                              </button>
-                              <button
-                                onClick={() => abrirModalEditar(cuenta)}
-                                className="p-2 text-green-600 hover:bg-green-100 rounded transition-colors"
-                                title="Editar"
-                                disabled={loadingAction}
-                              >
-                                <FaEdit />
-                              </button>
-                              <button
-                                onClick={() => abrirModalEliminar(cuenta)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
-                                title="Eliminar"
-                                disabled={loadingAction}
-                              >
-                                <FaTrash />
-                              </button>
-
-                              {/* Botón especial para cuentas padre o búsqueda jerárquica */}
-                              {(esPadre || cuenta.codigo_completo) && (
+                            </td>
+                            <td className="py-2 px-2">
+                              <div className="flex space-x-1">
                                 <button
-                                  onClick={() => filtrarPorPadre(cuenta.codigo_completo)}
-                                  className="p-2 text-purple-600 hover:bg-purple-100 rounded transition-colors"
-                                  title={`Ver jerarquía completa de ${cuenta.codigo_completo}`}
-                                  disabled={loadingAction}
+                                  onClick={() => verDetalleCuenta(cuenta)}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                  title="Ver detalles"
                                 >
-                                  <FaTree />
+                                  <FaEye className="text-sm" />
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                                <button
+                                  onClick={() => editarCuenta(cuenta)}
+                                  className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors"
+                                  title="Editar"
+                                >
+                                  <FaEdit className="text-sm" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const confirmar = window.confirm(
+                                      `¿Eliminar cuenta ${cuenta.codigo_completo}?\n${cuenta.descripcion}`
+                                    );
+                                    if (confirmar) eliminarCuenta(cuenta.id);
+                                  }}
+                                  className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <FaTrash className="text-sm" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-            {/* Controles de paginación */}
-            <PaginacionControles />
+                {/* Controles de Paginación */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    
+                    {/* Información de registros */}
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <span>
+                        Mostrando {((paginacion.paginaActual - 1) * filtros.limite) + 1} - {Math.min(paginacion.paginaActual * filtros.limite, paginacion.total)} de {paginacion.total} resultados
+                      </span>
+                      
+                      <div className="flex items-center space-x-2">
+                        <span>Mostrar:</span>
+                        <select 
+                          value={filtros.limite} 
+                          onChange={(e) => setFiltros({...filtros, limite: parseInt(e.target.value), pagina: 1})}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm"
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={200}>200</option>
+                          <option value={500}>500</option>
+                          <option value={paginacion.total}>Todos ({paginacion.total})</option>
+                        </select>
+                        <span>por página</span>
+                      </div>
+                    </div>
+
+                    {/* Controles de navegación */}
+                    {paginacion.totalPaginas > 1 && (
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={() => cambiarPagina(1)}
+                          disabled={paginacion.paginaActual === 1}
+                          className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                        >
+                          ««
+                        </Button>
+                        
+                        <Button
+                          onClick={() => cambiarPagina(paginacion.paginaActual - 1)}
+                          disabled={paginacion.paginaActual === 1}
+                          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                        >
+                          « Anterior
+                        </Button>
+
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">Página</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={paginacion.totalPaginas}
+                            value={paginacion.paginaActual}
+                            onChange={(e) => {
+                              const pagina = parseInt(e.target.value);
+                              if (pagina >= 1 && pagina <= paginacion.totalPaginas) {
+                                cambiarPagina(pagina);
+                              }
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          />
+                          <span className="text-sm text-gray-600">de {paginacion.totalPaginas}</span>
+                        </div>
+
+                        <Button
+                          onClick={() => cambiarPagina(paginacion.paginaActual + 1)}
+                          disabled={paginacion.paginaActual === paginacion.totalPaginas}
+                          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                        >
+                          Siguiente »
+                        </Button>
+                        
+                        <Button
+                          onClick={() => cambiarPagina(paginacion.totalPaginas)}
+                          disabled={paginacion.paginaActual === paginacion.totalPaginas}
+                          className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                        >
+                          »»
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Indicador de carga global */}
-        {loadingAction && (
-          <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2">
-            <FaSpinner className="animate-spin" />
-            <span>
-              {loadingAction === 'creando' && 'Creando cuenta...'}
-              {loadingAction === 'actualizando' && 'Actualizando cuenta...'}
-              {loadingAction === 'eliminando' && 'Eliminando cuenta...'}
-              {loadingAction === 'cargando' && 'Cargando datos...'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* MODALES - Mantener los existentes sin cambios */}
-      {/* Modal Crear Cuenta */}
-      <Modal
-        show={showCreateModal}
-        onClose={cerrarModalCrear}
-        title={
-          <div className="flex items-center space-x-2">
-            <span className="text-2xl">➕</span>
-            <span>Nueva Cuenta</span>
-          </div>
-        }
-        maxWidth="3xl"
-      >
-        <form onSubmit={crearCuenta} className="space-y-6">
-          <div className="bg-blue-50 p-6 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-4 flex items-center">
-              <span className="mr-2">📝</span>
-              Información Básica
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Código Completo *"
-                placeholder="Ej: 1105001"
-                value={formData.codigo_completo}
-                onChange={(e) => setFormData({ ...formData, codigo_completo: e.target.value })}
-                required
-                disabled={loadingAction === 'creando'}
-              />
-
-              <Select
-                label="Tipo de Cuenta *"
-                value={formData.tipo_cuenta}
-                onChange={(e) => setFormData({ ...formData, tipo_cuenta: e.target.value })}
-                options={[
-                  { value: 'CLASE', label: '🏛️ Clase' },
-                  { value: 'GRUPO', label: '📁 Grupo' },
-                  { value: 'CUENTA', label: '📋 Cuenta' },
-                  { value: 'SUBCUENTA', label: '📄 Subcuenta' },
-                  { value: 'DETALLE', label: '🔸 Detalle' }
-                ]}
-                required
-                disabled={loadingAction === 'creando'}
-              />
-            </div>
-
-            <div className="mt-4">
-              <Input
-                label="Descripción *"
-                placeholder="Descripción detallada de la cuenta"
-                value={formData.descripcion}
-                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                required
-                disabled={loadingAction === 'creando'}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Select
-                label="Naturaleza *"
-                value={formData.naturaleza}
-                onChange={(e) => setFormData({ ...formData, naturaleza: e.target.value })}
-                options={[
-                  { value: 'DEBITO', label: '📈 Débito' },
-                  { value: 'CREDITO', label: '📉 Crédito' }
-                ]}
-                required
-                disabled={loadingAction === 'creando'}
-              />
-
-              <Input
-                label="Código Padre"
-                placeholder="Código cuenta padre (opcional)"
-                value={formData.codigo_padre}
-                onChange={(e) => setFormData({ ...formData, codigo_padre: e.target.value })}
-                disabled={loadingAction === 'creando'}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Select
-                label="Estado *"
-                value={formData.estado}
-                onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                options={[
-                  { value: 'ACTIVA', label: '✅ Activa' },
-                  { value: 'INACTIVA', label: '❌ Inactiva' }
-                ]}
-                required
-                disabled={loadingAction === 'creando'}
-              />
-
-              <div className="flex items-center space-x-2 mt-6">
-                <input
-                  type="checkbox"
-                  id="acepta_movimientos_crear"
-                  checked={formData.acepta_movimientos}
-                  onChange={(e) => setFormData({ ...formData, acepta_movimientos: e.target.checked })}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  disabled={loadingAction === 'creando'}
-                />
-                <label htmlFor="acepta_movimientos_crear" className="text-sm text-gray-700">
-                  Acepta movimientos contables
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <Button
-              type="button"
-              onClick={cerrarModalCrear}
-              className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
-              disabled={loadingAction === 'creando'}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              type="submit"
-              className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white"
-              loading={loadingAction === 'creando'}
-              icon={FaPlus}
-            >
-              Crear Cuenta
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Los demás modales se mantienen igual... */}
-      {/* Modal Editar Cuenta */}
-      <Modal
-        show={showEditModal}
-        onClose={cerrarModalEditar}
-        title={
-          <div className="flex items-center space-x-2">
-            <span className="text-2xl">✏️</span>
-            <span>Editar Cuenta - {selectedAccount?.codigo_completo}</span>
-          </div>
-        }
-        maxWidth="3xl"
-      >
-        <form onSubmit={actualizarCuenta} className="space-y-6">
-          <div className="bg-amber-50 p-6 rounded-lg">
-            <h3 className="font-semibold text-amber-800 mb-4 flex items-center">
-              <span className="mr-2">✏️</span>
-              Modificar Información
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Código Completo (No editable)"
-                value={formData.codigo_completo}
-                disabled
-                className="bg-gray-100"
-              />
-
-              <Select
-                label="Tipo de Cuenta *"
-                value={formData.tipo_cuenta}
-                onChange={(e) => setFormData({ ...formData, tipo_cuenta: e.target.value })}
-                options={[
-                  { value: 'CLASE', label: '🏛️ Clase' },
-                  { value: 'GRUPO', label: '📁 Grupo' },
-                  { value: 'CUENTA', label: '📋 Cuenta' },
-                  { value: 'SUBCUENTA', label: '📄 Subcuenta' },
-                  { value: 'DETALLE', label: '🔸 Detalle' }
-                ]}
-                required
-                disabled={loadingAction === 'actualizando'}
-              />
-            </div>
-
-            <div className="mt-4">
-              <Input
-                label="Descripción *"
-                placeholder="Descripción detallada de la cuenta"
-                value={formData.descripcion}
-                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                required
-                disabled={loadingAction === 'actualizando'}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Select
-                label="Naturaleza *"
-                value={formData.naturaleza}
-                onChange={(e) => setFormData({ ...formData, naturaleza: e.target.value })}
-                options={[
-                  { value: 'DEBITO', label: '📈 Débito' },
-                  { value: 'CREDITO', label: '📉 Crédito' }
-                ]}
-                required
-                disabled={loadingAction === 'actualizando'}
-              />
-
-              <Input
-                label="Código Padre"
-                placeholder="Código cuenta padre (opcional)"
-                value={formData.codigo_padre}
-                onChange={(e) => setFormData({ ...formData, codigo_padre: e.target.value })}
-                disabled={loadingAction === 'actualizando'}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Select
-                label="Estado *"
-                value={formData.estado}
-                onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                options={[
-                  { value: 'ACTIVA', label: '✅ Activa' },
-                  { value: 'INACTIVA', label: '❌ Inactiva' }
-                ]}
-                required
-                disabled={loadingAction === 'actualizando'}
-              />
-
-              <div className="flex items-center space-x-2 mt-6">
-                <input
-                  type="checkbox"
-                  id="acepta_movimientos_editar"
-                  checked={formData.acepta_movimientos}
-                  onChange={(e) => setFormData({ ...formData, acepta_movimientos: e.target.checked })}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  disabled={loadingAction === 'actualizando'}
-                />
-                <label htmlFor="acepta_movimientos_editar" className="text-sm text-gray-700">
-                  Acepta movimientos contables
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <Button
-              type="button"
-              onClick={cerrarModalEditar}
-              className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
-              disabled={loadingAction === 'actualizando'}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-              loading={loadingAction === 'actualizando'}
-              icon={FaSave}
-            >
-              Actualizar Cuenta
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal Eliminar Cuenta */}
-      <Modal
-        show={showDeleteModal}
-        onClose={cerrarModalEliminar}
-        title={
-          <div className="flex items-center space-x-2">
-            <span className="text-2xl">🗑️</span>
-            <span>Confirmar Eliminación</span>
-          </div>
-        }
-        maxWidth="md"
-      >
-        <div className="space-y-6">
-          <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-            <div className="flex items-center space-x-3 mb-4">
-              <FaExclamationTriangle className="text-red-500 text-2xl" />
-              <h3 className="text-lg font-semibold text-red-800">
-                ¿Estás seguro de eliminar esta cuenta?
-              </h3>
-            </div>
-
-            {accountToDelete && (
-              <div className="space-y-2">
-                <p className="text-gray-700">
-                  <strong>Código:</strong> {accountToDelete.codigo_completo}
-                </p>
-                <p className="text-gray-700">
-                  <strong>Descripción:</strong> {accountToDelete.descripcion}
-                </p>
-                <p className="text-gray-700">
-                  <strong>Tipo:</strong> {accountToDelete.tipo_cuenta}
-                </p>
-                <p className="text-gray-700">
-                  <strong>Clase:</strong> {obtenerClaseContable(accountToDelete.codigo_completo)}
-                </p>
-              </div>
-            )}
-
-            <div className="mt-4 p-4 bg-red-100 rounded-lg">
-              <p className="text-red-800 text-sm">
-                <strong>⚠️ Advertencia:</strong> Esta acción eliminará físicamente la cuenta del sistema.
-                Solo procede si estás completamente seguro.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <Button
-              type="button"
-              onClick={cerrarModalEliminar}
-              className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
-              disabled={loadingAction === 'eliminando'}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              onClick={confirmarEliminacion}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white"
-              loading={loadingAction === 'eliminando'}
-              icon={FaTrash}
-            >
-              Sí, Eliminar
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Modal Ver Detalle */}
-      <Modal
-        show={showDetailModal}
-        onClose={cerrarModalDetalle}
-        title={
-          <div className="flex items-center space-x-2">
-            <span className="text-2xl">👁️</span>
-            <span>Detalles de la Cuenta</span>
-          </div>
-        }
-        maxWidth="2xl"
-      >
-        {selectedAccount && (
-          <div className="space-y-6">
-            {/* Header de la cuenta */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-              <div className="flex items-center space-x-3 mb-4">
-                <span className="text-3xl">{obtenerIconoTipoCuenta(selectedAccount.tipo_cuenta)}</span>
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedAccount.codigo_completo}</h3>
-                  <p className="text-gray-600 text-lg">{selectedAccount.descripcion}</p>
-                  <p className="text-purple-600 text-sm font-medium">
-                    {obtenerClaseContable(selectedAccount.codigo_completo)}
-                  </p>
+        {/* ✅ MODAL CREAR/EDITAR CUENTA MEJORADO CON VALIDACIONES */}
+        <Modal
+          show={showModal}
+          onClose={() => {
+            setShowModal(false);
+            resetForm();
+          }}
+          title={editingAccount ? 'Editar Cuenta PUC' : 'Nueva Cuenta PUC'}
+          maxWidth="3xl"
+        >
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* ✅ INFORMACIÓN JERÁRQUICA EN TIEMPO REAL */}
+            {formData.codigo_completo && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
+                  <FaInfoCircle className="mr-2" />
+                  Análisis Jerárquico Automático
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <span className="text-blue-600 font-medium">Tipo sugerido:</span>
+                    <div className={`mt-1 px-2 py-1 rounded text-xs font-medium ${
+                      determinarTipoPorCodigo(formData.codigo_completo) === 'CLASE' ? 'bg-purple-100 text-purple-800' :
+                      determinarTipoPorCodigo(formData.codigo_completo) === 'GRUPO' ? 'bg-blue-100 text-blue-800' :
+                      determinarTipoPorCodigo(formData.codigo_completo) === 'CUENTA' ? 'bg-green-100 text-green-800' :
+                      determinarTipoPorCodigo(formData.codigo_completo) === 'SUBCUENTA' ? 'bg-yellow-100 text-yellow-800' :
+                      determinarTipoPorCodigo(formData.codigo_completo) === 'DETALLE' ? 'bg-orange-100 text-orange-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {determinarTipoPorCodigo(formData.codigo_completo) || 'INDEFINIDO'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 font-medium">Nivel:</span>
+                    <div className={`mt-1 px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(determinarNivelPorCodigo(formData.codigo_completo))}`}>
+                      Nivel {determinarNivelPorCodigo(formData.codigo_completo)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 font-medium">Naturaleza sugerida:</span>
+                    <div className={`mt-1 px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(determinarNaturalezaPorClase(formData.codigo_completo))}`}>
+                      {determinarNaturalezaPorClase(formData.codigo_completo)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 font-medium">Padre sugerido:</span>
+                    <div className="mt-1 font-mono text-xs text-gray-700">
+                      {sugerirCodigoPadre(formData.codigo_completo) || 'N/A'}
+                    </div>
+                  </div>
                 </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* ✅ CÓDIGO CON AUTOCOMPLETADO Y VALIDACIÓN */}
+              <div>
+                <Input
+                  label="Código Completo *"
+                  value={formData.codigo_completo}
+                  onChange={(e) => {
+                    const codigo = e.target.value;
+                    const tipoSugerido = determinarTipoPorCodigo(codigo);
+                    const naturalezaSugerida = determinarNaturalezaPorClase(codigo);
+                    const padreSugerido = sugerirCodigoPadre(codigo);
+                    
+                    setFormData({
+                      ...formData, 
+                      codigo_completo: codigo,
+                      tipo_cuenta: tipoSugerido || formData.tipo_cuenta,
+                      naturaleza: naturalezaSugerida || formData.naturaleza,
+                      codigo_padre: padreSugerido || formData.codigo_padre
+                    });
+                  }}
+                  placeholder="ej: 110501 (automático: tipo, nivel, naturaleza)"
+                  required
+                  disabled={editingAccount}
+                />
+                {formData.codigo_completo && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    Longitud: {formData.codigo_completo.length} dígitos
+                  </div>
+                )}
+              </div>
+              
+              {/* ✅ TIPO CON VALIDACIÓN AUTOMÁTICA */}
+              <Select
+                label="Tipo de Cuenta"
+                value={formData.tipo_cuenta}
+                onChange={(e) => setFormData({...formData, tipo_cuenta: e.target.value})}
+                options={[
+                  { value: 'CLASE', label: '🏛️ Clase (1 dígito)' },
+                  { value: 'GRUPO', label: '📁 Grupo (2 dígitos)' },
+                  { value: 'CUENTA', label: '📋 Cuenta (4 dígitos)' },
+                  { value: 'SUBCUENTA', label: '📄 Subcuenta (6 dígitos)' },
+                  { value: 'DETALLE', label: '🔸 Detalle (7+ dígitos)' }
+                ]}
+              />
+              
+              <div className="md:col-span-2">
+                <Input
+                  label="Descripción *"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
+                  placeholder="Descripción clara y completa de la cuenta"
+                  required
+                />
+              </div>
+              
+              <Select
+                label="Naturaleza"
+                value={formData.naturaleza}
+                onChange={(e) => setFormData({...formData, naturaleza: e.target.value})}
+                options={[
+                  { value: 'DEBITO', label: 'Débito (Clases 1,5,6,7,8)' },
+                  { value: 'CREDITO', label: 'Crédito (Clases 2,3,4,9)' }
+                ]}
+              />
+              
+              {/* ✅ CÓDIGO PADRE CON AYUDA */}
+              <div>
+                <Input
+                  label="Código Padre"
+                  value={formData.codigo_padre}
+                  onChange={(e) => setFormData({...formData, codigo_padre: e.target.value})}
+                  placeholder={sugerirCodigoPadre(formData.codigo_completo) || "ej: 1105"}
+                />
+                {sugerirCodigoPadre(formData.codigo_completo) && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, codigo_padre: sugerirCodigoPadre(formData.codigo_completo)})}
+                    className="mt-1 text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Usar sugerido: {sugerirCodigoPadre(formData.codigo_completo)}
+                  </button>
+                )}
+              </div>
+              
+              <div className="md:col-span-2 flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="acepta_movimientos"
+                  checked={formData.acepta_movimientos}
+                  onChange={(e) => setFormData({...formData, acepta_movimientos: e.target.checked})}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="acepta_movimientos" className="text-sm font-medium text-gray-700">
+                  Acepta movimientos contables
+                </label>
+              </div>
             </div>
 
-            {/* Información detallada */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-3">📋 Información General</h4>
+            {/* ✅ VALIDACIONES EN TIEMPO REAL */}
+            {formData.codigo_completo && (
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="font-semibold text-gray-800 mb-2">Validaciones:</h4>
+                {(() => {
+                  const validacion = validarCodigoJerarquia(
+                    formData.codigo_completo, 
+                    formData.tipo_cuenta, 
+                    formData.codigo_padre
+                  );
+                  
+                  return validacion.valido ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <FaCheckCircle />
+                      <span className="text-sm">Código válido para la jerarquía PUC</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {validacion.errores.map((error, index) => (
+                        <div key={index} className="flex items-center space-x-2 text-red-600">
+                          <FaExclamationTriangle />
+                          <span className="text-sm">{error}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                loading={loading}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                icon={editingAccount ? FaEdit : FaPlus}
+              >
+                {editingAccount ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+        
+        {/* Modal Detalle Completo - SIN CAMBIOS MAYORES */}
+        <Modal
+          show={showDetailModal}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedAccount(null);
+          }}
+          title={`Detalles Completos - ${selectedAccount?.codigo_completo}`}
+          maxWidth="4xl"
+        >
+          {selectedAccount && (
+            <div className="space-y-6">
+              {/* Header con información principal */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-3xl">{obtenerIconoTipoCuenta(selectedAccount.tipo_cuenta)}</span>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedAccount.codigo_completo}</h3>
+                      <p className="text-gray-600">{selectedAccount.descripcion || 'Sin descripción'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${obtenerColorNivel(selectedAccount.nivel)}`}>
+                      Nivel {selectedAccount.nivel} - {selectedAccount.tipo_cuenta}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid con información jerárquica */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                {/* ✅ INFORMACIÓN JERÁRQUICA MEJORADA */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <FaTree className="mr-2 text-green-600" />
+                    Jerarquía PUC
+                  </h4>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">ID:</span>
-                      <span className="font-mono">{selectedAccount.id}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Tipo de Cuenta:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorTipoCuenta(selectedAccount.tipo_cuenta)}`}>
-                        {selectedAccount.tipo_cuenta}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Naturaleza:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(selectedAccount.naturaleza)}`}>
+                    <div><strong>ID:</strong> #{selectedAccount.id}</div>
+                    <div><strong>Código Completo:</strong> <span className="font-mono">{selectedAccount.codigo_completo}</span></div>
+                    <div><strong>Longitud:</strong> {selectedAccount.codigo_completo?.length} dígitos</div>
+                    <div><strong>Nivel Calculado:</strong> {selectedAccount.nivel_calculado || selectedAccount.nivel}</div>
+                    <div><strong>Código Padre:</strong> <span className="font-mono">{selectedAccount.codigo_padre || 'N/A'}</span></div>
+                    
+                    {/* Mostrar jerarquía completa */}
+                    {selectedAccount.codigo_clase && (
+                      <div><strong>Clase:</strong> <span className="px-1 py-0.5 bg-red-100 text-red-700 rounded font-mono text-xs">{selectedAccount.codigo_clase}</span></div>
+                    )}
+                    {selectedAccount.codigo_grupo && (
+                      <div><strong>Grupo:</strong> <span className="px-1 py-0.5 bg-orange-100 text-orange-700 rounded font-mono text-xs">{selectedAccount.codigo_grupo}</span></div>
+                    )}
+                    {selectedAccount.codigo_cuenta && (
+                      <div><strong>Cuenta:</strong> <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded font-mono text-xs">{selectedAccount.codigo_cuenta}</span></div>
+                    )}
+                    {selectedAccount.codigo_subcuenta && (
+                      <div><strong>Subcuenta:</strong> <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded font-mono text-xs">{selectedAccount.codigo_subcuenta}</span></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Resto de las secciones sin cambios mayores... */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <FaBalanceScale className="mr-2 text-blue-600" />
+                    Clasificación
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div><strong>Naturaleza:</strong> 
+                      <span className={`ml-2 px-2 py-1 rounded text-xs ${obtenerColorNaturaleza(selectedAccount.naturaleza)}`}>
                         {selectedAccount.naturaleza}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Estado:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${selectedAccount.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
+                    <div><strong>Estado:</strong> 
+                      <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                        selectedAccount.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
                         {selectedAccount.estado}
                       </span>
                     </div>
+                    <div><strong>Acepta Movimientos:</strong> 
+                      <span className={`ml-1 ${selectedAccount.acepta_movimientos ? 'text-green-600' : 'text-red-600'}`}>
+                        {selectedAccount.acepta_movimientos ? '✓ Sí' : '✗ No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <FaMoneyBillWave className="mr-2 text-green-600" />
+                    Financiero
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div><strong>Saldo Inicial:</strong> 
+                      <span className="ml-1 font-mono">{formatearSaldo(selectedAccount.saldo_inicial)}</span>
+                    </div>
+                    <div><strong>Saldo Final:</strong> 
+                      <span className={`ml-1 font-mono ${
+                        (selectedAccount.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatearSaldo(selectedAccount.saldo_final)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-3">⚙️ Configuración</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Código Padre:</span>
-                      <span className="font-mono">
-                        {selectedAccount.codigo_padre || 'Sin padre'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Acepta Movimientos:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${selectedAccount.acepta_movimientos
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                        }`}>
-                        {selectedAccount.acepta_movimientos ? 'Sí' : 'No'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Nivel:</span>
-                      <span className="font-medium">
-                        {obtenerNivelJerarquia(selectedAccount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Es Padre:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${esCuentaPadre(selectedAccount, cuentasOriginales)
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
-                        }`}>
-                        {esCuentaPadre(selectedAccount, cuentasOriginales) ? 'Sí' : 'No'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              {/* Botones de acción */}
+              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <Button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    editarCuenta(selectedAccount);
+                  }}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  icon={FaEdit}
+                >
+                  Editar Cuenta
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedAccount(null);
+                  }}
+                  className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+                >
+                  Cerrar
+                </Button>
               </div>
             </div>
+          )}
+        </Modal>
 
-            {/* Fechas de auditoría */}
-            {(selectedAccount.fecha_creacion || selectedAccount.fecha_modificacion || selectedAccount.created_at || selectedAccount.updated_at) && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-gray-800 mb-3">📅 Información de Auditoría</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {(selectedAccount.fecha_creacion || selectedAccount.created_at) && (
-                    <div>
-                      <span className="text-gray-600">Fecha de Creación:</span>
-                      <p className="font-medium">
-                        {new Date(selectedAccount.fecha_creacion || selectedAccount.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                  {(selectedAccount.fecha_modificacion || selectedAccount.updated_at) && (
-                    <div>
-                      <span className="text-gray-600">Última Modificación:</span>
-                      <p className="font-medium">
-                        {new Date(selectedAccount.fecha_modificacion || selectedAccount.updated_at).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
+        {/* Modales de importación y exportación - SIN CAMBIOS */}
+        <ImportPucExcelModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImportSuccess}
+          loading={loading}
+        />
+
+        <ExportPucModal
+          visible={showExportModal}
+          onCancel={() => setShowExportModal(false)}
+        />
+
+        {/* ✅ AYUDA MEJORADA CON INFORMACIÓN JERÁRQUICA */}
+        <div className="fixed bottom-6 right-6 z-40">
+          <div className="relative group">
+            <Button
+              className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              icon={FaQuestion}
+            />
+            <div className="absolute bottom-full right-0 mb-2 w-96 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 border border-gray-200">
+              <div className="p-4">
+                <h4 className="font-semibold text-gray-800 mb-2">💡 Ayuda - PUC Jerárquico Inteligente</h4>
+                <div className="text-sm text-gray-600 space-y-2">
+                  <p><strong>🏗️ Jerarquía Automática:</strong> Los tipos se determinan automáticamente por dígitos.</p>
+                  <p><strong>🔍 Validaciones Inteligentes:</strong> Validación en tiempo real de códigos PUC.</p>
+                  <p><strong>🌳 Vista Árbol:</strong> Visualización jerárquica con indentación por niveles.</p>
+                  <p><strong>🎯 Filtros Rápidos:</strong> Filtros por clase (1-9) con un click.</p>
+                  <p><strong>⚡ Autocompletado:</strong> Sugerencias automáticas de tipo, naturaleza y padre.</p>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div><strong>Estructura PUC:</strong></div>
+                    <div>• Clase: 1 dígito (ej: 1, 2, 3)</div>
+                    <div>• Grupo: 2 dígitos (ej: 11, 21)</div>
+                    <div>• Cuenta: 4 dígitos (ej: 1105)</div>
+                    <div>• Subcuenta: 6 dígitos (ej: 110501)</div>
+                    <div>• Detalle: 7+ dígitos (ej: 11050101)</div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* Mostrar cuentas hijas si es padre */}
-            {esCuentaPadre(selectedAccount, cuentasOriginales) && (
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                <h4 className="font-semibold text-purple-800 mb-3 flex items-center">
-                  <FaUsers className="mr-2" />
-                  Cuentas Hijas ({cuentasOriginales.filter(c => c.codigo_padre === selectedAccount.codigo_completo).length})
-                </h4>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {cuentasOriginales
-                    .filter(c => c.codigo_padre === selectedAccount.codigo_completo)
-                    .map(hija => (
-                      <div key={hija.id} className="flex items-center justify-between bg-white p-2 rounded text-sm">
-                        <span className="font-mono">{hija.codigo_completo}</span>
-                        <span className="text-gray-600 flex-1 px-2">{hija.descripcion}</span>
-                        <span className={`px-2 py-1 rounded text-xs ${hija.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                          {hija.estado}
-                        </span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
-
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-              <Button
-                onClick={() => {
-                  cerrarModalDetalle();
-                  abrirModalEditar(selectedAccount);
-                }}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-                icon={FaEdit}
-              >
-                Editar
-              </Button>
-
-              <Button
-                onClick={() => {
-                  cerrarModalDetalle();
-                  filtrarPorPadre(selectedAccount.codigo_completo);
-                }}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
-                icon={FaTree}
-              >
-                Ver Jerarquía
-              </Button>
-
-              <Button
-                onClick={cerrarModalDetalle}
-                className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
-              >
-                Cerrar
-              </Button>
             </div>
           </div>
-        )}
-      </Modal>
+        </div>
+      </div>
 
-      {/* Modal Importar Excel */}
-      <ImportPucExcelModal
-        isOpen={showImportModal}
-        onClose={cerrarModalImportar}
-        onImport={(result) => {
-          setSuccess(`✅ Importación completada: ${result.resumen?.insertadas || 0} cuentas insertadas`);
-          cargarDatos(paginacion.paginaActual);
-          cerrarModalImportar();
-        }}
-        loading={loadingAction === 'importando'}
-      />
+      {/* Estilos CSS adicionales */}
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+        
+        .bg-gray-25 {
+          background-color: #fafafa;
+        }
+        
+        .hover\\:scale-105:hover {
+          transform: scale(1.05);
+        }
+        
+        .transition-all {
+          transition: all 0.2s ease;
+        }
 
-      {/* Modal Exportar */}
-      <ExportPucModal
-        visible={showExportModal}
-        onCancel={cerrarModalExportar}
-      />
+        /* Scroll personalizado para tablas */
+        .overflow-x-auto::-webkit-scrollbar {
+          height: 8px;
+        }
+        
+        .overflow-x-auto::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+        
+        .overflow-x-auto::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        
+        .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
     </div>
   );
 };
