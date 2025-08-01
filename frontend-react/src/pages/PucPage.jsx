@@ -31,7 +31,9 @@ import {
   FaChevronDown,
   FaChevronRight,
   FaFolderOpen,
-  FaFolder
+  FaFolder,
+  FaArrowUp,
+  FaArrowDown
 } from 'react-icons/fa';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -228,7 +230,7 @@ const PucPage = () => {
    */
   const construirArbolJerarquico = useMemo(() => {
     if (!cuentas || cuentas.length === 0) return [];
-
+    
     // Crear mapa de cuentas por código
     const cuentasMap = {};
     const cuentasEnriquecidas = cuentas.map(cuenta => ({
@@ -552,12 +554,20 @@ const PucPage = () => {
   };
 
   const formatearSaldo = (saldo) => {
-    if (!saldo) return '$0';
+    if (!saldo && saldo !== 0) return '$0';
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
       minimumFractionDigits: 0
     }).format(saldo);
+  };
+
+  // ✅ NUEVA FUNCIÓN PARA FORMATEAR MOVIMIENTOS
+  const formatearMovimientos = (cantidad) => {
+    if (!cantidad && cantidad !== 0) return '0';
+    return new Intl.NumberFormat('es-CO', {
+      minimumFractionDigits: 0
+    }).format(cantidad);
   };
 
   const obtenerColorNivel = (nivel) => {
@@ -669,20 +679,53 @@ const PucPage = () => {
               </div>
             </div>
 
-            {/* ✅ Saldos y acciones */}
-            <div className="flex items-center space-x-4">
+            {/* ✅ SALDOS Y MOVIMIENTOS MEJORADOS - AHORA CON TODOS LOS CAMPOS */}
+            <div className="flex items-center space-x-6">
+              {/* Saldos */}
               <div className="text-right">
-                <div className={`font-mono text-sm ${
-                  nodo.saldo_final > 0 ? 'text-green-600' : 
-                  nodo.saldo_final < 0 ? 'text-red-600' : 'text-gray-500'
-                }`}>
-                  {formatearSaldo(nodo.saldo_final)}
+                <div className="text-xs text-gray-500 mb-1">
+                  Inicial: <span className={`font-mono ${
+                    (nodo.saldo_inicial || 0) > 0 ? 'text-blue-600' : 
+                    (nodo.saldo_inicial || 0) < 0 ? 'text-red-600' : 'text-gray-500'
+                  }`}>
+                    {formatearSaldo(nodo.saldo_inicial)}
+                  </span>
                 </div>
+                
+                <div className={`font-mono text-sm ${
+                  (nodo.saldo_final || 0) > 0 ? 'text-green-600' : 
+                  (nodo.saldo_final || 0) < 0 ? 'text-red-600' : 'text-gray-500'
+                }`}>
+                  Final: {formatearSaldo(nodo.saldo_final)}
+                </div>
+                
                 {tieneHijos && (
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 mt-1">
                     {nodo.hijos.length} cuenta{nodo.hijos.length !== 1 ? 's' : ''}
                   </div>
                 )}
+              </div>
+
+              {/* ✅ NUEVOS MOVIMIENTOS DÉBITOS Y CRÉDITOS */}
+              <div className="text-right">
+                <div className="text-xs text-gray-500 mb-1 flex items-center">
+                  <FaArrowDown className="text-red-500 mr-1" />
+                  Débitos: <span className="font-mono text-red-600 ml-1">
+                    {formatearMovimientos(nodo.movimientos_debitos)}
+                  </span>
+                </div>
+                
+                <div className="text-xs text-gray-500 flex items-center">
+                  <FaArrowUp className="text-green-500 mr-1" />
+                  Créditos: <span className="font-mono text-green-600 ml-1">
+                    {formatearMovimientos(nodo.movimientos_creditos)}
+                  </span>
+                </div>
+                
+                {/* Total movimientos */}
+                <div className="text-xs text-gray-400 mt-1">
+                  Total mov: {formatearMovimientos((nodo.movimientos_debitos || 0) + (nodo.movimientos_creditos || 0))}
+                </div>
               </div>
 
               {/* Acciones */}
@@ -1210,7 +1253,7 @@ const PucPage = () => {
                     </div>
                   </div>
                 ) : (
-                  /* Vista de lista original (sin cambios) */
+                  /* ✅ VISTA DE TABLA MEJORADA CON TODOS LOS CAMPOS */
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
@@ -1221,7 +1264,22 @@ const PucPage = () => {
                           <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">Tipo</th>
                           <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[90px]">Naturaleza</th>
                           <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[60px]">Nivel</th>
+                          {/* ✅ COLUMNAS DE SALDOS */}
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Inicial</th>
                           <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Final</th>
+                          {/* ✅ NUEVAS COLUMNAS DE MOVIMIENTOS */}
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
+                            <div className="flex items-center">
+                              <FaArrowDown className="text-red-500 mr-1" />
+                              Mov. Débitos
+                            </div>
+                          </th>
+                          <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
+                            <div className="flex items-center">
+                              <FaArrowUp className="text-green-500 mr-1" />
+                              Mov. Créditos
+                            </div>
+                          </th>
                           <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">Estado</th>
                           <th className="text-left py-3 px-2 font-medium text-gray-700 min-w-[120px]">Acciones</th>
                         </tr>
@@ -1280,11 +1338,34 @@ const PucPage = () => {
                                 {cuenta.nivel_calculado || cuenta.nivel}
                               </span>
                             </td>
+                            {/* ✅ COLUMNA SALDO INICIAL */}
                             <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
                               <span className={`font-mono ${
-                                (cuenta.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                                (cuenta.saldo_inicial || 0) > 0 ? 'text-blue-600' : 
+                                (cuenta.saldo_inicial || 0) < 0 ? 'text-red-600' : 'text-gray-500'
+                              }`}>
+                                {formatearSaldo(cuenta.saldo_inicial)}
+                              </span>
+                            </td>
+                            {/* ✅ COLUMNA SALDO FINAL */}
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
+                              <span className={`font-mono ${
+                                (cuenta.saldo_final || 0) > 0 ? 'text-green-600' : 
+                                (cuenta.saldo_final || 0) < 0 ? 'text-red-600' : 'text-gray-500'
                               }`}>
                                 {formatearSaldo(cuenta.saldo_final)}
+                              </span>
+                            </td>
+                            {/* ✅ NUEVA COLUMNA MOVIMIENTOS DÉBITOS */}
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
+                              <span className="font-mono text-red-600">
+                                {formatearMovimientos(cuenta.movimientos_debitos)}
+                              </span>
+                            </td>
+                            {/* ✅ NUEVA COLUMNA MOVIMIENTOS CRÉDITOS */}
+                            <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
+                              <span className="font-mono text-green-600">
+                                {formatearMovimientos(cuenta.movimientos_creditos)}
                               </span>
                             </td>
                             <td className="py-2 px-2 border-r border-gray-100 text-xs">
@@ -1336,7 +1417,6 @@ const PucPage = () => {
                   </div>
                 )}
 
-                {/* Controles de Paginación - solo para vista lista */}
                 {!vistaArbol && paginacion.totalPaginas > 1 && (
                   <div className="mt-6 bg-gray-50 rounded-lg p-4">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1632,7 +1712,7 @@ const PucPage = () => {
           </form>
         </Modal>
         
-        {/* Modal Detalle Completo - SIN CAMBIOS MAYORES */}
+        {/* Modal Detalle Completo - CON MOVIMIENTOS AGREGADOS */}
         <Modal
           show={showDetailModal}
           onClose={() => {
@@ -1662,8 +1742,8 @@ const PucPage = () => {
                 </div>
               </div>
 
-              {/* Grid con información jerárquica */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Grid con información jerárquica AMPLIADO */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 
                 {/* ✅ INFORMACIÓN JERÁRQUICA MEJORADA */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -1694,7 +1774,7 @@ const PucPage = () => {
                   </div>
                 </div>
 
-                {/* Resto de las secciones sin cambios mayores... */}
+                {/* Clasificación */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
                     <FaBalanceScale className="mr-2 text-blue-600" />
@@ -1721,10 +1801,11 @@ const PucPage = () => {
                   </div>
                 </div>
 
+                {/* Saldos */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
                     <FaMoneyBillWave className="mr-2 text-green-600" />
-                    Financiero
+                    Saldos
                   </h4>
                   <div className="space-y-2 text-sm">
                     <div><strong>Saldo Inicial:</strong> 
@@ -1735,6 +1816,36 @@ const PucPage = () => {
                         (selectedAccount.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {formatearSaldo(selectedAccount.saldo_final)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ NUEVA SECCIÓN DE MOVIMIENTOS */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <FaChartLine className="mr-2 text-purple-600" />
+                    Movimientos
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <FaArrowDown className="text-red-500 mr-2" />
+                      <strong>Mov. Débitos:</strong> 
+                      <span className="ml-1 font-mono text-red-600">
+                        {formatearMovimientos(selectedAccount.movimientos_debitos)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <FaArrowUp className="text-green-500 mr-2" />
+                      <strong>Mov. Créditos:</strong> 
+                      <span className="ml-1 font-mono text-green-600">
+                        {formatearMovimientos(selectedAccount.movimientos_creditos)}
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t border-gray-200">
+                      <strong>Total Movimientos:</strong> 
+                      <span className="ml-1 font-mono text-gray-800">
+                        {formatearMovimientos((selectedAccount.movimientos_debitos || 0) + (selectedAccount.movimientos_creditos || 0))}
                       </span>
                     </div>
                   </div>
@@ -1796,6 +1907,8 @@ const PucPage = () => {
                   <p><strong>🌳 Vista Árbol:</strong> Visualización jerárquica con indentación por niveles.</p>
                   <p><strong>🎯 Filtros Rápidos:</strong> Filtros por clase (1-9) con un click.</p>
                   <p><strong>⚡ Autocompletado:</strong> Sugerencias automáticas de tipo, naturaleza y padre.</p>
+                  <p><strong>💰 Saldos:</strong> Vista de saldo inicial y final en tabla y árbol.</p>
+                  <p><strong>📊 Movimientos:</strong> Cantidad de movimientos débitos y créditos por cuenta.</p>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="text-xs text-gray-500 space-y-1">
@@ -1851,7 +1964,7 @@ const PucPage = () => {
               },
               { 
                 tipo: 'SUBCUENTA', 
-                descripción: '6 dígitos', 
+                descripcion: '6 dígitos', 
                 color: 'bg-yellow-100 text-yellow-800 border-yellow-200', 
                 ejemplo: '110505, 210505',
                 icono: '📄',
@@ -1908,6 +2021,40 @@ const PucPage = () => {
                   <div><strong>Clases:</strong> 2, 3, 4, 9</div>
                   <div><strong>Ejemplos:</strong> Pasivos, Patrimonio, Ingresos</div>
                   <div className="text-xs mt-1">Se incrementa por el crédito, disminuye por el débito</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ NUEVA SECCIÓN: INFORMACIÓN SOBRE MOVIMIENTOS */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <h5 className="font-semibold text-gray-700 mb-3 flex items-center">
+              <FaChartLine className="mr-2 text-purple-600" />
+              Información sobre Movimientos:
+            </h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h6 className="font-medium text-red-800 mb-2 flex items-center">
+                  <FaArrowDown className="text-red-500 mr-2" />
+                  MOVIMIENTOS DÉBITOS
+                </h6>
+                <div className="text-sm text-red-700">
+                  <div><strong>Qué son:</strong> Cantidad de transacciones que aumentan el saldo</div>
+                  <div><strong>Para cuentas débito:</strong> Incrementan el saldo de la cuenta</div>
+                  <div><strong>Para cuentas crédito:</strong> Disminuyen el saldo de la cuenta</div>
+                  <div className="text-xs mt-1">Se muestran en color rojo en la vista</div>
+                </div>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h6 className="font-medium text-green-800 mb-2 flex items-center">
+                  <FaArrowUp className="text-green-500 mr-2" />
+                  MOVIMIENTOS CRÉDITOS
+                </h6>
+                <div className="text-sm text-green-700">
+                  <div><strong>Qué son:</strong> Cantidad de transacciones que disminuyen el saldo</div>
+                  <div><strong>Para cuentas débito:</strong> Disminuyen el saldo de la cuenta</div>
+                  <div><strong>Para cuentas crédito:</strong> Incrementan el saldo de la cuenta</div>
+                  <div className="text-xs mt-1">Se muestran en color verde en la vista</div>
                 </div>
               </div>
             </div>
