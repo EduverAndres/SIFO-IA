@@ -13,6 +13,8 @@ import {
   FaMoneyBillWave,
   FaBalanceScale
 } from 'react-icons/fa';
+
+// ✅ Importación corregida del componente Button
 import Button from '../ui/Button';
 
 const PucHeader = ({ 

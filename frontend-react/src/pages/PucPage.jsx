@@ -8,17 +8,15 @@ import { usePucTree } from '../hooks/usePucTree';
 import { usePucValidation } from '../hooks/usePucValidation';
 
 // Componentes PUC
-import {
-  PucHeader,
-  PucFilters,
-  PucTable,
-  PucTree,
-  PucFormModal,
-  PucDetailModal,
-  PucLegend,
-  PucNotifications,
-  PucHelp
-} from '../components/puc';
+import PucHeader from '../components/puc/PucHeader';
+import PucFilters from '../components/puc/PucFilters';
+import PucTable from '../components/puc/PucTable';
+import PucTree from '../components/puc/PucTree';
+import PucFormModal from '../components/puc/PucFormModal';
+import PucDetailModal from '../components/puc/PucDetailModal';
+import PucLegend from '../components/puc/PucLegend';
+import PucNotifications from '../components/puc/PucNotifications';
+import PucHelp from '../components/puc/PucHelp';
 
 // Componentes de UI existentes
 import ImportPucExcelModal from '../components/puc/ImportPucExcelModal';
