@@ -79,7 +79,7 @@ export class PucService {
       
       // Aplicar paginación
       const paginaNum = parseInt(filtros.pagina ?? '1') || 1;
-      const limiteNum = Math.min(parseInt(filtros.limite ?? '50') || 50, 1000);
+      const limiteNum = parseInt(filtros.limite ?? '50') || 50; // Sin Math.min
       const offset = (paginaNum - 1) * limiteNum;
       
       queryBuilder
@@ -95,21 +95,26 @@ export class PucService {
       // Obtener estadísticas
       const estadisticas = await this.obtenerEstadisticasFiltradas(filtros);
       
-      const resultado: ResultadoBusquedaPuc = {
-        cuentas,
-        total: totalFiltrados,
-        totalFiltrados: totalFiltrados,
-        paginacion: {
-          paginaActual: paginaNum,
-          totalPaginas: Math.ceil(totalFiltrados / limiteNum),
-          limite: limiteNum,
-          total: totalFiltrados
-        },
-        estadisticas: {
-          total_encontrados: totalFiltrados,
-          total_filtrados: totalFiltrados,
-          ...estadisticas
-        }
+const totalReal = await this.cuentaPucRepository.count({ 
+  where: { activo: true } 
+});
+
+const resultado: ResultadoBusquedaPuc = {
+  cuentas,
+  total: totalFiltrados,
+  totalFiltrados: totalFiltrados,
+  paginacion: {
+    paginaActual: paginaNum,
+    totalPaginas: Math.ceil(totalFiltrados / limiteNum),
+    limite: limiteNum,
+    total: totalFiltrados
+  },
+  estadisticas: {
+    total_encontrados: totalFiltrados,
+    total_filtrados: totalFiltrados,
+    total_real_bd: totalReal,
+    ...estadisticas
+  }
       };
 
       this.logger.log(`✅ Búsqueda completada: ${totalFiltrados} resultados, página ${paginaNum}`);

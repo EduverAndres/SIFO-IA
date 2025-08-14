@@ -222,10 +222,10 @@ export class FiltrosPucDto {
     return parseInt(this.pagina ?? '1') || 1;
   }
 
-  get limiteNum(): number {
-    const limite = parseInt(this.limite ?? '50') || 50;
-    return Math.min(limite, 1000); // Límite máximo de seguridad
-  }
+get limiteNum(): number {
+  const limite = parseInt(this.limite ?? '50') || 50;
+  return limite; // Sin límite máximo
+}
 
   get offset(): number {
     return (this.paginaNum - 1) * this.limiteNum;

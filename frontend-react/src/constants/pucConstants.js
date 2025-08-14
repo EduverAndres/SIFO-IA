@@ -37,10 +37,10 @@ export const NATURE_COLORS = {
   'CREDITO': 'bg-blue-100 text-blue-800 border-blue-200'
 };
 
-// Filtros por defecto - Incluye el nuevo filtro específico
+// ✅ FILTROS MEJORADOS - Límite aumentado por defecto
 export const DEFAULT_FILTERS = {
   busqueda: '',
-  busqueda_especifica: '', // Nuevo filtro para búsqueda específica
+  busqueda_especifica: '',
   estado: 'ACTIVA',
   tipo: '',
   naturaleza: '',
@@ -48,19 +48,25 @@ export const DEFAULT_FILTERS = {
   codigo_clase: '',
   nivel: '',
   solo_movimiento: false,
-  limite: 50,
+  limite: 100, // ⭐ AUMENTADO de 50 a 100
   pagina: 1,
   ordenar_por: 'codigo_completo',
   orden: 'ASC'
 };
 
+// ✅ OPCIONES DE PAGINACIÓN MEJORADAS
 export const PAGINATION_OPTIONS = [
   { value: 25, label: '25 registros' },
   { value: 50, label: '50 registros' },
   { value: 100, label: '100 registros' },
   { value: 200, label: '200 registros' },
   { value: 500, label: '500 registros' },
-  { value: 999999, label: 'Todos los registros' }
+  { value: 1000, label: '1,000 registros' },
+  { value: 2500, label: '2,500 registros' },
+  { value: 5000, label: '5,000 registros' },
+  { value: 10000, label: '10,000 registros' },
+  { value: 25000, label: '25,000 registros' },
+  { value: 99999, label: '🚀 TODAS las cuentas' } // ⭐ ETIQUETA MEJORADA
 ];
 
 export const SORT_OPTIONS = [
@@ -131,6 +137,15 @@ export const MENSAJES_SISTEMA = {
     limpiarTodos: 'Limpiar todos los filtros',
     aplicar: 'Aplicar filtros',
     exportar: 'Exportar filtrados'
+  },
+  // ✅ NUEVOS MENSAJES PARA CARGA MASIVA
+  cargaMasiva: {
+    confirmar: '¿Cargar TODAS las cuentas del sistema?',
+    descripcion: 'Esto puede tomar unos segundos y usar más memoria.',
+    exito: 'Todas las cuentas cargadas exitosamente',
+    error: 'Error cargando todas las cuentas',
+    parcial: 'Solo tienes parte de las cuentas cargadas',
+    completo: 'Todas las cuentas están cargadas'
   }
 };
 
@@ -142,7 +157,7 @@ export const FILTER_UTILS = {
     
     return Object.entries(filtros).some(([key, value]) => {
       // Ignorar valores por defecto
-      if (key === 'limite' && (value === 50 || value === '50')) return false;
+      if (key === 'limite' && (value === 100 || value === '100' || value === 50 || value === '50')) return false;
       if (key === 'pagina' && (value === 1 || value === '1')) return false;
       if (key === 'ordenar_por' && value === 'codigo_completo') return false;
       if (key === 'orden' && value === 'ASC') return false;
@@ -196,11 +211,23 @@ export const FILTER_UTILS = {
   // Limpiar filtros manteniendo configuración básica
   limpiarFiltros: () => ({
     ...DEFAULT_FILTERS,
-    limite: 50,
+    limite: 100, // ⭐ VALOR ACTUALIZADO
     pagina: 1,
     ordenar_por: 'codigo_completo',
     orden: 'ASC'
-  })
+  }),
+
+  // ✅ NUEVA FUNCIÓN: Verificar si se han cargado todas las cuentas
+  todasLasCuentasCargadas: (cuentasEnMemoria, totalBD) => {
+    if (!totalBD || totalBD === 0) return false;
+    return cuentasEnMemoria >= totalBD;
+  },
+
+  // ✅ NUEVA FUNCIÓN: Calcular porcentaje de cobertura
+  calcularCobertura: (cuentasEnMemoria, totalBD) => {
+    if (!totalBD || totalBD === 0) return 0;
+    return Math.round((cuentasEnMemoria / totalBD) * 100);
+  }
 };
 
 export default {

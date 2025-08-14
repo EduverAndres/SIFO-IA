@@ -16,7 +16,8 @@ import {
   FaMagic,
   FaHistory,
   FaBookmark,
-  FaCog
+  FaCog,
+  FaDatabase // Añadir este nuevo icono
 } from 'react-icons/fa';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -47,8 +48,10 @@ const PucFilters = ({
   onExpandirTodos = () => {},
   onContraerTodos = () => {},
   onExpandirSoloClases = () => {},
+  onCargarTodasLasCuentas, // ✅ NUEVO PROP
   estadisticas = null,
-  loading = false
+  loading = false,
+  cuentas = [] // ✅ NUEVO PROP para mostrar stats
 }) => {
   // Estados locales para mejor UX
   const [filtrosLocales, setFiltrosLocales] = useState(filtros);
@@ -280,6 +283,19 @@ const PucFilters = ({
 
   const erroresValidacion = validarFiltros();
   const tieneActivosFiltros = FILTER_UTILS.tieneActivosFiltros(filtros);
+
+  // ✅ NUEVO: Función para cargar todas las cuentas
+  const handleCargarTodasLasCuentas = useCallback(async () => {
+    const confirmar = window.confirm(
+      `¿Cargar TODAS las cuentas del sistema?\n\n` +
+      `Esto puede tomar unos segundos y usar más memoria.\n` +
+      `Total estimado: ${estadisticas?.total?.toLocaleString() || 'Unknown'} cuentas`
+    );
+    
+    if (confirmar && onCargarTodasLasCuentas) {
+      await onCargarTodasLasCuentas();
+    }
+  }, [onCargarTodasLasCuentas, estadisticas]);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
@@ -576,7 +592,7 @@ const PucFilters = ({
       {/* Resto del componente - Filtros Avanzados, Configuración, etc. */}
       {/* ... (mantener el resto del código anterior) ... */}
 
-      {/* Configuración de Vista y Ordenamiento */}
+      {/* Configuración de Vista y Ordenamiento - SECCIÓN ACTUALIZADA */}
       <div className="border-t border-gray-200 pt-4 space-y-4">
         <h3 className="text-sm font-semibold text-gray-700 flex items-center">
           <FaSortAmountDown className="mr-2 text-blue-600" />
@@ -587,8 +603,21 @@ const PucFilters = ({
           <Select
             label="Registros por página"
             value={filtrosLocales.limite || 50}
-            onChange={(e) => setFiltrosLocales({...filtrosLocales, limite: parseInt(e.target.value), pagina: 1})}
-            options={PAGINATION_OPTIONS}
+            onChange={(e) => {
+              const nuevoLimite = parseInt(e.target.value);
+              setFiltrosLocales({...filtrosLocales, limite: nuevoLimite, pagina: 1});
+            }}
+            options={[
+              { value: 25, label: '25 registros' },
+              { value: 50, label: '50 registros' },
+              { value: 100, label: '100 registros' },
+              { value: 500, label: '500 registros' },
+              { value: 1000, label: '1,000 registros' },
+              { value: 5000, label: '5,000 registros' },
+              { value: 10000, label: '10,000 registros' },
+              { value: 25000, label: '25,000 registros' },
+              { value: 99999, label: `🚀 TODAS (${estadisticas?.total?.toLocaleString() || '?'})` }
+            ]}
             disabled={loading}
           />
           
@@ -607,6 +636,17 @@ const PucFilters = ({
             options={ORDER_OPTIONS}
             disabled={loading}
           />
+          
+          {/* ✅ NUEVO BOTÓN: Cargar todas las cuentas */}
+          <Button
+            onClick={handleCargarTodasLasCuentas}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm"
+            icon={FaDatabase}
+            disabled={loading}
+            title={`Cargar todas las ${estadisticas?.total?.toLocaleString() || '?'} cuentas del sistema`}
+          >
+            🚀 Todas
+          </Button>
           
           <Button
             onClick={() => {
@@ -659,6 +699,62 @@ const PucFilters = ({
               >
                 Con
               </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ✅ NUEVA SECCIÓN: Información de datos cargados */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center">
+          <FaDatabase className="mr-1" />
+          Estado de Datos Cargados
+        </h4>
+        <div className="text-xs text-blue-700 space-y-1">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <span className="font-medium">📊 En memoria:</span>
+              <br />
+              <span className="text-blue-900 font-mono">{cuentas?.length?.toLocaleString() || 0}</span>
+            </div>
+            <div>
+              <span className="font-medium">🗄️ Total BD:</span>
+              <br />
+              <span className="text-blue-900 font-mono">{estadisticas?.total?.toLocaleString() || '?'}</span>
+            </div>
+            <div>
+              <span className="font-medium">📄 Por página:</span>
+              <br />
+              <span className="text-blue-900 font-mono">{filtros.limite || 50}</span>
+            </div>
+            <div>
+              <span className="font-medium">📈 Cobertura:</span>
+              <br />
+              <span className={`font-mono ${
+                (cuentas?.length || 0) >= (estadisticas?.total || 1) ? 'text-green-700' : 'text-yellow-700'
+              }`}>
+                {estadisticas?.total 
+                  ? `${(((cuentas?.length || 0) / estadisticas.total) * 100).toFixed(1)}%`
+                  : '?%'
+                }
+              </span>
+            </div>
+          </div>
+          
+          {/* Advertencia si no se han cargado todas las cuentas */}
+          {estadisticas?.total && (cuentas?.length || 0) < estadisticas.total && (
+            <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
+              ⚠️ <strong>Advertencia:</strong> Solo tienes {cuentas?.length?.toLocaleString() || 0} de {estadisticas.total.toLocaleString()} cuentas cargadas.
+              <br />
+              Para ver la estructura completa del árbol, haz clic en "🚀 Todas" o aumenta el límite por página.
+            </div>
+          )}
+          
+          {/* Confirmación si se han cargado todas */}
+          {estadisticas?.total && (cuentas?.length || 0) >= estadisticas.total && (
+            <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-green-800">
+              ✅ <strong>Completo:</strong> Todas las cuentas están cargadas en memoria. 
+              La vista de árbol mostrará la estructura completa.
             </div>
           )}
         </div>

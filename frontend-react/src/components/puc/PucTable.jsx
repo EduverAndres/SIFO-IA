@@ -1,6 +1,6 @@
-// components/puc/PucTable.jsx
+// components/puc/PucTable.jsx - VERSIÓN COMPLETA Y ACTUALIZADA
 import React from 'react';
-import { FaEye, FaEdit, FaTrash, FaArrowUp, FaArrowDown, FaBullseye } from 'react-icons/fa';
+import { FaEye, FaEdit, FaTrash, FaArrowUp, FaArrowDown, FaBullseye, FaDatabase, FaRocket } from 'react-icons/fa';
 import { 
   formatearSaldo, 
   formatearMovimientos, 
@@ -9,6 +9,7 @@ import {
   obtenerColorTipoCuenta 
 } from '../../utils/formatters';
 import { obtenerIconoTipoCuenta } from '../../utils/pucUtils';
+import { FILTER_UTILS } from '../../constants/pucConstants';
 import Button from '../ui/Button';
 
 const PucTable = ({ 
@@ -19,7 +20,12 @@ const PucTable = ({
   onEditar, 
   onEliminar, 
   onCambiarPagina,
-  setFiltros
+  setFiltros,
+  estadisticas = null,
+  // ✅ NUEVOS PROPS
+  resumenDatos = {},
+  todasCargadas = false,
+  onCargarTodasLasCuentas = null
 }) => {
   // Función para determinar si una cuenta coincide con la búsqueda específica
   const esCoincidenciaEspecifica = (cuenta) => {
@@ -33,26 +39,135 @@ const PucTable = ({
            cuenta.codigo_completo === filtros.busqueda_especifica;
   };
 
+  // ✅ CÁLCULOS MEJORADOS
+  const totalRealCuentas = resumenDatos?.totalBD || estadisticas?.total || paginacion.total;
+  const cuentasEnMemoria = resumenDatos?.enMemoria || cuentas.length;
+  const porcentajeCobertura = FILTER_UTILS.calcularCobertura(cuentasEnMemoria, totalRealCuentas);
+
+  // ✅ FUNCIÓN PARA MANEJAR CARGA MASIVA DESDE LA TABLA
+  const handleCargarTodasDesdeTabla = async () => {
+    if (!onCargarTodasLasCuentas) return;
+    
+    const confirmar = window.confirm(
+      `¿Cargar TODAS las ${totalRealCuentas.toLocaleString()} cuentas del sistema?\n\n` +
+      `Esto te permitirá ver todos los datos sin paginación.`
+    );
+    
+    if (confirmar) {
+      await onCargarTodasLasCuentas();
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
-      {/* Header informativo si hay búsqueda específica */}
-      {filtros.busqueda_especifica && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center space-x-2 text-sm">
-            <FaBullseye className="text-green-600" />
-            <span className="text-green-800 font-medium">
-              Filtro específico activo: Mostrando solo cuentas que empiecen con 
-              <code className="mx-1 px-2 py-1 bg-green-100 rounded font-mono font-bold">
-                {filtros.busqueda_especifica}
-              </code>
-            </span>
+      {/* ✅ HEADER MEJORADO: Información de estado de datos */}
+      <div className="mb-4 space-y-3">
+        {/* Header informativo si hay búsqueda específica */}
+        {filtros.busqueda_especifica && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-sm">
+              <FaBullseye className="text-green-600" />
+              <span className="text-green-800 font-medium">
+                Filtro específico activo: Mostrando solo cuentas que empiecen con 
+                <code className="mx-1 px-2 py-1 bg-green-100 rounded font-mono font-bold">
+                  {filtros.busqueda_especifica}
+                </code>
+              </span>
+            </div>
+            <div className="text-xs text-green-600 mt-1">
+              🎯 Cuenta exacta: {filtros.busqueda_especifica} | 🌿 Subcuentas: {filtros.busqueda_especifica}XXXXX
+            </div>
           </div>
-          <div className="text-xs text-green-600 mt-1">
-            🎯 Cuenta exacta: {filtros.busqueda_especifica} | 🌿 Subcuentas: {filtros.busqueda_especifica}XXXXX
+        )}
+
+        {/* ✅ INFORMACIÓN GENERAL MEJORADA */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 gap-3">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <div className="flex items-center space-x-2">
+              <FaDatabase className="text-blue-600" />
+              <span className="font-medium text-blue-800">
+                📊 Mostrando {cuentas.length.toLocaleString()} de {paginacion.total.toLocaleString()}
+              </span>
+              {filtros.busqueda_especifica && (
+                <span className="text-green-600 font-medium">
+                  (filtradas por: {filtros.busqueda_especifica}*)
+                </span>
+              )}
+            </div>
+
+            {/* Información de cobertura */}
+            <div className="flex items-center space-x-2 text-sm">
+              <span className="text-gray-600">Base de datos:</span>
+              <span className="font-mono font-bold text-gray-800">
+                {totalRealCuentas.toLocaleString()}
+              </span>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                porcentajeCobertura >= 100 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {porcentajeCobertura}% cargado
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <div className="text-xs text-blue-600">
+              Página {paginacion.paginaActual} de {paginacion.totalPaginas}
+            </div>
+            
+            {/* ✅ BOTÓN DE CARGA RÁPIDA */}
+            {!todasCargadas && onCargarTodasLasCuentas && porcentajeCobertura < 100 && (
+              <Button
+                onClick={handleCargarTodasDesdeTabla}
+                className="px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                icon={FaRocket}
+                title={`Cargar todas las ${totalRealCuentas.toLocaleString()} cuentas`}
+              >
+                Cargar Todas
+              </Button>
+            )}
           </div>
         </div>
-      )}
 
+        {/* ✅ ADVERTENCIA SI DATOS INCOMPLETOS */}
+        {!todasCargadas && porcentajeCobertura < 100 && !filtros.busqueda_especifica && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-sm">
+                <span className="text-yellow-600">⚠️</span>
+                <span className="text-yellow-800">
+                  <strong>Datos incompletos:</strong> Solo tienes {cuentasEnMemoria.toLocaleString()} de {totalRealCuentas.toLocaleString()} cuentas cargadas.
+                </span>
+              </div>
+              {onCargarTodasLasCuentas && (
+                <Button
+                  onClick={handleCargarTodasDesdeTabla}
+                  className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 text-white"
+                  icon={FaRocket}
+                >
+                  Cargar Todas
+                </Button>
+              )}
+            </div>
+            <div className="text-xs text-yellow-600 mt-1">
+              Para acceder a todas las cuentas y tener la vista completa, carga todos los datos.
+            </div>
+          </div>
+        )}
+
+        {/* ✅ CONFIRMACIÓN SI DATOS COMPLETOS */}
+        {todasCargadas && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-sm">
+              <span className="text-green-600">✅</span>
+              <span className="text-green-800">
+                <strong>Datos completos:</strong> Todas las {totalRealCuentas.toLocaleString()} cuentas están cargadas.
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ✅ TABLA PRINCIPAL */}
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
@@ -238,7 +353,7 @@ const PucTable = ({
         </tbody>
       </table>
 
-      {/* Información de resultados específicos */}
+      {/* ✅ INFORMACIÓN DE RESULTADOS ESPECÍFICOS */}
       {filtros.busqueda_especifica && cuentas.length > 0 && (
         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
           <div className="text-sm text-green-800">
@@ -254,7 +369,7 @@ const PucTable = ({
                 🌿 <strong>Subcuentas:</strong> Códigos que empiecen con {filtros.busqueda_especifica}
               </div>
               <div>
-                📊 <strong>Total encontradas:</strong> {paginacion.total} cuentas
+                📊 <strong>Total encontradas:</strong> {paginacion.total.toLocaleString()} cuentas
               </div>
               <div>
                 📋 <strong>Mostrando:</strong> {cuentas.length} en esta página
@@ -264,15 +379,15 @@ const PucTable = ({
         </div>
       )}
 
-      {/* Paginación */}
-      {paginacion.totalPaginas > 1 && (
+      {/* ✅ PAGINACIÓN MEJORADA */}
+      {(paginacion.totalPaginas > 1 || cuentas.length > 0) && (
         <div className="mt-6 bg-gray-50 rounded-lg p-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             
-            {/* Información de registros */}
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
+            {/* Información de registros mejorada */}
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 text-sm text-gray-600">
               <span>
-                Mostrando {((paginacion.paginaActual - 1) * filtros.limite) + 1} - {Math.min(paginacion.paginaActual * filtros.limite, paginacion.total)} de {paginacion.total} resultados
+                Mostrando {cuentas.length === 0 ? 0 : ((paginacion.paginaActual - 1) * parseInt(filtros.limite || '100')) + 1} - {Math.min(paginacion.paginaActual * parseInt(filtros.limite || '100'), paginacion.total)} de {paginacion.total.toLocaleString()} resultados
                 {filtros.busqueda_especifica && (
                   <span className="text-green-600 font-medium ml-1">
                     (filtrado por {filtros.busqueda_especifica}*)
@@ -284,7 +399,10 @@ const PucTable = ({
                 <span>Mostrar:</span>
                 <select 
                   value={filtros.limite} 
-                  onChange={(e) => setFiltros({...filtros, limite: parseInt(e.target.value), pagina: 1})}
+                  onChange={(e) => {
+                    const nuevoLimite = parseInt(e.target.value);
+                    setFiltros({...filtros, limite: nuevoLimite, pagina: 1});
+                  }}
                   className="border border-gray-300 rounded px-2 py-1 text-sm"
                 >
                   <option value={25}>25</option>
@@ -292,63 +410,106 @@ const PucTable = ({
                   <option value={100}>100</option>
                   <option value={200}>200</option>
                   <option value={500}>500</option>
-                  <option value={paginacion.total}>Todos ({paginacion.total})</option>
+                  <option value={1000}>1,000</option>
+                  <option value={5000}>5,000</option>
+                  <option value={10000}>10,000</option>
+                  <option value={25000}>25,000</option>
+                  <option value={99999}>
+                    🚀 TODAS ({totalRealCuentas.toLocaleString()})
+                  </option>
                 </select>
                 <span>por página</span>
               </div>
             </div>
 
-            {/* Controles de navegación */}
-            <div className="flex items-center space-x-2">
-              <Button
-                onClick={() => onCambiarPagina(1)}
-                disabled={paginacion.paginaActual === 1}
-                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-              >
-                ««
-              </Button>
-              
-              <Button
-                onClick={() => onCambiarPagina(paginacion.paginaActual - 1)}
-                disabled={paginacion.paginaActual === 1}
-                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-              >
-                « Anterior
-              </Button>
-
+            {/* Controles de navegación - Solo mostrar si hay múltiples páginas */}
+            {paginacion.totalPaginas > 1 && (
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Página</span>
-                <input
-                  type="number"
-                  min="1"
-                  max={paginacion.totalPaginas}
-                  value={paginacion.paginaActual}
-                  onChange={(e) => {
-                    const pagina = parseInt(e.target.value);
-                    if (pagina >= 1 && pagina <= paginacion.totalPaginas) {
-                      onCambiarPagina(pagina);
-                    }
-                  }}
-                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
-                />
-                <span className="text-sm text-gray-600">de {paginacion.totalPaginas}</span>
-              </div>
+                <Button
+                  onClick={() => onCambiarPagina(1)}
+                  disabled={paginacion.paginaActual === 1}
+                  className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                >
+                  ««
+                </Button>
+                
+                <Button
+                  onClick={() => onCambiarPagina(paginacion.paginaActual - 1)}
+                  disabled={paginacion.paginaActual === 1}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                >
+                  « Anterior
+                </Button>
 
-              <Button
-                onClick={() => onCambiarPagina(paginacion.paginaActual + 1)}
-                disabled={paginacion.paginaActual === paginacion.totalPaginas}
-                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-              >
-                Siguiente »
-              </Button>
-              
-              <Button
-                onClick={() => onCambiarPagina(paginacion.totalPaginas)}
-                disabled={paginacion.paginaActual === paginacion.totalPaginas}
-                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-              >
-                »»
-              </Button>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Página</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={paginacion.totalPaginas}
+                    value={paginacion.paginaActual}
+                    onChange={(e) => {
+                      const pagina = parseInt(e.target.value);
+                      if (pagina >= 1 && pagina <= paginacion.totalPaginas) {
+                        onCambiarPagina(pagina);
+                      }
+                    }}
+                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                  />
+                  <span className="text-sm text-gray-600">de {paginacion.totalPaginas}</span>
+                </div>
+
+                <Button
+                  onClick={() => onCambiarPagina(paginacion.paginaActual + 1)}
+                  disabled={paginacion.paginaActual === paginacion.totalPaginas}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                >
+                  Siguiente »
+                </Button>
+                
+                <Button
+                  onClick={() => onCambiarPagina(paginacion.totalPaginas)}
+                  disabled={paginacion.paginaActual === paginacion.totalPaginas}
+                  className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                >
+                  »»
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          {/* ✅ INFORMACIÓN ADICIONAL MEJORADA */}
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {/* Información de cobertura */}
+            {totalRealCuentas > paginacion.total && (
+              <div className="text-purple-600 bg-purple-50 p-2 rounded">
+                <strong>💡 Info:</strong> Hay {totalRealCuentas.toLocaleString()} cuentas en total en la base de datos. 
+                Los filtros actuales muestran {paginacion.total.toLocaleString()} cuentas.
+                {filtros.busqueda_especifica && (
+                  <span className="ml-1">
+                    La búsqueda específica por "{filtros.busqueda_especifica}" está limitando los resultados.
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Información de estado de carga */}
+            <div className={`p-2 rounded ${
+              todasCargadas ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
+            }`}>
+              <strong>{todasCargadas ? '✅ Datos completos:' : '⚠️ Datos parciales:'}</strong> 
+              {todasCargadas 
+                ? ` Todas las ${totalRealCuentas.toLocaleString()} cuentas están cargadas.`
+                : ` Solo ${porcentajeCobertura}% de las cuentas están cargadas.`
+              }
+              {!todasCargadas && onCargarTodasLasCuentas && (
+                <button
+                  onClick={handleCargarTodasDesdeTabla}
+                  className="ml-2 underline hover:no-underline"
+                >
+                  Cargar todas
+                </button>
+              )}
             </div>
           </div>
         </div>
