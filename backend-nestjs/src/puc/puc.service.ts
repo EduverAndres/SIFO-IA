@@ -1,11 +1,11 @@
-// backend-nestjs/src/puc/puc.service.ts - SIN CAMPO NOMBRE
+// backend-nestjs/src/puc/puc.service.ts - VERSIÓN COMPLETA Y CORREGIDA
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CuentaPuc, NaturalezaCuentaEnum, TipoCuentaEnum, EstadoCuentaEnum } from './entities/cuenta-puc.entity';
 import { CreateCuentaPucDto } from './dto/create-cuenta-puc.dto';
 import { UpdateCuentaPucDto } from './dto/update-cuenta-puc.dto';
-import { FiltrosPucDto } from './dto/filtros-puc.dto';
+import { FiltrosPucDto, OrdenCampos } from './dto/filtros-puc.dto';
 import { ResponsePucDto } from './dto/response-puc.dto';
 import { ImportPucExcelDto } from './dto/import-puc-excel.dto';
 import { ExportPucExcelDto } from './dto/export-puc-excel.dto';
@@ -15,6 +15,25 @@ import {
   ResultadoImportacion 
 } from './interfaces/excel-row.interface';
 import { Express } from 'express';
+
+interface ResultadoBusquedaPuc {
+  cuentas: ResponsePucDto[];
+  total: number;
+  totalFiltrados: number;
+  paginacion: {
+    paginaActual: number;
+    totalPaginas: number;
+    limite: number;
+    total: number;
+  };
+  estadisticas: {
+    total_encontrados: number;
+    total_filtrados: number;
+    por_clase: { [key: string]: number };
+    por_naturaleza: { [key: string]: number };
+    por_nivel: { [key: string]: number };
+  };
+}
 
 @Injectable()
 export class PucService {
@@ -27,56 +46,419 @@ export class PucService {
   ) {}
 
   // ===============================================
-  // 📋 MÉTODOS CRUD IMPLEMENTADOS
+  // 🎯 MÉTODO PRINCIPAL - BÚSQUEDA CON FILTROS AVANZADOS
+  // ===============================================
+
+  async buscarCuentasConFiltros(filtros: FiltrosPucDto): Promise<ResultadoBusquedaPuc> {
+    try {
+      this.logger.log(`🔍 Buscando cuentas con filtros avanzados: ${JSON.stringify(filtros)}`);
+
+      // Limpiar filtros incompatibles
+      this.limpiarFiltrosIncompatibles(filtros);
+
+      // Validar filtros
+      if (!this.validarRangoSaldo(filtros)) {
+        throw new BadRequestException('El rango de saldo no es válido');
+      }
+
+      if (!this.validarRangoFecha(filtros)) {
+        throw new BadRequestException('El rango de fechas no es válido');
+      }
+
+      // Crear query builder base
+      const queryBuilder = this.crearQueryBase();
+      
+      // Aplicar filtros
+      this.aplicarFiltros(queryBuilder, filtros);
+      
+      // Obtener total filtrado ANTES de aplicar paginación
+      const totalFiltrados = await queryBuilder.getCount();
+      
+      // Aplicar ordenamiento
+      this.aplicarOrdenamiento(queryBuilder, filtros);
+      
+      // Aplicar paginación
+      const paginaNum = parseInt(filtros.pagina ?? '1') || 1;
+      const limiteNum = Math.min(parseInt(filtros.limite ?? '50') || 50, 1000);
+      const offset = (paginaNum - 1) * limiteNum;
+      
+      queryBuilder
+        .skip(offset)
+        .limit(limiteNum);
+      
+      // Ejecutar consulta
+      const cuentasEntity = await queryBuilder.getMany();
+      
+      // Mapear a DTOs
+      const cuentas = cuentasEntity.map(cuenta => this.mapearAResponseDto(cuenta));
+      
+      // Obtener estadísticas
+      const estadisticas = await this.obtenerEstadisticasFiltradas(filtros);
+      
+      const resultado: ResultadoBusquedaPuc = {
+        cuentas,
+        total: totalFiltrados,
+        totalFiltrados: totalFiltrados,
+        paginacion: {
+          paginaActual: paginaNum,
+          totalPaginas: Math.ceil(totalFiltrados / limiteNum),
+          limite: limiteNum,
+          total: totalFiltrados
+        },
+        estadisticas: {
+          total_encontrados: totalFiltrados,
+          total_filtrados: totalFiltrados,
+          ...estadisticas
+        }
+      };
+
+      this.logger.log(`✅ Búsqueda completada: ${totalFiltrados} resultados, página ${paginaNum}`);
+      
+      return resultado;
+
+    } catch (error) {
+      this.logger.error(`❌ Error en búsqueda con filtros: ${error.message}`, error.stack);
+      throw new BadRequestException(`Error en la búsqueda: ${error.message}`);
+    }
+  }
+
+  // ===============================================
+  // 🔧 MÉTODOS AUXILIARES PARA CONSTRUCCIÓN DE QUERIES
+  // ===============================================
+
+  private crearQueryBase(): SelectQueryBuilder<CuentaPuc> {
+    return this.cuentaPucRepository
+      .createQueryBuilder('cuenta')
+      .select([
+        'cuenta.id',
+        'cuenta.codigo_completo',
+        'cuenta.descripcion',
+        'cuenta.tipo_cuenta',
+        'cuenta.naturaleza',
+        'cuenta.nivel',
+        'cuenta.estado',
+        'cuenta.codigo_padre',
+        'cuenta.acepta_movimientos',
+        'cuenta.saldo_inicial',
+        'cuenta.saldo_final',
+        'cuenta.activo',
+        'cuenta.fecha_creacion',
+        'cuenta.fecha_modificacion',
+        'cuenta.movimientos_debito',
+        'cuenta.movimientos_credito',
+        'cuenta.tipo_cta',
+        'cuenta.requiere_tercero',
+        'cuenta.requiere_centro_costo',
+        'cuenta.es_cuenta_niif',
+        'cuenta.codigo_clase',
+        'cuenta.codigo_grupo',
+        'cuenta.codigo_cuenta',
+        'cuenta.codigo_subcuenta',
+        'cuenta.codigo_detalle',
+        'cuenta.centro_costos',
+        'cuenta.aplica_f350',
+        'cuenta.aplica_f300',
+        'cuenta.aplica_exogena',
+        'cuenta.aplica_ica',
+        'cuenta.aplica_dr110'
+      ]);
+  }
+
+  private aplicarFiltros(queryBuilder: SelectQueryBuilder<CuentaPuc>, filtros: FiltrosPucDto): void {
+    // ✅ FILTRO BASE: Solo cuentas activas (no borradas físicamente)
+    queryBuilder.andWhere('cuenta.activo = :activo', { activo: true });
+
+    // ✅ FILTRO PRINCIPAL: Búsqueda específica (cuenta + subcuentas)
+    if (this.esBusquedaEspecificaValida(filtros)) {
+      this.logger.log(`🎯 Aplicando búsqueda específica: ${filtros.busqueda_especifica}`);
+      
+      queryBuilder.andWhere('cuenta.codigo_completo LIKE :busqueda_especifica', {
+        busqueda_especifica: `${filtros.busqueda_especifica}%`
+      });
+      
+      // Si hay búsqueda específica, terminar aquí (no aplicar otros filtros)
+      return;
+    }
+
+    // ✅ FILTROS GENERALES (solo si no hay búsqueda específica)
+    
+    // Búsqueda general en código y descripción
+    if (filtros.busqueda) {
+      queryBuilder.andWhere(
+        '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.descripcion ILIKE :busqueda)',
+        { busqueda: `%${filtros.busqueda}%` }
+      );
+    }
+
+    // Filtro por tipo de cuenta
+    if (filtros.tipo) {
+      queryBuilder.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: filtros.tipo });
+    }
+
+    // Filtro por naturaleza
+    if (filtros.naturaleza) {
+      queryBuilder.andWhere('cuenta.naturaleza = :naturaleza', { naturaleza: filtros.naturaleza });
+    }
+
+    // Filtro por código de clase (primer dígito)
+    if (filtros.codigo_clase) {
+      queryBuilder.andWhere('cuenta.codigo_completo LIKE :codigo_clase', {
+        codigo_clase: `${filtros.codigo_clase}%`
+      });
+    }
+
+    // Filtro por nivel jerárquico
+    if (filtros.nivel) {
+      queryBuilder.andWhere('cuenta.nivel = :nivel', { nivel: parseInt(filtros.nivel) });
+    }
+
+    // Filtro por cuenta padre
+    if (filtros.codigo_padre) {
+      queryBuilder.andWhere('cuenta.codigo_padre = :codigo_padre', {
+        codigo_padre: filtros.codigo_padre
+      });
+    }
+
+    // Filtro: solo cuentas que aceptan movimientos
+    if (filtros.solo_movimiento) {
+      queryBuilder.andWhere('cuenta.acepta_movimientos = :acepta_movimientos', { acepta_movimientos: true });
+    }
+
+    // Filtro: solo cuentas con saldo
+    if (filtros.solo_con_saldo) {
+      queryBuilder.andWhere(
+        '(cuenta.saldo_inicial != 0 OR cuenta.saldo_final != 0)'
+      );
+    }
+
+    // Filtro: solo cuentas con movimientos
+    if (filtros.solo_con_movimientos) {
+      queryBuilder.andWhere(
+        '(cuenta.movimientos_debito > 0 OR cuenta.movimientos_credito > 0)'
+      );
+    }
+
+    // Filtros de rango de saldo
+    if (filtros.saldo_minimo) {
+      const saldoMin = parseFloat(filtros.saldo_minimo);
+      queryBuilder.andWhere('cuenta.saldo_final >= :saldo_minimo', { saldo_minimo: saldoMin });
+    }
+
+    if (filtros.saldo_maximo) {
+      const saldoMax = parseFloat(filtros.saldo_maximo);
+      queryBuilder.andWhere('cuenta.saldo_final <= :saldo_maximo', { saldo_maximo: saldoMax });
+    }
+
+    // Filtros de rango de fechas
+    if (filtros.fecha_desde) {
+      queryBuilder.andWhere('DATE(cuenta.fecha_creacion) >= :fecha_desde', {
+        fecha_desde: filtros.fecha_desde
+      });
+    }
+
+    if (filtros.fecha_hasta) {
+      queryBuilder.andWhere('DATE(cuenta.fecha_creacion) <= :fecha_hasta', {
+        fecha_hasta: filtros.fecha_hasta
+      });
+    }
+
+    // Filtro por estado específico
+    if (filtros.estado) {
+      queryBuilder.andWhere('cuenta.estado = :estado', { estado: filtros.estado });
+    }
+
+    // Incluir cuentas inactivas si se especifica
+    if (!filtros.incluir_inactivas) {
+      queryBuilder.andWhere('cuenta.estado = :estado_activo', { estado_activo: EstadoCuentaEnum.ACTIVA });
+    }
+  }
+
+  private aplicarOrdenamiento(queryBuilder: SelectQueryBuilder<CuentaPuc>, filtros: FiltrosPucDto): void {
+    const campoOrden = filtros.ordenar_por || 'codigo_completo';
+    const tipoOrden = filtros.orden || 'ASC';
+
+    // Ordenamiento especial para código jerárquico
+    if (campoOrden === 'codigo_completo') {
+      // Ordenar primero por longitud del código, luego alfabéticamente
+      // Esto asegura el orden jerárquico correcto (1, 11, 111001, 2, 21, etc.)
+      queryBuilder
+        .addOrderBy('LENGTH(cuenta.codigo_completo)', 'ASC')
+        .addOrderBy(`cuenta.${campoOrden}`, tipoOrden as 'ASC' | 'DESC');
+    } else {
+      queryBuilder.orderBy(`cuenta.${campoOrden}`, tipoOrden as 'ASC' | 'DESC');
+      
+      // Ordenamiento secundario siempre por código para consistencia
+      // Usar el valor correcto del enum para comparar
+      if (campoOrden !== OrdenCampos.CODIGO_COMPLETO) {
+        queryBuilder.addOrderBy('LENGTH(cuenta.codigo_completo)', 'ASC');
+        queryBuilder.addOrderBy('cuenta.codigo_completo', 'ASC');
+      }
+    }
+  }
+
+  private async obtenerEstadisticasFiltradas(filtros: FiltrosPucDto): Promise<any> {
+    const queryBase = this.crearQueryBase();
+    this.aplicarFiltros(queryBase, filtros);
+
+    // Estadísticas por clase
+    const porClase = await queryBase
+      .clone()
+      .select('LEFT(cuenta.codigo_completo, 1) as clase')
+      .addSelect('COUNT(*) as total')
+      .groupBy('clase')
+      .orderBy('clase')
+      .getRawMany();
+
+    // Estadísticas por naturaleza
+    const porNaturaleza = await queryBase
+      .clone()
+      .select('cuenta.naturaleza')
+      .addSelect('COUNT(*) as total')
+      .groupBy('cuenta.naturaleza')
+      .getRawMany();
+
+    // Estadísticas por nivel
+    const porNivel = await queryBase
+      .clone()
+      .select('cuenta.nivel as nivel')
+      .addSelect('COUNT(*) as total')
+      .groupBy('nivel')
+      .orderBy('nivel')
+      .getRawMany();
+
+    return {
+      por_clase: porClase.reduce((acc, item) => {
+        acc[item.clase] = parseInt(item.total);
+        return acc;
+      }, {}),
+      por_naturaleza: porNaturaleza.reduce((acc, item) => {
+        acc[item.naturaleza] = parseInt(item.total);
+        return acc;
+      }, {}),
+      por_nivel: porNivel.reduce((acc, item) => {
+        acc[item.nivel] = parseInt(item.total);
+        return acc;
+      }, {})
+    };
+  }
+
+  // ===============================================
+  // 🔍 MÉTODO PARA SUGERENCIAS DE BÚSQUEDA
+  // ===============================================
+
+  async obtenerSugerenciasBusqueda(termino: string): Promise<any[]> {
+    if (!termino || termino.length < 2) return [];
+
+    try {
+      const queryBuilder = this.cuentaPucRepository
+        .createQueryBuilder('cuenta')
+        .select([
+          'cuenta.codigo_completo',
+          'cuenta.descripcion',
+          'cuenta.tipo_cuenta',
+          'cuenta.naturaleza'
+        ])
+        .where('cuenta.activo = :activo', { activo: true })
+        .andWhere('cuenta.estado = :estado', { estado: EstadoCuentaEnum.ACTIVA })
+        .andWhere(
+          '(cuenta.codigo_completo ILIKE :termino OR cuenta.descripcion ILIKE :termino)',
+          { termino: `%${termino}%` }
+        )
+        .orderBy('LENGTH(cuenta.codigo_completo)', 'ASC')
+        .addOrderBy('cuenta.codigo_completo', 'ASC')
+        .limit(10);
+
+      const sugerencias = await queryBuilder.getMany();
+      
+      return sugerencias.map(cuenta => ({
+        codigo: cuenta.codigo_completo,
+        descripcion: cuenta.descripcion,
+        tipo: cuenta.tipo_cuenta,
+        naturaleza: cuenta.naturaleza,
+        coincidencia: cuenta.codigo_completo.toLowerCase().includes(termino.toLowerCase()) ? 'codigo' : 'descripcion'
+      }));
+    } catch (error) {
+      this.logger.error('Error obteniendo sugerencias:', error);
+      return [];
+    }
+  }
+
+  // ===============================================
+  // 🌳 MÉTODO PARA CONSTRUIR ÁRBOL CON FILTROS
+  // ===============================================
+
+  async construirArbolConFiltros(filtros: FiltrosPucDto): Promise<any[]> {
+    const resultado = await this.buscarCuentasConFiltros({
+      ...filtros,
+      limite: '9999', // Obtener todas para construir árbol
+      pagina: '1',
+      paginaNum: 0,
+      limiteNum: 0,
+      offset: 0,
+      esBusquedaEspecificaValida: false,
+      claseDesdeEspecifica: null,
+      limpiarFiltrosIncompatibles: function (): void {
+        throw new Error('Function not implemented.');
+      },
+      rangoSaldoValido: false,
+      rangoFechaValido: false
+    });
+
+    return this.construirArbol(resultado.cuentas);
+  }
+
+  private construirArbol(cuentas: ResponsePucDto[]): any[] {
+    const mapaCuentas = new Map<string, any>();
+    const raices: any[] = [];
+
+    // Crear mapa de cuentas con array de hijos
+    cuentas.forEach(cuenta => {
+      mapaCuentas.set(cuenta.codigo_completo, { ...cuenta, hijos: [] });
+    });
+
+    // Construir relaciones padre-hijo
+    cuentas.forEach(cuenta => {
+      const nodoActual = mapaCuentas.get(cuenta.codigo_completo);
+      
+      if (cuenta.codigo_padre && mapaCuentas.has(cuenta.codigo_padre)) {
+        // Tiene padre y el padre existe en el filtro
+        const padre = mapaCuentas.get(cuenta.codigo_padre);
+        padre.hijos.push(nodoActual);
+      } else {
+        // Es nodo raíz o su padre no está en el filtro
+        raices.push(nodoActual);
+      }
+    });
+
+    // Ordenar hijos recursivamente
+    const ordenarHijos = (nodos: any[]) => {
+      nodos.sort((a, b) => {
+        // Primero por longitud, luego alfabéticamente
+        if (a.codigo_completo.length !== b.codigo_completo.length) {
+          return a.codigo_completo.length - b.codigo_completo.length;
+        }
+        return a.codigo_completo.localeCompare(b.codigo_completo);
+      });
+      
+      nodos.forEach(nodo => {
+        if (nodo.hijos.length > 0) {
+          ordenarHijos(nodo.hijos);
+        }
+      });
+    };
+
+    ordenarHijos(raices);
+    return raices;
+  }
+
+  // ===============================================
+  // 📋 MÉTODOS CRUD IMPLEMENTADOS (ORIGINALES MEJORADOS)
   // ===============================================
 
   async obtenerCuentas(filtros: FiltrosPucDto): Promise<ResponsePucDto[]> {
     try {
-      const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
-
-      // Aplicar filtros - USAR DESCRIPCION EN LUGAR DE NOMBRE
-      if (filtros.busqueda) {
-        query.andWhere(
-          '(cuenta.codigo_completo ILIKE :busqueda OR cuenta.descripcion ILIKE :busqueda)',
-          { busqueda: `%${filtros.busqueda}%` }
-        );
-      }
-
-      if (filtros.tipo) {
-        query.andWhere('cuenta.tipo_cuenta = :tipo', { tipo: filtros.tipo });
-      }
-
-      if (filtros.naturaleza) {
-        query.andWhere('cuenta.naturaleza = :naturaleza', { naturaleza: filtros.naturaleza });
-      }
-
-      if (filtros.estado) {
-        query.andWhere('cuenta.estado = :estado', { estado: filtros.estado });
-      }
-
-      if (filtros.codigo_padre) {
-        query.andWhere('cuenta.codigo_padre = :codigo_padre', { codigo_padre: filtros.codigo_padre });
-      }
-
-      if (filtros.solo_movimiento) {
-        query.andWhere('cuenta.acepta_movimientos = :acepta_movimientos', { acepta_movimientos: true });
-      }
-
-      // Solo cuentas activas por defecto
-      query.andWhere('cuenta.activo = :activo', { activo: true });
-
-      // Ordenamiento
-      query.orderBy('cuenta.codigo_completo', 'ASC');
-
-      // Límite
-      const limite = Math.min(Number(filtros.limite) || 50, 1000);
-      query.limit(limite);
-
-      const cuentas = await query.getMany();
-
-      // Mapear a ResponsePucDto
-      return cuentas.map(cuenta => this.mapearAResponseDto(cuenta));
-
+      const resultado = await this.buscarCuentasConFiltros(filtros);
+      return resultado.cuentas;
     } catch (error) {
       this.logger.error('Error obteniendo cuentas:', error);
       throw new BadRequestException('Error obteniendo cuentas del PUC');
@@ -231,7 +613,8 @@ export class PucService {
         query.andWhere('cuenta.activo = :activo', { activo: true });
       }
 
-      query.orderBy('cuenta.codigo_completo', 'ASC');
+      query.orderBy('LENGTH(cuenta.codigo_completo)', 'ASC');
+      query.addOrderBy('cuenta.codigo_completo', 'ASC');
       query.limit(limite);
 
       const cuentas = await query.getMany();
@@ -303,11 +686,14 @@ export class PucService {
         query.where('cuenta.codigo_padre IS NULL');
       }
 
+      query.andWhere('cuenta.activo = :activo', { activo: true });
+
       if (!incluirInactivas) {
-        query.andWhere('cuenta.activo = :activo', { activo: true });
+        query.andWhere('cuenta.estado = :estado', { estado: EstadoCuentaEnum.ACTIVA });
       }
 
-      query.orderBy('cuenta.codigo_completo', 'ASC');
+      query.orderBy('LENGTH(cuenta.codigo_completo)', 'ASC');
+      query.addOrderBy('cuenta.codigo_completo', 'ASC');
 
       const cuentas = await query.getMany();
 
@@ -338,12 +724,14 @@ export class PucService {
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
       
       query.where('cuenta.codigo_padre = :codigo_padre', { codigo_padre: codigo });
+      query.andWhere('cuenta.activo = :activo', { activo: true });
       
       if (!incluirInactivas) {
-        query.andWhere('cuenta.activo = :activo', { activo: true });
+        query.andWhere('cuenta.estado = :estado', { estado: EstadoCuentaEnum.ACTIVA });
       }
       
-      query.orderBy('cuenta.codigo_completo', 'ASC');
+      query.orderBy('LENGTH(cuenta.codigo_completo)', 'ASC');
+      query.addOrderBy('cuenta.codigo_completo', 'ASC');
 
       const subcuentas = await query.getMany();
       return subcuentas.map(cuenta => this.mapearAResponseDto(cuenta));
@@ -359,7 +747,7 @@ export class PucService {
       const query = this.cuentaPucRepository.createQueryBuilder('cuenta');
       
       query.select([
-        'cuenta.codigo_clase',
+        'LEFT(cuenta.codigo_completo, 1) as codigo_clase',
         'COUNT(*) as total_cuentas'
       ]);
 
@@ -371,9 +759,9 @@ export class PucService {
       }
 
       query.where('cuenta.activo = :activo', { activo: true });
-      query.andWhere('cuenta.codigo_clase IS NOT NULL');
-      query.groupBy('cuenta.codigo_clase');
-      query.orderBy('cuenta.codigo_clase', 'ASC');
+      query.andWhere('cuenta.estado = :estado', { estado: EstadoCuentaEnum.ACTIVA });
+      query.groupBy('LEFT(cuenta.codigo_completo, 1)');
+      query.orderBy('LEFT(cuenta.codigo_completo, 1)', 'ASC');
 
       const resultado = await query.getRawMany();
 
@@ -394,10 +782,13 @@ export class PucService {
 
   async reporteJerarquiaCompleta(formato: 'json' | 'tree'): Promise<any> {
     try {
-      const todasLasCuentas = await this.cuentaPucRepository.find({
-        where: { activo: true },
-        order: { codigo_completo: 'ASC' }
-      });
+      const todasLasCuentas = await this.cuentaPucRepository
+        .createQueryBuilder('cuenta')
+        .where('cuenta.activo = :activo', { activo: true })
+        .andWhere('cuenta.estado = :estado', { estado: EstadoCuentaEnum.ACTIVA })
+        .orderBy('LENGTH(cuenta.codigo_completo)', 'ASC')
+        .addOrderBy('cuenta.codigo_completo', 'ASC')
+        .getMany();
 
       if (formato === 'tree') {
         return this.construirArbolJerarquico(todasLasCuentas);
@@ -476,12 +867,14 @@ export class PucService {
       const advertencias: string[] = [];
       const recomendaciones: string[] = [];
 
-      const totalCuentas = await this.cuentaPucRepository.count({ where: { activo: true } });
+      const totalCuentas = await this.cuentaPucRepository.count({ 
+        where: { activo: true, estado: EstadoCuentaEnum.ACTIVA } 
+      });
 
       // 1. Verificar cuentas huérfanas
       const huerfanas = await this.cuentaPucRepository
         .createQueryBuilder('cuenta')
-        .leftJoin('cuenta_puc', 'padre', 'padre.codigo_completo = cuenta.codigo_padre')
+        .leftJoin('cuenta_puc', 'padre', 'padre.codigo_completo = cuenta.codigo_padre AND padre.activo = true')
         .where('cuenta.codigo_padre IS NOT NULL')
         .andWhere('padre.id IS NULL')
         .andWhere('cuenta.activo = :activo', { activo: true })
@@ -507,7 +900,10 @@ export class PucService {
       }
 
       // 3. Verificar naturaleza incorrecta
-      const todasLasCuentas = await this.cuentaPucRepository.find({ where: { activo: true } });
+      const todasLasCuentas = await this.cuentaPucRepository.find({ 
+        where: { activo: true, estado: EstadoCuentaEnum.ACTIVA } 
+      });
+      
       const naturalezaIncorrecta = todasLasCuentas.filter(cuenta => {
         const naturalezaEsperada = this.determinarNaturaleza(cuenta.codigo_completo);
         return cuenta.naturaleza !== naturalezaEsperada;
@@ -552,7 +948,7 @@ export class PucService {
 
       // Verificar si existe
       const existe = await this.cuentaPucRepository.count({
-        where: { codigo_completo: codigo }
+        where: { codigo_completo: codigo, activo: true }
       }) > 0;
 
       if (existe) {
@@ -619,46 +1015,80 @@ export class PucService {
   }
 
   // ===============================================
-  // 🔧 MÉTODOS PRIVADOS AUXILIARES
+  // 🔧 MÉTODOS PRIVADOS AUXILIARES Y VALIDACIONES
   // ===============================================
 
-// En puc.service.ts - Método mapearAResponseDto corregido
-private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
-  return {
-    id: cuenta.id,
-    codigo_completo: cuenta.codigo_completo,
-    descripcion: cuenta.descripcion || undefined,
-    naturaleza: cuenta.naturaleza,
-    tipo_cuenta: cuenta.tipo_cuenta,
-    estado: cuenta.estado,
-    nivel: cuenta.nivel,
-    tipo_cta: cuenta.tipo_cta,                    // AGREGADO
-    acepta_movimientos: cuenta.acepta_movimientos,
-    requiere_tercero: cuenta.requiere_tercero,    // AGREGADO
-    requiere_centro_costo: cuenta.requiere_centro_costo, // AGREGADO
-    es_cuenta_niif: cuenta.es_cuenta_niif,        // AGREGADO
-    codigo_padre: cuenta.codigo_padre || undefined,
-    saldo_inicial: cuenta.saldo_inicial || 0,
-    saldo_final: cuenta.saldo_final || 0,
-    codigo_clase: cuenta.codigo_clase || undefined,
-    codigo_grupo: cuenta.codigo_grupo || undefined,
-    codigo_cuenta: cuenta.codigo_cuenta || undefined,
-    codigo_subcuenta: cuenta.codigo_subcuenta || undefined,
-    codigo_detalle: cuenta.codigo_detalle || undefined,
-    activo: cuenta.activo,
-    fecha_creacion: cuenta.fecha_creacion,
-    fecha_modificacion: cuenta.fecha_modificacion,
-    movimientos_debito: cuenta.movimientos_debito,
-    movimientos_credito: cuenta.movimientos_credito,
-    centro_costos: cuenta.centro_costos || undefined,
-    aplica_f350: cuenta.aplica_f350,
-    aplica_f300: cuenta.aplica_f300,
-    aplica_exogena: cuenta.aplica_exogena,
-    aplica_ica: cuenta.aplica_ica,
-    aplica_dr110: cuenta.aplica_dr110
-  };
-}
+  private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
+    return {
+      id: cuenta.id,
+      codigo_completo: cuenta.codigo_completo,
+      descripcion: cuenta.descripcion || undefined,
+      naturaleza: cuenta.naturaleza,
+      tipo_cuenta: cuenta.tipo_cuenta,
+      estado: cuenta.estado,
+      nivel: cuenta.nivel,
+      tipo_cta: cuenta.tipo_cta,
+      acepta_movimientos: cuenta.acepta_movimientos,
+      requiere_tercero: cuenta.requiere_tercero,
+      requiere_centro_costo: cuenta.requiere_centro_costo,
+      es_cuenta_niif: cuenta.es_cuenta_niif,
+      codigo_padre: cuenta.codigo_padre || undefined,
+      saldo_inicial: cuenta.saldo_inicial || 0,
+      saldo_final: cuenta.saldo_final || 0,
+      codigo_clase: cuenta.codigo_clase || undefined,
+      codigo_grupo: cuenta.codigo_grupo || undefined,
+      codigo_cuenta: cuenta.codigo_cuenta || undefined,
+      codigo_subcuenta: cuenta.codigo_subcuenta || undefined,
+      codigo_detalle: cuenta.codigo_detalle || undefined,
+      activo: cuenta.activo,
+      fecha_creacion: cuenta.fecha_creacion,
+      fecha_modificacion: cuenta.fecha_modificacion,
+      movimientos_debito: cuenta.movimientos_debito,
+      movimientos_credito: cuenta.movimientos_credito,
+      centro_costos: cuenta.centro_costos || undefined,
+      aplica_f350: cuenta.aplica_f350,
+      aplica_f300: cuenta.aplica_f300,
+      aplica_exogena: cuenta.aplica_exogena,
+      aplica_ica: cuenta.aplica_ica,
+      aplica_dr110: cuenta.aplica_dr110
+    };
+  }
 
+  // Métodos de validación para filtros
+  private esBusquedaEspecificaValida(filtros: FiltrosPucDto): boolean {
+    return !!(filtros.busqueda_especifica && filtros.busqueda_especifica.length > 0);
+  }
+
+  private limpiarFiltrosIncompatibles(filtros: FiltrosPucDto): void {
+    if (this.esBusquedaEspecificaValida(filtros)) {
+      // Si hay búsqueda específica, limpiar otros filtros que puedan interferir
+      filtros.busqueda = undefined;
+      filtros.codigo_clase = undefined;
+      filtros.tipo = undefined;
+      filtros.nivel = undefined;
+      filtros.naturaleza = undefined;
+      filtros.codigo_padre = undefined;
+    }
+  }
+
+  private validarRangoSaldo(filtros: FiltrosPucDto): boolean {
+    if (!filtros.saldo_minimo && !filtros.saldo_maximo) return true;
+    
+    const min = parseFloat(filtros.saldo_minimo || '0');
+    const max = parseFloat(filtros.saldo_maximo || '999999999');
+    
+    return min <= max;
+  }
+
+  private validarRangoFecha(filtros: FiltrosPucDto): boolean {
+    if (!filtros.fecha_desde && !filtros.fecha_hasta) return true;
+    
+    if (filtros.fecha_desde && filtros.fecha_hasta) {
+      return new Date(filtros.fecha_desde) <= new Date(filtros.fecha_hasta);
+    }
+    
+    return true;
+  }
 
   private determinarNaturaleza(codigo: string): NaturalezaCuentaEnum {
     const primerDigito = codigo.charAt(0);
@@ -668,11 +1098,11 @@ private mapearAResponseDto(cuenta: CuentaPuc): ResponsePucDto {
       case '5': // Gastos
       case '6': // Costos
       case '7': // Costos de producción
+      case '8': // Cuentas de orden deudoras
         return NaturalezaCuentaEnum.DEBITO;
       case '2': // Pasivos
       case '3': // Patrimonio
       case '4': // Ingresos
-      case '8': // Cuentas de orden deudoras
       case '9': // Cuentas de orden acreedoras
         return NaturalezaCuentaEnum.CREDITO;
       default:

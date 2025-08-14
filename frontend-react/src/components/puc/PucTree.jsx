@@ -8,8 +8,8 @@ import {
   FaTrash,
   FaChevronDown,
   FaChevronRight,
-  FaPlus,
-  FaMinus
+  FaSearch,
+  FaBullseye
 } from 'react-icons/fa';
 import { 
   obtenerColorNivel, 
@@ -26,7 +26,7 @@ const PucTree = ({
   onEditar, 
   onEliminar,
   estaExpandido,
-  filtros = {} // Añadimos filtros para mostrar búsquedas específicas
+  filtros = {} // Filtros para búsquedas específicas
 }) => {
   // Componente del nodo individual del árbol
   const PucTreeNode = ({ nodo, profundidad = 0, esResultadoBusqueda = false }) => {
@@ -35,13 +35,18 @@ const PucTree = ({
     const marginLeft = profundidad * 24; // 24px por nivel de profundidad
     const nivel = nodo.nivel || profundidad + 1;
     
-    // Determinar si es un resultado de búsqueda específica
-    const esCoincidenciaExacta = filtros.busqueda_codigo && 
-      nodo.codigo_completo === filtros.busqueda_codigo;
+    // Determinar si es resultado de búsqueda específica
+    const esCoincidenciaEspecifica = filtros.busqueda_especifica && 
+      nodo.codigo_completo.startsWith(filtros.busqueda_especifica);
     
-    const esCoincidenciaJerarquica = filtros.busqueda_codigo && 
-      filtros.tipo_busqueda !== 'exacta' &&
-      nodo.codigo_completo.startsWith(filtros.busqueda_codigo);
+    // Determinar si es la cuenta exacta buscada
+    const esCuentaExacta = filtros.busqueda_especifica && 
+      nodo.codigo_completo === filtros.busqueda_especifica;
+    
+    // Determinar si es subcuenta de la búsqueda
+    const esSubcuenta = filtros.busqueda_especifica && 
+      nodo.codigo_completo.startsWith(filtros.busqueda_especifica) &&
+      nodo.codigo_completo !== filtros.busqueda_especifica;
 
     const handleToggle = (e) => {
       e.stopPropagation();
@@ -72,9 +77,9 @@ const PucTree = ({
         <div 
           className={`
             flex items-center py-2 px-3 hover:bg-blue-50 transition-colors cursor-pointer
-            ${esCoincidenciaExacta ? 'bg-yellow-100 border-l-4 border-yellow-500' : ''}
-            ${esCoincidenciaJerarquica ? 'bg-blue-25 border-l-2 border-blue-300' : ''}
-            ${esResultadoBusqueda ? 'bg-green-25' : ''}
+            ${esCuentaExacta ? 'bg-green-100 border-l-4 border-green-500' : ''}
+            ${esSubcuenta ? 'bg-green-25 border-l-2 border-green-300' : ''}
+            ${esResultadoBusqueda && !esCoincidenciaEspecifica ? 'bg-blue-25' : ''}
           `}
           style={{ marginLeft: `${marginLeft}px` }}
           onClick={handleToggle}
@@ -127,15 +132,15 @@ const PucTree = ({
                 {nodo.naturaleza}
               </span>
 
-              {/* Indicador de coincidencia */}
-              {esCoincidenciaExacta && (
-                <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs font-bold">
-                  🎯 COINCIDENCIA EXACTA
+              {/* Indicadores de búsqueda específica */}
+              {esCuentaExacta && (
+                <span className="px-2 py-0.5 bg-green-200 text-green-800 rounded text-xs font-bold">
+                  🎯 CUENTA BUSCADA
                 </span>
               )}
-              {esCoincidenciaJerarquica && !esCoincidenciaExacta && (
-                <span className="px-2 py-0.5 bg-blue-200 text-blue-800 rounded text-xs">
-                  🌿 CUENTA HIJA
+              {esSubcuenta && (
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                  🌿 SUBCUENTA
                 </span>
               )}
             </div>
@@ -156,6 +161,12 @@ const PucTree = ({
                 )}
                 {tieneHijos && (
                   <div>Subcuentas: {nodo.hijos.length}</div>
+                )}
+                {/* Mostrar relación con búsqueda */}
+                {filtros.busqueda_especifica && esCoincidenciaEspecifica && (
+                  <div className="text-green-600 font-medium">
+                    {esCuentaExacta ? '🎯 Esta es la cuenta buscada' : '🌿 Subcuenta de la búsqueda'}
+                  </div>
                 )}
               </div>
             )}
@@ -195,7 +206,7 @@ const PucTree = ({
                 key={hijo.codigo_completo}
                 nodo={hijo}
                 profundidad={profundidad + 1}
-                esResultadoBusqueda={esCoincidenciaJerarquica}
+                esResultadoBusqueda={esCoincidenciaEspecifica}
               />
             ))}
           </div>
@@ -215,32 +226,33 @@ const PucTree = ({
     return total;
   };
 
-  // Función para expandir automáticamente la ruta hacia una cuenta específica
-  const expandirRutaHacia = (codigoBuscado) => {
+  // Función para expandir automáticamente la cuenta buscada
+  const expandirCuentaBuscada = (codigoBuscado) => {
     if (!codigoBuscado) return;
     
-    // Expandir todos los nodos padre de la cuenta buscada
-    const expandirPadres = (nodos) => {
+    // Expandir la cuenta buscada y sus padres
+    const expandirNodos = (nodos) => {
       nodos.forEach(nodo => {
-        if (codigoBuscado.startsWith(nodo.codigo_completo) && 
-            codigoBuscado !== nodo.codigo_completo) {
+        // Si el código buscado empieza con el código de este nodo, expandirlo
+        if (codigoBuscado.startsWith(nodo.codigo_completo) || 
+            nodo.codigo_completo.startsWith(codigoBuscado)) {
           onToggleNodo(nodo.codigo_completo, true); // Forzar expansión
         }
         if (nodo.hijos) {
-          expandirPadres(nodo.hijos);
+          expandirNodos(nodo.hijos);
         }
       });
     };
     
-    expandirPadres(arbolConstruido);
+    expandirNodos(arbolConstruido);
   };
 
   // Auto-expandir cuando hay búsqueda específica
   React.useEffect(() => {
-    if (filtros.busqueda_codigo) {
-      expandirRutaHacia(filtros.busqueda_codigo);
+    if (filtros.busqueda_especifica) {
+      expandirCuentaBuscada(filtros.busqueda_especifica);
     }
-  }, [filtros.busqueda_codigo]);
+  }, [filtros.busqueda_especifica]);
 
   // Validación de datos
   if (!arbolConstruido || arbolConstruido.length === 0) {
@@ -270,18 +282,39 @@ const PucTree = ({
 
   const totalNodos = contarNodosTotales(arbolConstruido);
   const nodosExpandidosCount = nodosExpandidos ? nodosExpandidos.size : 0;
+  
+  // Contar coincidencias de búsqueda específica
+  const contarCoincidenciasEspecificas = (nodos) => {
+    let coincidencias = 0;
+    const contar = (nodos) => {
+      nodos.forEach(nodo => {
+        if (filtros.busqueda_especifica && 
+            nodo.codigo_completo.startsWith(filtros.busqueda_especifica)) {
+          coincidencias++;
+        }
+        if (nodo.hijos) {
+          contar(nodo.hijos);
+        }
+      });
+    };
+    contar(nodos);
+    return coincidencias;
+  };
+
+  const coincidenciasEspecificas = filtros.busqueda_especifica ? 
+    contarCoincidenciasEspecificas(arbolConstruido) : 0;
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Header del árbol */}
-      <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
+      <div className="bg-gradient-to-r from-gray-50 to-green-50 px-4 py-3 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h4 className="font-medium text-gray-900 flex items-center">
             <FaTree className="mr-2 text-green-600" />
             Estructura Jerárquica del PUC
-            {filtros.busqueda_codigo && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                🎯 Búsqueda: {filtros.busqueda_codigo}
+            {filtros.busqueda_especifica && (
+              <span className="ml-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                🎯 Filtro: {filtros.busqueda_especifica}*
               </span>
             )}
           </h4>
@@ -289,17 +322,31 @@ const PucTree = ({
             <span>{arbolConstruido.length} nodos raíz</span>
             <span>•</span>
             <span>{totalNodos} cuentas totales</span>
+            {filtros.busqueda_especifica && (
+              <>
+                <span>•</span>
+                <span className="text-green-600 font-medium">
+                  {coincidenciasEspecificas} coincidencias
+                </span>
+              </>
+            )}
             <span>•</span>
             <span>{nodosExpandidosCount} expandidos</span>
           </div>
         </div>
 
         {/* Información de filtros activos */}
-        {filtros.busqueda_codigo && (
-          <div className="mt-2 text-xs text-blue-600">
-            {filtros.tipo_busqueda === 'exacta' 
-              ? '🎯 Mostrando solo cuenta específica' 
-              : '🌳 Mostrando cuenta + todas sus subcuentas'}
+        {filtros.busqueda_especifica && (
+          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+            <div className="flex items-center space-x-2">
+              <FaBullseye className="text-green-600" />
+              <span className="text-green-800">
+                <strong>Búsqueda específica activa:</strong> Mostrando solo cuentas que empiecen con "{filtros.busqueda_especifica}"
+              </span>
+            </div>
+            <div className="mt-1 text-green-600">
+              🎯 Cuenta exacta: {filtros.busqueda_especifica} | 🌿 Subcuentas: {filtros.busqueda_especifica}XXXXX
+            </div>
           </div>
         )}
       </div>
@@ -317,7 +364,10 @@ const PucTree = ({
 
       {/* Footer con información adicional */}
       <div className="bg-gray-50 px-4 py-2 border-t border-gray-200 text-xs text-gray-600">
-        💡 Tip: Haz clic en el código para expandir/contraer, usa los iconos para acciones específicas
+        💡 Tip: {filtros.busqueda_especifica ? 
+          'Las cuentas resaltadas en verde coinciden con tu búsqueda específica' :
+          'Haz clic en el código para expandir/contraer, usa los iconos para acciones específicas'
+        }
       </div>
     </div>
   );
