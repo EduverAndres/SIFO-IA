@@ -17,7 +17,10 @@ import {
   FaHistory,
   FaBookmark,
   FaCog,
-  FaDatabase // Añadir este nuevo icono
+  FaDatabase,
+  FaRocket,
+  FaCheckCircle,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -51,7 +54,9 @@ const PucFilters = ({
   onCargarTodasLasCuentas, // ✅ NUEVO PROP
   estadisticas = null,
   loading = false,
-  cuentas = [] // ✅ NUEVO PROP para mostrar stats
+  cuentas = [], // ✅ NUEVO PROP para mostrar stats
+  todasCargadas = false, // ✅ NUEVO PROP
+  forzarCargaCompleta = () => {}, // ✅ NUEVO PROP opcional
 }) => {
   // Estados locales para mejor UX
   const [filtrosLocales, setFiltrosLocales] = useState(filtros);
@@ -285,17 +290,45 @@ const PucFilters = ({
   const tieneActivosFiltros = FILTER_UTILS.tieneActivosFiltros(filtros);
 
   // ✅ NUEVO: Función para cargar todas las cuentas
-  const handleCargarTodasLasCuentas = useCallback(async () => {
-    const confirmar = window.confirm(
-      `¿Cargar TODAS las cuentas del sistema?\n\n` +
-      `Esto puede tomar unos segundos y usar más memoria.\n` +
-      `Total estimado: ${estadisticas?.total?.toLocaleString() || 'Unknown'} cuentas`
-    );
-    
-    if (confirmar && onCargarTodasLasCuentas) {
-      await onCargarTodasLasCuentas();
+  const handleCargarTodasLasCuentas = async () => {
+    try {
+      const totalEsperado = estadisticas?.total || 0;
+      
+      const confirmar = window.confirm(
+        `🚀 ¿Cargar TODAS las ${totalEsperado.toLocaleString()} cuentas del sistema?\n\n` +
+        `✅ Esto te permitirá:\n` +
+        `• Ver todas las cuentas sin paginación\n` +
+        `• Tener la estructura completa del árbol\n` +
+        `• Realizar búsquedas más rápidas\n\n` +
+        `⚠️ Nota: Puede tomar unos segundos dependiendo de la cantidad de datos.\n\n` +
+        `¿Continuar?`
+      );
+      
+      if (!confirmar) return;
+      
+      console.log('🚀 Usuario confirmó carga completa, iniciando...');
+      
+      await (forzarCargaCompleta || onCargarTodasLasCuentas)();
+      
+      setFiltrosLocales(prev => ({
+        ...prev,
+        limite: 99999,
+        pagina: 1
+      }));
+      
+      setFiltros({
+        ...filtrosLocales,
+        limite: 99999,
+        pagina: 1
+      });
+      
+      console.log('✅ Carga completa finalizada exitosamente');
+      
+    } catch (error) {
+      console.error('❌ Error en carga completa:', error);
+      alert(`Error cargando todas las cuentas:\n${error.message}\n\nIntenta de nuevo o contacta al administrador.`);
     }
-  }, [onCargarTodasLasCuentas, estadisticas]);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
@@ -605,7 +638,17 @@ const PucFilters = ({
             value={filtrosLocales.limite || 50}
             onChange={(e) => {
               const nuevoLimite = parseInt(e.target.value);
-              setFiltrosLocales({...filtrosLocales, limite: nuevoLimite, pagina: 1});
+              
+              if (nuevoLimite >= 99999) {
+                console.log('🚀 Límite TODAS seleccionado, ejecutando carga completa...');
+                setFiltrosLocales({...filtrosLocales, limite: nuevoLimite, pagina: 1});
+                
+                setTimeout(() => {
+                  handleCargarTodasLasCuentas();
+                }, 100);
+              } else {
+                setFiltrosLocales({...filtrosLocales, limite: nuevoLimite, pagina: 1});
+              }
             }}
             options={[
               { value: 25, label: '25 registros' },
@@ -616,7 +659,7 @@ const PucFilters = ({
               { value: 5000, label: '5,000 registros' },
               { value: 10000, label: '10,000 registros' },
               { value: 25000, label: '25,000 registros' },
-              { value: 99999, label: `🚀 TODAS (${estadisticas?.total?.toLocaleString() || '?'})` }
+              { value: 99999, label: `🚀 TODAS (${estadisticas?.total?.toLocaleString() || '?'}) - Carga completa` }
             ]}
             disabled={loading}
           />
@@ -640,12 +683,12 @@ const PucFilters = ({
           {/* ✅ NUEVO BOTÓN: Cargar todas las cuentas */}
           <Button
             onClick={handleCargarTodasLasCuentas}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm"
-            icon={FaDatabase}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium"
+            icon={FaRocket}
             disabled={loading}
-            title={`Cargar todas las ${estadisticas?.total?.toLocaleString() || '?'} cuentas del sistema`}
+            title={`Cargar TODAS las ${estadisticas?.total?.toLocaleString() || '?'} cuentas del sistema de una sola vez`}
           >
-            🚀 Todas
+            🚀 TODAS ({estadisticas?.total?.toLocaleString() || '?'})
           </Button>
           
           <Button
