@@ -7,7 +7,8 @@ import {
   FaChartLine,
   FaEdit,
   FaArrowUp,
-  FaArrowDown
+  FaArrowDown,
+  FaTimes
 } from 'react-icons/fa';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
@@ -26,155 +27,252 @@ const PucDetailModal = ({ show, onClose, selectedAccount, onEditar }) => {
     <Modal
       show={show}
       onClose={onClose}
-      title={`Detalles Completos - ${selectedAccount.codigo_completo}`}
-      maxWidth="4xl"
+      title={`${selectedAccount.codigo_completo}`}
+      maxWidth="5xl"
     >
-      <div className="space-y-6">
-        {/* Header con información principal */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <span className="text-3xl">{obtenerIconoTipoCuenta(selectedAccount.tipo_cuenta)}</span>
+      <div className="relative space-y-8">
+        
+        {/* Header minimalista con glassmorphism */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-50/80 to-blue-50/80 backdrop-blur-sm border border-white/20 rounded-2xl p-8">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/5 to-indigo-400/5"></div>
+          <div className="relative flex items-start justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-white/80 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg border border-white/30">
+                <span className="text-2xl">{obtenerIconoTipoCuenta(selectedAccount.tipo_cuenta)}</span>
+              </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{selectedAccount.codigo_completo}</h3>
-                <p className="text-gray-600">{selectedAccount.descripcion || 'Sin descripción'}</p>
+                <h3 className="text-2xl font-bold text-slate-800 tracking-tight">{selectedAccount.codigo_completo}</h3>
+                <p className="text-slate-600 mt-1 max-w-md">{selectedAccount.descripcion || 'Sin descripción'}</p>
               </div>
             </div>
             <div className="text-right">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${obtenerColorNivel(selectedAccount.nivel)}`}>
+              <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/60 backdrop-blur-sm border border-white/30 ${obtenerColorNivel(selectedAccount.nivel)}`}>
+                <div className="w-2 h-2 rounded-full bg-current mr-2"></div>
                 Nivel {selectedAccount.nivel} - {selectedAccount.tipo_cuenta}
-              </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Grid con información jerárquica */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Grid de tarjetas minimalistas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Información jerárquica */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <FaTree className="mr-2 text-green-600" />
-              Jerarquía PUC
-            </h4>
-            <div className="space-y-2 text-sm">
-              <div><strong>ID:</strong> #{selectedAccount.id}</div>
-              <div><strong>Código Completo:</strong> <span className="font-mono">{selectedAccount.codigo_completo}</span></div>
-              <div><strong>Longitud:</strong> {selectedAccount.codigo_completo?.length} dígitos</div>
-              <div><strong>Nivel Calculado:</strong> {selectedAccount.nivel_calculado || selectedAccount.nivel}</div>
-              <div><strong>Código Padre:</strong> <span className="font-mono">{selectedAccount.codigo_padre || 'N/A'}</span></div>
+          {/* Jerarquía PUC */}
+          <div className="group">
+            <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl p-6 hover:bg-white/80 transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50">
+              <div className="flex items-center mb-5">
+                <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center mr-3">
+                  <FaTree className="text-emerald-600 text-lg" />
+                </div>
+                <h4 className="font-semibold text-slate-800 text-lg">Jerarquía PUC</h4>
+              </div>
               
-              {/* Mostrar jerarquía completa */}
-              {selectedAccount.codigo_clase && (
-                <div><strong>Clase:</strong> <span className="px-1 py-0.5 bg-red-100 text-red-700 rounded font-mono text-xs">{selectedAccount.codigo_clase}</span></div>
-              )}
-              {selectedAccount.codigo_grupo && (
-                <div><strong>Grupo:</strong> <span className="px-1 py-0.5 bg-orange-100 text-orange-700 rounded font-mono text-xs">{selectedAccount.codigo_grupo}</span></div>
-              )}
-              {selectedAccount.codigo_cuenta && (
-                <div><strong>Cuenta:</strong> <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded font-mono text-xs">{selectedAccount.codigo_cuenta}</span></div>
-              )}
-              {selectedAccount.codigo_subcuenta && (
-                <div><strong>Subcuenta:</strong> <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded font-mono text-xs">{selectedAccount.codigo_subcuenta}</span></div>
-              )}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                  <span className="text-slate-600 text-sm">ID</span>
+                  <span className="font-medium text-slate-800">#{selectedAccount.id}</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                  <span className="text-slate-600 text-sm">Código Completo</span>
+                  <span className="font-mono font-medium text-slate-800 bg-slate-50 px-2 py-1 rounded-md">
+                    {selectedAccount.codigo_completo}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                  <span className="text-slate-600 text-sm">Longitud</span>
+                  <span className="font-medium text-slate-800">{selectedAccount.codigo_completo?.length} dígitos</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                  <span className="text-slate-600 text-sm">Nivel Calculado</span>
+                  <span className="font-medium text-slate-800">{selectedAccount.nivel_calculado || selectedAccount.nivel}</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-slate-600 text-sm">Código Padre</span>
+                  <span className="font-mono font-medium text-slate-800 bg-slate-50 px-2 py-1 rounded-md">
+                    {selectedAccount.codigo_padre || 'N/A'}
+                  </span>
+                </div>
+
+                {/* Códigos jerárquicos con colores */}
+                <div className="pt-4 space-y-2">
+                  {selectedAccount.codigo_clase && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-500">Clase:</span>
+                      <span className="px-2 py-1 bg-red-50 text-red-700 rounded-md text-xs font-mono border border-red-200">
+                        {selectedAccount.codigo_clase}
+                      </span>
+                    </div>
+                  )}
+                  {selectedAccount.codigo_grupo && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-500">Grupo:</span>
+                      <span className="px-2 py-1 bg-orange-50 text-orange-700 rounded-md text-xs font-mono border border-orange-200">
+                        {selectedAccount.codigo_grupo}
+                      </span>
+                    </div>
+                  )}
+                  {selectedAccount.codigo_cuenta && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-500">Cuenta:</span>
+                      <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-md text-xs font-mono border border-yellow-200">
+                        {selectedAccount.codigo_cuenta}
+                      </span>
+                    </div>
+                  )}
+                  {selectedAccount.codigo_subcuenta && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-500">Subcuenta:</span>
+                      <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md text-xs font-mono border border-emerald-200">
+                        {selectedAccount.codigo_subcuenta}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Clasificación */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <FaBalanceScale className="mr-2 text-blue-600" />
-              Clasificación
-            </h4>
-            <div className="space-y-2 text-sm">
-              <div><strong>Naturaleza:</strong> 
-                <span className={`ml-2 px-2 py-1 rounded text-xs ${obtenerColorNaturaleza(selectedAccount.naturaleza)}`}>
-                  {selectedAccount.naturaleza}
-                </span>
+          <div className="group">
+            <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl p-6 hover:bg-white/80 transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50">
+              <div className="flex items-center mb-5">
+                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mr-3">
+                  <FaBalanceScale className="text-blue-600 text-lg" />
+                </div>
+                <h4 className="font-semibold text-slate-800 text-lg">Clasificación</h4>
               </div>
-              <div><strong>Estado:</strong> 
-                <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                  selectedAccount.estado === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {selectedAccount.estado}
-                </span>
-              </div>
-              <div><strong>Acepta Movimientos:</strong> 
-                <span className={`ml-1 ${selectedAccount.acepta_movimientos ? 'text-green-600' : 'text-red-600'}`}>
-                  {selectedAccount.acepta_movimientos ? '✓ Sí' : '✗ No'}
-                </span>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 text-sm">Naturaleza</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${obtenerColorNaturaleza(selectedAccount.naturaleza)}`}>
+                    {selectedAccount.naturaleza}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 text-sm">Estado</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    selectedAccount.estado === 'ACTIVA' 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {selectedAccount.estado}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 text-sm">Acepta Movimientos</span>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      selectedAccount.acepta_movimientos ? 'bg-emerald-400' : 'bg-red-400'
+                    }`}></div>
+                    <span className={`text-sm font-medium ${
+                      selectedAccount.acepta_movimientos ? 'text-emerald-700' : 'text-red-700'
+                    }`}>
+                      {selectedAccount.acepta_movimientos ? 'Sí' : 'No'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Saldos */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <FaMoneyBillWave className="mr-2 text-green-600" />
-              Saldos
-            </h4>
-            <div className="space-y-2 text-sm">
-              <div><strong>Saldo Inicial:</strong> 
-                <span className="ml-1 font-mono">{formatearSaldo(selectedAccount.saldo_inicial)}</span>
+          <div className="group">
+            <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl p-6 hover:bg-white/80 transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50">
+              <div className="flex items-center mb-5">
+                <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center mr-3">
+                  <FaMoneyBillWave className="text-emerald-600 text-lg" />
+                </div>
+                <h4 className="font-semibold text-slate-800 text-lg">Saldos</h4>
               </div>
-              <div><strong>Saldo Final:</strong> 
-                <span className={`ml-1 font-mono ${
-                  (selectedAccount.saldo_final || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatearSaldo(selectedAccount.saldo_final)}
-                </span>
+              
+              <div className="space-y-4">
+                <div className="bg-slate-50/80 rounded-lg p-4">
+                  <div className="text-xs text-slate-500 mb-1">Saldo Inicial</div>
+                  <div className="text-2xl font-bold text-slate-800 font-mono">
+                    {formatearSaldo(selectedAccount.saldo_inicial)}
+                  </div>
+                </div>
+                
+                <div className="bg-gradient-to-r from-slate-50/80 to-emerald-50/80 rounded-lg p-4">
+                  <div className="text-xs text-slate-500 mb-1">Saldo Final</div>
+                  <div className={`text-2xl font-bold font-mono ${
+                    (selectedAccount.saldo_final || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
+                    {formatearSaldo(selectedAccount.saldo_final)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Movimientos */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <FaChartLine className="mr-2 text-purple-600" />
-              Movimientos
-            </h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center">
-                <FaArrowDown className="text-red-500 mr-2" />
-                <strong>Mov. Débitos:</strong> 
-                <span className="ml-1 font-mono text-red-600">
-                  {formatearMovimientos(selectedAccount.movimientos_debitos)}
-                </span>
+          <div className="group">
+            <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl p-6 hover:bg-white/80 transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50">
+              <div className="flex items-center mb-5">
+                <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mr-3">
+                  <FaChartLine className="text-purple-600 text-lg" />
+                </div>
+                <h4 className="font-semibold text-slate-800 text-lg">Movimientos</h4>
               </div>
-              <div className="flex items-center">
-                <FaArrowUp className="text-green-500 mr-2" />
-                <strong>Mov. Créditos:</strong> 
-                <span className="ml-1 font-mono text-green-600">
-                  {formatearMovimientos(selectedAccount.movimientos_creditos)}
-                </span>
-              </div>
-              <div className="pt-2 border-t border-gray-200">
-                <strong>Total Movimientos:</strong> 
-                <span className="ml-1 font-mono text-gray-800">
-                  {formatearMovimientos((selectedAccount.movimientos_debitos || 0) + (selectedAccount.movimientos_creditos || 0))}
-                </span>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-red-50/60 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <FaArrowDown className="text-red-500 mr-3" />
+                    <span className="text-sm text-slate-600">Mov. Débitos</span>
+                  </div>
+                  <span className="font-mono font-medium text-red-600">
+                    {formatearMovimientos(selectedAccount.movimientos_debitos)}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between bg-emerald-50/60 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <FaArrowUp className="text-emerald-500 mr-3" />
+                    <span className="text-sm text-slate-600">Mov. Créditos</span>
+                  </div>
+                  <span className="font-mono font-medium text-emerald-600">
+                    {formatearMovimientos(selectedAccount.movimientos_creditos)}
+                  </span>
+                </div>
+                
+                <div className="border-t border-slate-200 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">Total Movimientos</span>
+                    <span className="font-mono font-bold text-slate-800 text-lg">
+                      {formatearMovimientos((selectedAccount.movimientos_debitos || 0) + (selectedAccount.movimientos_creditos || 0))}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Información adicional si existe */}
+        {/* Información de auditoría (si existe) */}
         {(selectedAccount.fecha_creacion || selectedAccount.fecha_actualizacion) && (
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3">Información de Auditoría</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="bg-slate-50/60 backdrop-blur-sm border border-slate-200/40 rounded-xl p-6">
+            <h4 className="font-semibold text-slate-800 mb-4 text-lg">Información de Auditoría</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {selectedAccount.fecha_creacion && (
-                <div>
-                  <strong>Fecha de Creación:</strong>
-                  <div className="text-gray-600">
+                <div className="space-y-1">
+                  <div className="text-sm text-slate-500">Fecha de Creación</div>
+                  <div className="text-slate-700 font-medium">
                     {new Date(selectedAccount.fecha_creacion).toLocaleString('es-CO')}
                   </div>
                 </div>
               )}
               {selectedAccount.fecha_actualizacion && (
-                <div>
-                  <strong>Última Actualización:</strong>
-                  <div className="text-gray-600">
+                <div className="space-y-1">
+                  <div className="text-sm text-slate-500">Última Actualización</div>
+                  <div className="text-slate-700 font-medium">
                     {new Date(selectedAccount.fecha_actualizacion).toLocaleString('es-CO')}
                   </div>
                 </div>
@@ -183,21 +281,21 @@ const PucDetailModal = ({ show, onClose, selectedAccount, onEditar }) => {
           </div>
         )}
 
-        {/* Botones de acción */}
-        <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+        {/* Botones de acción minimalistas */}
+        <div className="flex justify-end space-x-3 pt-6 border-t border-slate-200/60">
           <Button
             onClick={() => {
               onClose();
               onEditar(selectedAccount);
             }}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-            icon={FaEdit}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/25 flex items-center space-x-2"
           >
-            Editar Cuenta
+            <FaEdit className="text-sm" />
+            <span>Editar Cuenta</span>
           </Button>
           <Button
             onClick={onClose}
-            className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white"
+            className="px-6 py-3 bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-slate-500/25"
           >
             Cerrar
           </Button>

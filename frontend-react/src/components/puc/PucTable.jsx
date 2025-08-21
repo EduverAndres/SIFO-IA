@@ -1,6 +1,22 @@
-// components/puc/PucTable.jsx - VERSIÓN COMPLETA Y ACTUALIZADA
-import React from 'react';
-import { FaEye, FaEdit, FaTrash, FaArrowUp, FaArrowDown, FaBullseye, FaDatabase, FaRocket } from 'react-icons/fa';
+// components/puc/PucTable.jsx - VERSIÓN OPTIMIZADA PARA PERFORMANCE
+import React, { useState, useMemo, useCallback } from 'react';
+import { 
+  FaEye, 
+  FaEdit, 
+  FaTrash, 
+  FaArrowUp, 
+  FaArrowDown, 
+  FaBullseye, 
+  FaDatabase, 
+  FaRocket,
+  FaSort,
+  FaSortUp,
+  FaSortDown,
+  FaExpand,
+  FaCompress,
+  FaDownload,
+  FaCheckCircle
+} from 'react-icons/fa';
 import { 
   formatearSaldo, 
   formatearMovimientos, 
@@ -12,6 +28,239 @@ import { obtenerIconoTipoCuenta } from '../../utils/pucUtils';
 import { FILTER_UTILS } from '../../constants/pucConstants';
 import Button from '../ui/Button';
 
+// 🚀 COMPONENTE OPTIMIZADO DE FILA (MEMOIZADO)
+const PucTableRow = React.memo(({ 
+  cuenta, 
+  index, 
+  vistaCompacta, 
+  esCoincidenciaEspecifica, 
+  esCuentaExacta, 
+  estaSeleccionada,
+  filtros,
+  onVerDetalle,
+  onEditar,
+  onEliminar,
+  onToggleSeleccion
+}) => {
+  const coincideEspecifica = esCoincidenciaEspecifica(cuenta);
+  const esExacta = esCuentaExacta(cuenta);
+
+  // 🎯 HANDLERS MEMOIZADOS
+  const handleVerDetalle = useCallback(() => onVerDetalle(cuenta), [cuenta, onVerDetalle]);
+  const handleEditar = useCallback(() => onEditar(cuenta), [cuenta, onEditar]);
+  const handleEliminar = useCallback(() => {
+    const confirmar = window.confirm(
+      `¿Eliminar cuenta ${cuenta.codigo_completo}?\n${cuenta.descripcion}`
+    );
+    if (confirmar) onEliminar(cuenta.id);
+  }, [cuenta, onEliminar]);
+  const handleToggle = useCallback(() => onToggleSeleccion(cuenta.id), [cuenta.id, onToggleSeleccion]);
+
+  return (
+    <tr 
+      className={`
+        group transition-colors duration-200 hover:bg-blue-50/50
+        ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+        ${esExacta 
+          ? 'bg-gradient-to-r from-emerald-100 to-green-50 border-l-4 border-emerald-500' 
+          : coincideEspecifica 
+          ? 'bg-gradient-to-r from-emerald-50 to-green-25 border-l-2 border-emerald-300' 
+          : ''
+        }
+        ${estaSeleccionada ? 'bg-blue-100 ring-2 ring-blue-300' : ''}
+      `}
+    >
+      {/* Checkbox */}
+      <td className="px-3 py-3">
+        <input
+          type="checkbox"
+          checked={estaSeleccionada}
+          onChange={handleToggle}
+          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+        />
+      </td>
+
+      {/* ID */}
+      <td className="px-4 py-3">
+        <span className="font-mono text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+          #{cuenta.id}
+        </span>
+      </td>
+
+      {/* Código */}
+      <td className="px-4 py-3">
+        <div className="flex items-center space-x-2">
+          <div className={`
+            w-8 h-8 rounded-lg flex items-center justify-center text-sm
+            ${cuenta.nivel === 1 ? 'bg-purple-100 text-purple-600' :
+              cuenta.nivel === 2 ? 'bg-blue-100 text-blue-600' :
+              cuenta.nivel === 3 ? 'bg-green-100 text-green-600' :
+              cuenta.nivel === 4 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600'}
+          `}>
+            {obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}
+          </div>
+          
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="font-mono font-bold text-gray-900">
+                {cuenta.codigo_completo}
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
+                N{cuenta.nivel_calculado || cuenta.nivel}
+              </span>
+              
+              {esExacta && (
+                <span className="bg-emerald-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                  <FaBullseye className="inline mr-1" />
+                  EXACTA
+                </span>
+              )}
+              {coincideEspecifica && !esExacta && (
+                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-medium">
+                  SUBCUENTA
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Descripción */}
+      <td className="px-4 py-3">
+        <div className="space-y-1">
+          <div className={`
+            font-medium
+            ${esExacta ? 'text-emerald-800' : 
+              coincideEspecifica ? 'text-emerald-700' : 'text-gray-900'}
+          `}>
+            {cuenta.descripcion || (
+              <span className="italic text-gray-400">Sin descripción</span>
+            )}
+          </div>
+          
+          {!vistaCompacta && cuenta.codigo_padre && (
+            <div className="text-xs text-gray-500">
+              Padre: <span className="font-mono bg-gray-100 px-1 rounded">{cuenta.codigo_padre}</span>
+            </div>
+          )}
+          
+          {filtros.busqueda_especifica && coincideEspecifica && (
+            <div className="text-xs">
+              {esExacta ? (
+                <span className="text-emerald-700 font-medium">🎯 Cuenta buscada</span>
+              ) : (
+                <span className="text-emerald-600">🌿 Subcuenta de {filtros.busqueda_especifica}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </td>
+
+      {/* Columnas adicionales en vista normal */}
+      {!vistaCompacta && (
+        <>
+          {/* Tipo */}
+          <td className="px-4 py-3">
+            <span className={`px-3 py-1 rounded text-xs font-medium ${obtenerColorTipoCuenta(cuenta.tipo_cuenta)}`}>
+              {cuenta.tipo_cuenta}
+            </span>
+          </td>
+
+          {/* Naturaleza */}
+          <td className="px-4 py-3">
+            <span className={`px-3 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
+              {cuenta.naturaleza}
+            </span>
+          </td>
+
+          {/* Nivel */}
+          <td className="px-4 py-3">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
+              {cuenta.nivel_calculado || cuenta.nivel}
+            </span>
+          </td>
+
+          {/* Saldo Inicial */}
+          <td className="px-4 py-3 text-right">
+            <span className={`font-mono text-sm ${
+              (cuenta.saldo_inicial || 0) > 0 ? 'text-blue-600' : 
+              (cuenta.saldo_inicial || 0) < 0 ? 'text-red-600' : 'text-gray-500'
+            }`}>
+              {formatearSaldo(cuenta.saldo_inicial)}
+            </span>
+          </td>
+
+          {/* Saldo Final */}
+          <td className="px-4 py-3 text-right">
+            <span className={`font-mono text-sm ${
+              (cuenta.saldo_final || 0) > 0 ? 'text-green-600' : 
+              (cuenta.saldo_final || 0) < 0 ? 'text-red-600' : 'text-gray-500'
+            }`}>
+              {formatearSaldo(cuenta.saldo_final)}
+            </span>
+          </td>
+
+          {/* Movimientos Débitos */}
+          <td className="px-4 py-3 text-right">
+            <span className="font-mono text-sm text-red-600">
+              {formatearMovimientos(cuenta.movimientos_debitos)}
+            </span>
+          </td>
+
+          {/* Movimientos Créditos */}
+          <td className="px-4 py-3 text-right">
+            <span className="font-mono text-sm text-green-600">
+              {formatearMovimientos(cuenta.movimientos_creditos)}
+            </span>
+          </td>
+
+          {/* Estado */}
+          <td className="px-4 py-3">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                cuenta.estado === 'ACTIVA' ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
+              <span className={`text-xs font-medium ${
+                cuenta.estado === 'ACTIVA' ? 'text-green-700' : 'text-red-700'
+              }`}>
+                {cuenta.estado}
+              </span>
+            </div>
+          </td>
+        </>
+      )}
+
+      {/* Acciones */}
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <button
+            onClick={handleVerDetalle}
+            className="p-2 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200 border border-blue-200/50"
+            title="Ver detalles"
+          >
+            <FaEye className="text-sm" />
+          </button>
+          <button
+            onClick={handleEditar}
+            className="p-2 rounded bg-green-50 text-green-600 hover:bg-green-100 transition-colors duration-200 border border-green-200/50"
+            title="Editar"
+          >
+            <FaEdit className="text-sm" />
+          </button>
+          <button
+            onClick={handleEliminar}
+            className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors duration-200 border border-red-200/50"
+            title="Eliminar"
+          >
+            <FaTrash className="text-sm" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+// 🚀 COMPONENTE PRINCIPAL OPTIMIZADO
 const PucTable = ({ 
   cuentas, 
   paginacion, 
@@ -22,494 +271,318 @@ const PucTable = ({
   onCambiarPagina,
   setFiltros,
   estadisticas = null,
-  // ✅ NUEVOS PROPS
   resumenDatos = {},
   todasCargadas = false,
   onCargarTodasLasCuentas = null
 }) => {
-  // Función para determinar si una cuenta coincide con la búsqueda específica
-  const esCoincidenciaEspecifica = (cuenta) => {
+  // Estados locales para la tabla
+  const [vistaCompacta, setVistaCompacta] = useState(false);
+  const [columnaOrden, setColumnaOrden] = useState(null);
+  const [direccionOrden, setDireccionOrden] = useState('asc');
+  const [filasSeleccionadas, setFilasSeleccionadas] = useState(new Set());
+
+  // 🎯 FUNCIONES MEMOIZADAS
+  const esCoincidenciaEspecifica = useCallback((cuenta) => {
     return filtros.busqueda_especifica && 
            cuenta.codigo_completo.startsWith(filtros.busqueda_especifica);
-  };
+  }, [filtros.busqueda_especifica]);
 
-  // Función para determinar si es la cuenta exacta buscada
-  const esCuentaExacta = (cuenta) => {
+  const esCuentaExacta = useCallback((cuenta) => {
     return filtros.busqueda_especifica && 
            cuenta.codigo_completo === filtros.busqueda_especifica;
-  };
+  }, [filtros.busqueda_especifica]);
 
-  // ✅ CÁLCULOS MEJORADOS
-  const totalRealCuentas = resumenDatos?.totalBD || estadisticas?.total || paginacion.total;
-  const cuentasEnMemoria = resumenDatos?.enMemoria || cuentas.length;
-  const porcentajeCobertura = FILTER_UTILS.calcularCobertura(cuentasEnMemoria, totalRealCuentas);
+  // 📊 CÁLCULOS MEMOIZADOS
+  const estadisticasCalculadas = useMemo(() => {
+    const totalRealCuentas = resumenDatos?.totalBD || estadisticas?.total || paginacion.total;
+    const cuentasEnMemoria = resumenDatos?.enMemoria || cuentas.length;
+    const porcentajeCobertura = FILTER_UTILS.calcularCobertura(cuentasEnMemoria, totalRealCuentas);
+    
+    return { totalRealCuentas, cuentasEnMemoria, porcentajeCobertura };
+  }, [resumenDatos, estadisticas, paginacion.total, cuentas.length]);
 
-  // ✅ FUNCIÓN PARA MANEJAR CARGA MASIVA DESDE LA TABLA
-  const handleCargarTodasDesdeTabla = async () => {
+  // 🎯 HANDLERS OPTIMIZADOS
+  const handleCargarTodasDesdeTabla = useCallback(async () => {
     if (!onCargarTodasLasCuentas) return;
     
     const confirmar = window.confirm(
-      `¿Cargar TODAS las ${totalRealCuentas.toLocaleString()} cuentas del sistema?\n\n` +
+      `¿Cargar TODAS las ${estadisticasCalculadas.totalRealCuentas.toLocaleString()} cuentas del sistema?\n\n` +
       `Esto te permitirá ver todos los datos sin paginación.`
     );
     
     if (confirmar) {
       await onCargarTodasLasCuentas();
     }
-  };
+  }, [onCargarTodasLasCuentas, estadisticasCalculadas.totalRealCuentas]);
+
+  const handleSort = useCallback((columna) => {
+    if (columnaOrden === columna) {
+      setDireccionOrden(direccionOrden === 'asc' ? 'desc' : 'asc');
+    } else {
+      setColumnaOrden(columna);
+      setDireccionOrden('asc');
+    }
+  }, [columnaOrden, direccionOrden]);
+
+  const getSortIcon = useCallback((columna) => {
+    if (columnaOrden !== columna) return <FaSort className="text-gray-400 text-xs" />;
+    return direccionOrden === 'asc' 
+      ? <FaSortUp className="text-blue-500 text-xs" />
+      : <FaSortDown className="text-blue-500 text-xs" />;
+  }, [columnaOrden, direccionOrden]);
+
+  const toggleSeleccionFila = useCallback((id) => {
+    setFilasSeleccionadas(prev => {
+      const nuevas = new Set(prev);
+      if (nuevas.has(id)) {
+        nuevas.delete(id);
+      } else {
+        nuevas.add(id);
+      }
+      return nuevas;
+    });
+  }, []);
+
+  const seleccionarTodas = useCallback(() => {
+    setFilasSeleccionadas(prev => {
+      if (prev.size === cuentas.length) {
+        return new Set();
+      } else {
+        return new Set(cuentas.map(c => c.id));
+      }
+    });
+  }, [cuentas]);
 
   return (
-    <div className="overflow-x-auto">
-      {/* ✅ HEADER MEJORADO: Información de estado de datos */}
-      <div className="mb-4 space-y-3">
-        {/* Header informativo si hay búsqueda específica */}
+    <div className="space-y-6">
+      {/* Header simplificado */}
+      <div className="space-y-4">
+        {/* Banner de búsqueda específica */}
         {filtros.busqueda_especifica && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center space-x-2 text-sm">
-              <FaBullseye className="text-green-600" />
-              <span className="text-green-800 font-medium">
-                Filtro específico activo: Mostrando solo cuentas que empiecen con 
-                <code className="mx-1 px-2 py-1 bg-green-100 rounded font-mono font-bold">
-                  {filtros.busqueda_especifica}
-                </code>
-              </span>
-            </div>
-            <div className="text-xs text-green-600 mt-1">
-              🎯 Cuenta exacta: {filtros.busqueda_especifica} | 🌿 Subcuentas: {filtros.busqueda_especifica}XXXXX
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                <FaBullseye className="text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-emerald-800">Filtro específico activo</h3>
+                <p className="text-sm text-emerald-600">
+                  Mostrando solo cuentas que empiecen con 
+                  <code className="mx-1 px-2 py-1 bg-emerald-100 rounded font-mono font-bold text-emerald-700">
+                    {filtros.busqueda_especifica}
+                  </code>
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ✅ INFORMACIÓN GENERAL MEJORADA */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 gap-3">
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <div className="flex items-center space-x-2">
-              <FaDatabase className="text-blue-600" />
-              <span className="font-medium text-blue-800">
-                📊 Mostrando {cuentas.length.toLocaleString()} de {paginacion.total.toLocaleString()}
-              </span>
-              {filtros.busqueda_especifica && (
-                <span className="text-green-600 font-medium">
-                  (filtradas por: {filtros.busqueda_especifica}*)
-                </span>
-              )}
-            </div>
-
-            {/* Información de cobertura */}
-            <div className="flex items-center space-x-2 text-sm">
-              <span className="text-gray-600">Base de datos:</span>
-              <span className="font-mono font-bold text-gray-800">
-                {totalRealCuentas.toLocaleString()}
-              </span>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                porcentajeCobertura >= 100 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-              }`}>
-                {porcentajeCobertura}% cargado
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <div className="text-xs text-blue-600">
-              Página {paginacion.paginaActual} de {paginacion.totalPaginas}
-            </div>
-            
-            {/* ✅ BOTÓN DE CARGA RÁPIDA */}
-            {!todasCargadas && onCargarTodasLasCuentas && porcentajeCobertura < 100 && (
-              <Button
-                onClick={handleCargarTodasDesdeTabla}
-                className="px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                icon={FaRocket}
-                title={`Cargar todas las ${totalRealCuentas.toLocaleString()} cuentas`}
-              >
-                Cargar Todas
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* ✅ ADVERTENCIA SI DATOS INCOMPLETOS */}
-        {!todasCargadas && porcentajeCobertura < 100 && !filtros.busqueda_especifica && (
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="text-yellow-600">⚠️</span>
-                <span className="text-yellow-800">
-                  <strong>Datos incompletos:</strong> Solo tienes {cuentasEnMemoria.toLocaleString()} de {totalRealCuentas.toLocaleString()} cuentas cargadas.
-                </span>
+        {/* Panel de información simplificado */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Estadísticas principales */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center space-x-3 bg-white px-4 py-2 rounded-lg border">
+                <FaDatabase className="text-blue-500" />
+                <div>
+                  <div className="text-sm font-semibold text-blue-800">
+                    {cuentas.length.toLocaleString()} / {paginacion.total.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-blue-600">Mostrando</div>
+                </div>
               </div>
-              {onCargarTodasLasCuentas && (
+
+              <div className={`
+                flex items-center space-x-3 px-4 py-2 rounded-lg border
+                ${estadisticasCalculadas.porcentajeCobertura >= 100 
+                  ? 'bg-green-100 border-green-200 text-green-800' 
+                  : 'bg-yellow-100 border-yellow-200 text-yellow-800'
+                }
+              `}>
+                <div className="text-sm font-semibold">
+                  {estadisticasCalculadas.porcentajeCobertura}% cargado
+                </div>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setVistaCompacta(!vistaCompacta)}
+                className={`
+                  p-2 rounded border transition-colors duration-200
+                  ${vistaCompacta 
+                    ? 'bg-purple-100 border-purple-300 text-purple-700' 
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }
+                `}
+                title={vistaCompacta ? 'Vista normal' : 'Vista compacta'}
+              >
+                {vistaCompacta ? <FaExpand /> : <FaCompress />}
+              </button>
+
+              {!todasCargadas && onCargarTodasLasCuentas && estadisticasCalculadas.porcentajeCobertura < 100 && (
                 <Button
                   onClick={handleCargarTodasDesdeTabla}
-                  className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 text-white"
+                  variant="primary"
+                  size="sm"
                   icon={FaRocket}
                 >
                   Cargar Todas
                 </Button>
               )}
             </div>
-            <div className="text-xs text-yellow-600 mt-1">
-              Para acceder a todas las cuentas y tener la vista completa, carga todos los datos.
-            </div>
           </div>
-        )}
-
-        {/* ✅ CONFIRMACIÓN SI DATOS COMPLETOS */}
-        {todasCargadas && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center space-x-2 text-sm">
-              <span className="text-green-600">✅</span>
-              <span className="text-green-800">
-                <strong>Datos completos:</strong> Todas las {totalRealCuentas.toLocaleString()} cuentas están cargadas.
-              </span>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* ✅ TABLA PRINCIPAL */}
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">ID</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
-              Código
-              {filtros.busqueda_especifica && (
-                <div className="text-xs font-normal text-green-600 mt-1">
-                  Filtro: {filtros.busqueda_especifica}*
-                </div>
+      {/* Tabla optimizada */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+        {/* Header de la tabla */}
+        <div className="bg-gray-50 p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <h3 className="text-lg font-bold text-gray-800">Plan de Cuentas</h3>
+              {filasSeleccionadas.size > 0 && (
+                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                  {filasSeleccionadas.size} seleccionadas
+                </span>
               )}
-            </th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[250px]">Descripción</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[100px]">Tipo</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[90px]">Naturaleza</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[60px]">Nivel</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Inicial</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">Saldo Final</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
-              <div className="flex items-center">
-                <FaArrowDown className="text-red-500 mr-1" />
-                Mov. Débitos
-              </div>
-            </th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[120px]">
-              <div className="flex items-center">
-                <FaArrowUp className="text-green-500 mr-1" />
-                Mov. Créditos
-              </div>
-            </th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 border-r border-gray-200 min-w-[80px]">Estado</th>
-            <th className="text-left py-3 px-2 font-medium text-gray-700 min-w-[120px]">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cuentas.map((cuenta, index) => {
-            const coincideEspecifica = esCoincidenciaEspecifica(cuenta);
-            const esExacta = esCuentaExacta(cuenta);
-            
-            return (
-              <tr 
-                key={cuenta.id} 
-                className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
-                  index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-                } ${
-                  esExacta ? 'bg-green-100 border-l-4 border-l-green-500' : 
-                  coincideEspecifica ? 'bg-green-25 border-l-2 border-l-green-300' : ''
-                }`}
-              >
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <span className="font-mono font-bold text-blue-600">#{cuenta.id}</span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <div className="flex items-center space-x-1">
-                    <span className="text-sm">{obtenerIconoTipoCuenta(cuenta.tipo_cuenta)}</span>
-                    <span className="font-mono font-bold text-gray-900">{cuenta.codigo_completo}</span>
-                    <span className={`px-1 py-0.5 rounded text-xs ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
-                      N{cuenta.nivel_calculado || cuenta.nivel}
-                    </span>
-                    
-                    {/* Indicadores de búsqueda específica */}
-                    {esExacta && (
-                      <span className="px-1 py-0.5 bg-green-200 text-green-800 rounded text-xs font-bold">
-                        🎯
-                      </span>
-                    )}
-                    {coincideEspecifica && !esExacta && (
-                      <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-                        🌿
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <div className="max-w-xs">
-                    <div className="font-medium text-gray-900 truncate" title={cuenta.descripcion}>
-                      {cuenta.descripcion || 'Sin descripción'}
-                    </div>
-                    {cuenta.codigo_padre && (
-                      <div className="text-xs text-gray-500">
-                        Padre: {cuenta.codigo_padre}
-                      </div>
-                    )}
-                    
-                    {/* Información adicional para búsqueda específica */}
-                    {filtros.busqueda_especifica && coincideEspecifica && (
-                      <div className="text-xs mt-1">
-                        {esExacta ? (
-                          <span className="text-green-700 font-medium">🎯 Cuenta buscada</span>
-                        ) : (
-                          <span className="text-green-600">🌿 Subcuenta de {filtros.busqueda_especifica}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorTipoCuenta(cuenta.tipo_cuenta)}`}>
-                    {cuenta.tipo_cuenta}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${obtenerColorNaturaleza(cuenta.naturaleza)}`}>
-                    {cuenta.naturaleza}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${obtenerColorNivel(cuenta.nivel_calculado || cuenta.nivel)}`}>
-                    {cuenta.nivel_calculado || cuenta.nivel}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
-                  <span className={`font-mono ${
-                    (cuenta.saldo_inicial || 0) > 0 ? 'text-blue-600' : 
-                    (cuenta.saldo_inicial || 0) < 0 ? 'text-red-600' : 'text-gray-500'
-                  }`}>
-                    {formatearSaldo(cuenta.saldo_inicial)}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
-                  <span className={`font-mono ${
-                    (cuenta.saldo_final || 0) > 0 ? 'text-green-600' : 
-                    (cuenta.saldo_final || 0) < 0 ? 'text-red-600' : 'text-gray-500'
-                  }`}>
-                    {formatearSaldo(cuenta.saldo_final)}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
-                  <span className="font-mono text-red-600">
-                    {formatearMovimientos(cuenta.movimientos_debitos)}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs text-right">
-                  <span className="font-mono text-green-600">
-                    {formatearMovimientos(cuenta.movimientos_creditos)}
-                  </span>
-                </td>
-                <td className="py-2 px-2 border-r border-gray-100 text-xs">
-                  <div className="flex items-center space-x-1">
-                    <span className={`w-2 h-2 rounded-full ${
-                      cuenta.estado === 'ACTIVA' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></span>
-                    <span className={`text-xs ${
-                      cuenta.estado === 'ACTIVA' ? 'text-green-700' : 'text-red-700'
-                    }`}>
-                      {cuenta.estado}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-2 px-2">
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => onVerDetalle(cuenta)}
-                      className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                      title="Ver detalles"
-                    >
-                      <FaEye className="text-sm" />
-                    </button>
-                    <button
-                      onClick={() => onEditar(cuenta)}
-                      className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors"
-                      title="Editar"
-                    >
-                      <FaEdit className="text-sm" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const confirmar = window.confirm(
-                          `¿Eliminar cuenta ${cuenta.codigo_completo}?\n${cuenta.descripcion}`
-                        );
-                        if (confirmar) onEliminar(cuenta.id);
-                      }}
-                      className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                      title="Eliminar"
-                    >
-                      <FaTrash className="text-sm" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {/* ✅ INFORMACIÓN DE RESULTADOS ESPECÍFICOS */}
-      {filtros.busqueda_especifica && cuentas.length > 0 && (
-        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="text-sm text-green-800">
-            <div className="flex items-center space-x-2 mb-2">
-              <FaBullseye className="text-green-600" />
-              <span className="font-medium">Resultados de búsqueda específica:</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              <div>
-                🎯 <strong>Cuenta exacta:</strong> {filtros.busqueda_especifica}
-              </div>
-              <div>
-                🌿 <strong>Subcuentas:</strong> Códigos que empiecen con {filtros.busqueda_especifica}
-              </div>
-              <div>
-                📊 <strong>Total encontradas:</strong> {paginacion.total.toLocaleString()} cuentas
-              </div>
-              <div>
-                📋 <strong>Mostrando:</strong> {cuentas.length} en esta página
-              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* ✅ PAGINACIÓN MEJORADA */}
-      {(paginacion.totalPaginas > 1 || cuentas.length > 0) && (
-        <div className="mt-6 bg-gray-50 rounded-lg p-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            
-            {/* Información de registros mejorada */}
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 text-sm text-gray-600">
-              <span>
-                Mostrando {cuentas.length === 0 ? 0 : ((paginacion.paginaActual - 1) * parseInt(filtros.limite || '100')) + 1} - {Math.min(paginacion.paginaActual * parseInt(filtros.limite || '100'), paginacion.total)} de {paginacion.total.toLocaleString()} resultados
-                {filtros.busqueda_especifica && (
-                  <span className="text-green-600 font-medium ml-1">
-                    (filtrado por {filtros.busqueda_especifica}*)
-                  </span>
+        {/* Tabla con scroll optimizado */}
+        <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
+              <tr>
+                <th className="w-12 px-3 py-4">
+                  <input
+                    type="checkbox"
+                    checked={filasSeleccionadas.size === cuentas.length && cuentas.length > 0}
+                    onChange={seleccionarTodas}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                </th>
+
+                <th className="px-4 py-4 text-left">
+                  <button 
+                    onClick={() => handleSort('id')}
+                    className="flex items-center space-x-2 font-semibold text-gray-700 hover:text-blue-600 transition-colors"
+                  >
+                    <span>ID</span>
+                    {getSortIcon('id')}
+                  </button>
+                </th>
+
+                <th className="px-4 py-4 text-left min-w-[150px]">
+                  <button 
+                    onClick={() => handleSort('codigo_completo')}
+                    className="flex items-center space-x-2 font-semibold text-gray-700 hover:text-blue-600 transition-colors"
+                  >
+                    <span>Código</span>
+                    {getSortIcon('codigo_completo')}
+                  </button>
+                </th>
+
+                <th className="px-4 py-4 text-left min-w-[250px]">
+                  <span className="font-semibold text-gray-700">Descripción</span>
+                </th>
+
+                {!vistaCompacta && (
+                  <>
+                    <th className="px-4 py-4 text-left">
+                      <span className="font-semibold text-gray-700">Tipo</span>
+                    </th>
+                    <th className="px-4 py-4 text-left">
+                      <span className="font-semibold text-gray-700">Naturaleza</span>
+                    </th>
+                    <th className="px-4 py-4 text-left">
+                      <span className="font-semibold text-gray-700">Nivel</span>
+                    </th>
+                    <th className="px-4 py-4 text-right">
+                      <span className="font-semibold text-gray-700">Saldo Inicial</span>
+                    </th>
+                    <th className="px-4 py-4 text-right">
+                      <span className="font-semibold text-gray-700">Saldo Final</span>
+                    </th>
+                    <th className="px-4 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-1 font-semibold text-gray-700">
+                        <FaArrowDown className="text-red-500" />
+                        <span>Débitos</span>
+                      </div>
+                    </th>
+                    <th className="px-4 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-1 font-semibold text-gray-700">
+                        <FaArrowUp className="text-green-500" />
+                        <span>Créditos</span>
+                      </div>
+                    </th>
+                    <th className="px-4 py-4 text-left">
+                      <span className="font-semibold text-gray-700">Estado</span>
+                    </th>
+                  </>
                 )}
-              </span>
-              
-              <div className="flex items-center space-x-2">
-                <span>Mostrar:</span>
-                <select 
-                  value={filtros.limite} 
-                  onChange={(e) => {
-                    const nuevoLimite = parseInt(e.target.value);
-                    setFiltros({...filtros, limite: nuevoLimite, pagina: 1});
-                  }}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={200}>200</option>
-                  <option value={500}>500</option>
-                  <option value={1000}>1,000</option>
-                  <option value={5000}>5,000</option>
-                  <option value={10000}>10,000</option>
-                  <option value={25000}>25,000</option>
-                  <option value={99999}>
-                    🚀 TODAS ({totalRealCuentas.toLocaleString()})
-                  </option>
-                </select>
-                <span>por página</span>
-              </div>
+
+                <th className="px-4 py-4 text-center">
+                  <span className="font-semibold text-gray-700">Acciones</span>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-100">
+              {cuentas.map((cuenta, index) => (
+                <PucTableRow
+                  key={cuenta.id}
+                  cuenta={cuenta}
+                  index={index}
+                  vistaCompacta={vistaCompacta}
+                  esCoincidenciaEspecifica={esCoincidenciaEspecifica}
+                  esCuentaExacta={esCuentaExacta}
+                  estaSeleccionada={filasSeleccionadas.has(cuenta.id)}
+                  filtros={filtros}
+                  onVerDetalle={onVerDetalle}
+                  onEditar={onEditar}
+                  onEliminar={onEliminar}
+                  onToggleSeleccion={toggleSeleccionFila}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Paginación simplificada */}
+      {paginacion.totalPaginas > 1 && (
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="text-sm text-gray-600">
+              Mostrando {cuentas.length === 0 ? 0 : ((paginacion.paginaActual - 1) * parseInt(filtros.limite || '100')) + 1} - {Math.min(paginacion.paginaActual * parseInt(filtros.limite || '100'), paginacion.total)} de {paginacion.total.toLocaleString()} resultados
             </div>
 
-            {/* Controles de navegación - Solo mostrar si hay múltiples páginas */}
-            {paginacion.totalPaginas > 1 && (
-              <div className="flex items-center space-x-2">
-                <Button
-                  onClick={() => onCambiarPagina(1)}
-                  disabled={paginacion.paginaActual === 1}
-                  className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-                >
-                  ««
-                </Button>
-                
-                <Button
-                  onClick={() => onCambiarPagina(paginacion.paginaActual - 1)}
-                  disabled={paginacion.paginaActual === 1}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-                >
-                  « Anterior
-                </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={() => onCambiarPagina(paginacion.paginaActual - 1)}
+                disabled={paginacion.paginaActual === 1}
+                variant="ghost"
+                size="sm"
+              >
+                Anterior
+              </Button>
 
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Página</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={paginacion.totalPaginas}
-                    value={paginacion.paginaActual}
-                    onChange={(e) => {
-                      const pagina = parseInt(e.target.value);
-                      if (pagina >= 1 && pagina <= paginacion.totalPaginas) {
-                        onCambiarPagina(pagina);
-                      }
-                    }}
-                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
-                  />
-                  <span className="text-sm text-gray-600">de {paginacion.totalPaginas}</span>
-                </div>
+              <span className="px-3 py-1 bg-white border rounded text-sm">
+                {paginacion.paginaActual} / {paginacion.totalPaginas}
+              </span>
 
-                <Button
-                  onClick={() => onCambiarPagina(paginacion.paginaActual + 1)}
-                  disabled={paginacion.paginaActual === paginacion.totalPaginas}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-                >
-                  Siguiente »
-                </Button>
-                
-                <Button
-                  onClick={() => onCambiarPagina(paginacion.totalPaginas)}
-                  disabled={paginacion.paginaActual === paginacion.totalPaginas}
-                  className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
-                >
-                  »»
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          {/* ✅ INFORMACIÓN ADICIONAL MEJORADA */}
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            {/* Información de cobertura */}
-            {totalRealCuentas > paginacion.total && (
-              <div className="text-purple-600 bg-purple-50 p-2 rounded">
-                <strong>💡 Info:</strong> Hay {totalRealCuentas.toLocaleString()} cuentas en total en la base de datos. 
-                Los filtros actuales muestran {paginacion.total.toLocaleString()} cuentas.
-                {filtros.busqueda_especifica && (
-                  <span className="ml-1">
-                    La búsqueda específica por "{filtros.busqueda_especifica}" está limitando los resultados.
-                  </span>
-                )}
-              </div>
-            )}
-            
-            {/* Información de estado de carga */}
-            <div className={`p-2 rounded ${
-              todasCargadas ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
-            }`}>
-              <strong>{todasCargadas ? '✅ Datos completos:' : '⚠️ Datos parciales:'}</strong> 
-              {todasCargadas 
-                ? ` Todas las ${totalRealCuentas.toLocaleString()} cuentas están cargadas.`
-                : ` Solo ${porcentajeCobertura}% de las cuentas están cargadas.`
-              }
-              {!todasCargadas && onCargarTodasLasCuentas && (
-                <button
-                  onClick={handleCargarTodasDesdeTabla}
-                  className="ml-2 underline hover:no-underline"
-                >
-                  Cargar todas
-                </button>
-              )}
+              <Button
+                onClick={() => onCambiarPagina(paginacion.paginaActual + 1)}
+                disabled={paginacion.paginaActual === paginacion.totalPaginas}
+                variant="ghost"
+                size="sm"
+              >
+                Siguiente
+              </Button>
             </div>
           </div>
         </div>

@@ -1,6 +1,15 @@
-// pages/PucPage.jsx - REFACTORIZADO CON COMPONENTES SEPARADOS Y ESTILOS MEJORADOS
+// pages/PucPage.jsx - DISEÑO ULTRA MINIMALISTA Y MODERNO
 import React, { useState, useEffect } from 'react';
-import { FaSpinner, FaFileAlt, FaTree, FaList, FaRocket, FaChartLine } from 'react-icons/fa';
+import { 
+  FaSpinner, 
+  FaFileAlt, 
+  FaTree, 
+  FaList, 
+  FaRocket, 
+  FaChartLine,
+  FaDatabase,
+  FaLayerGroup
+} from 'react-icons/fa';
 
 // Hooks personalizados
 import { usePucData } from '../hooks/usePucData';
@@ -73,7 +82,7 @@ const PucPage = () => {
     contraerTodos,
     expandirSoloClases,
     estaExpandido
-  } = usePucTree(cuentas);
+  } = usePucTree(cuentas || [], filtros);
 
   // ===============================================
   // 🔧 ESTADOS LOCALES PARA MODALES Y FORMULARIOS
@@ -203,34 +212,36 @@ const PucPage = () => {
     setSelectedAccount(null);
   };
 
+  // Valores seguros para evitar errores de renderizado
+  const safeCuentas = cuentas || [];
+  const safePaginacion = paginacion || { total: 0, paginaActual: 1, totalPaginas: 1 };
+  const safeArbolConstruido = arbolConstruido || [];
+  const safeNodosExpandidos = nodosExpandidos || new Set();
+
   // ===============================================
-  // 🎨 COMPONENTE PRINCIPAL CON ESTILOS MEJORADOS
+  // 🎨 COMPONENTE PRINCIPAL - DISEÑO ULTRA MINIMALISTA
   // ===============================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 animate-gradient-shift relative overflow-hidden">
-      {/* Elementos decorativos de fondo */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-green-400/20 to-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-purple-400/10 to-pink-400/10 rounded-full blur-3xl animate-pulse delay-500"></div>
-      </div>
-
-      <div className="relative z-10 p-4 sm:p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50/80 via-white to-slate-50/60">
+      {/* Contenedor principal ultra limpio */}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         
-        {/* Header con estadísticas y botones principales - Animado */}
-        <div className="animate-fade-in-down">
-          <PucHeader
-            estadisticas={estadisticas}
-            onNuevaCuenta={handleNuevaCuenta}
-            onImportar={() => setShowImportModal(true)}
-            onExportar={() => setShowExportModal(true)}
-            onDescargarTemplate={descargarTemplate}
-            loading={loading}
-          />
+        {/* Header ultra minimalista con animación suave */}
+        <div className="transform transition-all duration-700 ease-out animate-in slide-in-from-top-4 fade-in">
+          <div className="mb-8">
+            <PucHeader
+              estadisticas={estadisticas}
+              onNuevaCuenta={handleNuevaCuenta}
+              onImportar={() => setShowImportModal(true)}
+              onExportar={() => setShowExportModal(true)}
+              onDescargarTemplate={descargarTemplate}
+              loading={loading}
+            />
+          </div>
         </div>
 
-        {/* Notificaciones de error/éxito - Animadas */}
-        <div className="animate-fade-in-up">
+        {/* Notificaciones flotantes discretas */}
+        <div className="transform transition-all duration-700 ease-out animate-in slide-in-from-top-2 fade-in animation-delay-200">
           <PucNotifications
             error={error}
             success={success}
@@ -239,140 +250,162 @@ const PucPage = () => {
           />
         </div>
 
-        {/* Panel de filtros inteligentes - Animado */}
-        <div className="animate-fade-in-left">
-          <PucFilters
-            filtros={filtros}
-            setFiltros={setFiltros}
-            vistaArbol={vistaArbol}
-            setVistaArbol={setVistaArbol}
-            vistaExpandida={vistaExpandida}
-            setVistaExpandida={setVistaExpandida}
-            onLimpiarFiltros={limpiarFiltros}
-            onAplicarFiltros={cargarDatos}
-            onExportar={() => setShowExportModal(true)}
-            onExpandirTodos={expandirTodos}
-            onContraerTodos={contraerTodos}
-            onExpandirSoloClases={expandirSoloClases}
-            aplicarFiltroInteligentePorTipo={aplicarFiltroInteligentePorTipo}
-          />
+        {/* Panel de filtros con glassmorphism */}
+        <div className="transform transition-all duration-700 ease-out animate-in slide-in-from-left-4 fade-in animation-delay-300">
+          <div className="mb-6">
+            <PucFilters
+              filtros={filtros}
+              setFiltros={setFiltros}
+              vistaArbol={vistaArbol}
+              setVistaArbol={setVistaArbol}
+              vistaExpandida={vistaExpandida}
+              setVistaExpandida={setVistaExpandida}
+              onLimpiarFiltros={limpiarFiltros}
+              onAplicarFiltros={cargarDatos}
+              onExportar={() => setShowExportModal(true)}
+              onExpandirTodos={expandirTodos}
+              onContraerTodos={contraerTodos}
+              onExpandirSoloClases={expandirSoloClases}
+              aplicarFiltroInteligentePorTipo={aplicarFiltroInteligentePorTipo}
+            />
+          </div>
         </div>
 
-        {/* Tabla/Árbol principal con diseño mejorado */}
-        <div className="animate-fade-in-right">
-          <div className="bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-500 interactive-card">
-            <div className="p-6 sm:p-8">
-              {/* Header de la tabla con gradiente */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 space-y-4 sm:space-y-0">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-xl shadow-lg transition-all duration-300 ${
+        {/* Contenedor principal con diseño ultra limpio */}
+        <div className="transform transition-all duration-700 ease-out animate-in slide-in-from-right-4 fade-in animation-delay-400">
+          <div className="group relative overflow-hidden rounded-3xl bg-white/70 backdrop-blur-xl border border-white/20 shadow-xl shadow-gray-900/5 ring-1 ring-gray-900/5 transition-all duration-500 hover:shadow-2xl hover:shadow-gray-900/10">
+            
+            {/* Efectos de fondo sutil */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-gray-50/30 opacity-60 group-hover:opacity-80 transition-opacity duration-500"></div>
+            <div className="absolute -inset-px bg-gradient-to-r from-transparent via-gray-200/20 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            
+            {/* Header del contenido ultra minimalista */}
+            <div className="relative px-8 py-6 border-b border-gray-100/60">
+              <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center lg:justify-between">
+                
+                {/* Título con iconografía moderna */}
+                <div className="flex items-center space-x-4">
+                  <div className={`relative overflow-hidden rounded-2xl p-4 transition-all duration-300 ${
                     vistaArbol 
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' 
-                      : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                      ? 'bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-600 shadow-lg shadow-emerald-500/20' 
+                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 shadow-lg shadow-blue-500/20'
                   }`}>
-                    {vistaArbol ? <FaTree className="text-xl" /> : <FaList className="text-xl" />}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent"></div>
+                    {vistaArbol ? <FaTree className="relative text-xl" /> : <FaList className="relative text-xl" />}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {vistaArbol ? 'Vista Árbol Jerárquico' : 'Vista Lista Detallada'}
-                    </h2>
-                    <p className="text-sm text-gray-500 font-medium">Plan Único de Cuentas</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+                      {vistaArbol ? 'Vista Jerárquica' : 'Vista Tabular'}
+                    </h1>
+                    <p className="mt-1 text-sm font-medium text-gray-500">
+                      Plan Único de Cuentas
+                    </p>
                   </div>
                 </div>
                 
-                {/* Estadísticas en tiempo real */}
-                <div className="flex flex-wrap items-center gap-4 text-sm">
-                  <div className="flex items-center space-x-2 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 rounded-xl border border-blue-200">
-                    <FaChartLine className="text-blue-600" />
-                    <span className="font-semibold text-blue-700">{cuentas.length}</span>
-                    <span className="text-gray-600">mostradas</span>
+                {/* Métricas modernas con micro-animaciones */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="group flex items-center space-x-2 rounded-xl bg-gray-50/80 px-4 py-2.5 backdrop-blur-sm transition-all duration-200 hover:bg-gray-100/80 hover:scale-105">
+                    <FaDatabase className="text-sm text-gray-600 transition-transform duration-200 group-hover:scale-110" />
+                    <span className="text-sm font-semibold text-gray-700">{safeCuentas.length}</span>
+                    <span className="text-xs font-medium text-gray-500">mostradas</span>
                   </div>
                   
-                  <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 rounded-xl border border-purple-200">
-                    <FaRocket className="text-purple-600" />
-                    <span className="font-semibold text-purple-700">{paginacion.total}</span>
-                    <span className="text-gray-600">total</span>
+                  <div className="group flex items-center space-x-2 rounded-xl bg-blue-50/80 px-4 py-2.5 backdrop-blur-sm transition-all duration-200 hover:bg-blue-100/80 hover:scale-105">
+                    <FaChartLine className="text-sm text-blue-600 transition-transform duration-200 group-hover:scale-110" />
+                    <span className="text-sm font-semibold text-blue-700">{safePaginacion.total}</span>
+                    <span className="text-xs font-medium text-blue-500">total</span>
                   </div>
                   
                   {vistaArbol && (
                     <>
-                      <div className="flex items-center space-x-2 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-xl border border-green-200">
-                        <FaTree className="text-green-600" />
-                        <span className="font-semibold text-green-700">{arbolConstruido.length}</span>
-                        <span className="text-gray-600">nodos raíz</span>
+                      <div className="group flex items-center space-x-2 rounded-xl bg-emerald-50/80 px-4 py-2.5 backdrop-blur-sm transition-all duration-200 hover:bg-emerald-100/80 hover:scale-105">
+                        <FaLayerGroup className="text-sm text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
+                        <span className="text-sm font-semibold text-emerald-700">{safeArbolConstruido.length}</span>
+                        <span className="text-xs font-medium text-emerald-500">raíz</span>
                       </div>
                       
-                      <div className="flex items-center space-x-2 bg-gradient-to-r from-orange-50 to-yellow-50 px-4 py-2 rounded-xl border border-orange-200">
-                        <span className="font-semibold text-orange-700">{nodosExpandidos.size}</span>
-                        <span className="text-gray-600">expandidos</span>
+                      <div className="group flex items-center space-x-2 rounded-xl bg-orange-50/80 px-4 py-2.5 backdrop-blur-sm transition-all duration-200 hover:bg-orange-100/80 hover:scale-105">
+                        <span className="text-sm font-semibold text-orange-700">{safeNodosExpandidos.size}</span>
+                        <span className="text-xs font-medium text-orange-500">expandidos</span>
                       </div>
                     </>
                   )}
                   
-                  {paginacion.totalPaginas > 1 && (
-                    <div className="flex items-center space-x-2 bg-gradient-to-r from-gray-50 to-slate-50 px-4 py-2 rounded-xl border border-gray-200">
-                      <span className="text-gray-600">Página</span>
-                      <span className="font-semibold text-gray-700">{paginacion.paginaActual}</span>
-                      <span className="text-gray-600">de</span>
-                      <span className="font-semibold text-gray-700">{paginacion.totalPaginas}</span>
+                  {safePaginacion.totalPaginas > 1 && (
+                    <div className="group flex items-center space-x-2 rounded-xl bg-purple-50/80 px-4 py-2.5 backdrop-blur-sm transition-all duration-200 hover:bg-purple-100/80 hover:scale-105">
+                      <span className="text-xs font-medium text-purple-500">Pág.</span>
+                      <span className="text-sm font-semibold text-purple-700">{safePaginacion.paginaActual}</span>
+                      <span className="text-xs font-medium text-purple-500">/</span>
+                      <span className="text-sm font-semibold text-purple-700">{safePaginacion.totalPaginas}</span>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Contenido principal con estados mejorados */}
+            {/* Contenido principal con estados ultra pulidos */}
+            <div className="relative px-8 py-8">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                /* Estado de carga ultra moderno */
+                <div className="flex flex-col items-center justify-center py-24 space-y-8">
                   <div className="relative">
-                    <FaSpinner className="animate-spin text-5xl text-blue-500" />
-                    <div className="absolute inset-0 animate-ping">
-                      <FaSpinner className="text-5xl text-blue-300 opacity-75" />
+                    <div className="w-20 h-20 rounded-full border-4 border-gray-200"></div>
+                    <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
+                    <div className="absolute inset-2 w-16 h-16 rounded-full border-4 border-transparent border-t-blue-300 animate-spin opacity-60" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }}></div>
+                  </div>
+                  <div className="text-center space-y-3">
+                    <h3 className="text-xl font-semibold text-gray-800">Cargando datos</h3>
+                    <p className="text-gray-500 max-w-sm">Organizando la información del Plan Único de Cuentas...</p>
+                    <div className="h-1 w-48 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-semibold text-gray-700">Cargando cuentas</h3>
-                    <p className="text-gray-500">Organizando la información del PUC...</p>
-                  </div>
-                  {/* Barra de progreso animada */}
-                  <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-pulse"></div>
-                  </div>
                 </div>
-              ) : cuentas.length === 0 ? (
-                <div className="text-center py-16 space-y-6">
+              ) : safeCuentas.length === 0 ? (
+                /* Estado vacío ultra elegante */
+                <div className="text-center py-24 space-y-8">
                   <div className="relative inline-block">
-                    <FaFileAlt className="text-8xl text-gray-300 mx-auto animate-pulse" />
-                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full animate-bounce"></div>
+                    <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center shadow-xl shadow-gray-500/10">
+                      <FaFileAlt className="text-5xl text-gray-400" />
+                    </div>
+                    <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r from-amber-400 to-orange-400 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
+                      <span className="text-xs text-white font-bold">!</span>
+                    </div>
                   </div>
-                  <div className="space-y-3">
-                    <h3 className="text-2xl font-bold text-gray-600">No se encontraron cuentas</h3>
-                    <p className="text-gray-500 text-lg max-w-md mx-auto">
-                      Parece que no hay cuentas que mostrar con los filtros actuales
-                    </p>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-700">No hay cuentas disponibles</h3>
+                      <p className="text-gray-500 max-w-lg mx-auto mt-2 leading-relaxed">
+                        No se encontraron cuentas que coincidan con los criterios de búsqueda actuales
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                       <button
                         onClick={limpiarFiltros}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                        className="group relative overflow-hidden px-8 py-4 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-2xl font-semibold shadow-xl shadow-gray-500/25 transition-all duration-300 hover:shadow-2xl hover:shadow-gray-500/40 hover:scale-105"
                       >
-                        Limpiar Filtros
+                        <div className="absolute inset-0 bg-gradient-to-r from-gray-500 to-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <span className="relative">Limpiar Filtros</span>
                       </button>
                       <button
                         onClick={() => setShowImportModal(true)}
-                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                        className="group relative overflow-hidden px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-semibold shadow-xl shadow-blue-500/25 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/40 hover:scale-105"
                       >
-                        Importar desde Excel
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <span className="relative">Importar Datos</span>
                       </button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="transition-all duration-500 ease-in-out">
+                /* Contenido principal con transición ultra suave */
+                <div className="transition-all duration-500 ease-out">
                   {vistaArbol ? (
-                    /* Vista de Árbol Jerárquico con efectos */
-                    <div className="animate-fade-in">
+                    <div className="transform transition-all duration-500">
                       <PucTree
-                        arbolConstruido={arbolConstruido}
-                        nodosExpandidos={nodosExpandidos}
+                        arbolConstruido={safeArbolConstruido}
+                        nodosExpandidos={safeNodosExpandidos}
                         onToggleNodo={toggleNodo}
                         onVerDetalle={verDetalleCuenta}
                         onEditar={editarCuenta}
@@ -381,11 +414,10 @@ const PucPage = () => {
                       />
                     </div>
                   ) : (
-                    /* Vista de Tabla con efectos */
-                    <div className="animate-fade-in">
+                    <div className="transform transition-all duration-500">
                       <PucTable
-                        cuentas={cuentas}
-                        paginacion={paginacion}
+                        cuentas={safeCuentas}
+                        paginacion={safePaginacion}
                         filtros={filtros}
                         onVerDetalle={verDetalleCuenta}
                         onEditar={editarCuenta}
@@ -401,12 +433,14 @@ const PucPage = () => {
           </div>
         </div>
 
-        {/* Leyenda de colores y niveles - Animada */}
-        <div className="animate-fade-in-up">
-          <PucLegend />
+        {/* Leyenda ultra discreta */}
+        <div className="transform transition-all duration-700 ease-out animate-in slide-in-from-bottom-4 fade-in animation-delay-500">
+          <div className="mt-8">
+            <PucLegend />
+          </div>
         </div>
 
-        {/* Modal Crear/Editar Cuenta */}
+        {/* Modales con diseño perfeccionado */}
         <PucFormModal
           show={showModal}
           onClose={handleCloseModal}
@@ -417,7 +451,6 @@ const PucPage = () => {
           loading={loading}
         />
 
-        {/* Modal Detalle Completo */}
         <PucDetailModal
           show={showDetailModal}
           onClose={handleCloseDetailModal}
@@ -425,7 +458,6 @@ const PucPage = () => {
           onEditar={editarCuenta}
         />
 
-        {/* Modales de importación y exportación */}
         <ImportPucExcelModal
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
@@ -438,9 +470,93 @@ const PucPage = () => {
           onCancel={() => setShowExportModal(false)}
         />
 
-        {/* Ayuda flotante */}
+        {/* Ayuda flotante ultra discreta */}
         <PucHelp />
       </div>
+
+      {/* Estilos CSS personalizados para animaciones ultra suaves */}
+      <style jsx global>{`
+        @keyframes animate-in {
+          from {
+            opacity: 0;
+            transform: var(--animate-enter-transform, translateY(16px));
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-in {
+          animation: animate-in 0.6s ease-out forwards;
+        }
+
+        .slide-in-from-top-4 {
+          --animate-enter-transform: translateY(-16px);
+        }
+
+        .slide-in-from-top-2 {
+          --animate-enter-transform: translateY(-8px);
+        }
+
+        .slide-in-from-left-4 {
+          --animate-enter-transform: translateX(-16px);
+        }
+
+        .slide-in-from-right-4 {
+          --animate-enter-transform: translateX(16px);
+        }
+
+        .slide-in-from-bottom-4 {
+          --animate-enter-transform: translateY(16px);
+        }
+
+        .fade-in {
+          opacity: 0;
+        }
+
+        .animation-delay-200 {
+          animation-delay: 0.2s;
+        }
+
+        .animation-delay-300 {
+          animation-delay: 0.3s;
+        }
+
+        .animation-delay-400 {
+          animation-delay: 0.4s;
+        }
+
+        .animation-delay-500 {
+          animation-delay: 0.5s;
+        }
+
+        /* Scroll personalizado ultra minimalista */
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.3);
+          border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(156, 163, 175, 0.5);
+        }
+
+        /* Smooth focus para accesibilidad */
+        *:focus-visible {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+          border-radius: 8px;
+        }
+      `}</style>
     </div>
   );
 };

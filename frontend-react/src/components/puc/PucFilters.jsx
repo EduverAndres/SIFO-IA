@@ -1,5 +1,5 @@
-// components/puc/PucFilters.jsx - VERSIÓN FINAL CORREGIDA
-import React, { useState, useEffect, useCallback } from 'react';
+// components/puc/PucFilters.jsx - VERSIÓN MODIFICADA PARA VISTA TABLA POR DEFECTO
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   FaFilter, 
   FaTimes, 
@@ -20,7 +20,9 @@ import {
   FaDatabase,
   FaRocket,
   FaCheckCircle,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaChevronDown,
+  FaChevronUp
 } from 'react-icons/fa';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -41,7 +43,7 @@ import {
 const PucFilters = ({
   filtros = DEFAULT_FILTERS,
   setFiltros = () => {},
-  vistaArbol = false,
+  vistaArbol = false, // Por defecto false (vista tabla)
   setVistaArbol = () => {},
   vistaExpandida = false,
   setVistaExpandida = () => {},
@@ -51,28 +53,80 @@ const PucFilters = ({
   onExpandirTodos = () => {},
   onContraerTodos = () => {},
   onExpandirSoloClases = () => {},
-  onCargarTodasLasCuentas, // ✅ NUEVO PROP
+  onCargarTodasLasCuentas,
   estadisticas = null,
   loading = false,
-  cuentas = [], // ✅ NUEVO PROP para mostrar stats
-  todasCargadas = false, // ✅ NUEVO PROP
-  forzarCargaCompleta = () => {}, // ✅ NUEVO PROP opcional
+  cuentas = [],
+  todasCargadas = false,
+  forzarCargaCompleta = () => {},
 }) => {
-  // Estados locales para mejor UX
+  // 🔧 MODIFICACIÓN: Estados locales - vistaArbol empieza en false por defecto
   const [filtrosLocales, setFiltrosLocales] = useState(filtros);
   const [mostrarAvanzados, setMostrarAvanzados] = useState(false);
+  const [mostrarBusquedaEspecifica, setMostrarBusquedaEspecifica] = useState(true);
   const [historialBusquedas, setHistorialBusquedas] = useState([]);
   const [favoritosBusqueda, setFavoritosBusqueda] = useState([]);
   const [sugerenciasVisibles, setSugerenciasVisibles] = useState(false);
   const [sugerencias, setSugerencias] = useState([]);
+  
+  // 🔧 MODIFICACIÓN: Estado local para controlar la vista, inicia en false (tabla)
+  const [vistaArbolLocal, setVistaArbolLocal] = useState(false);
+
+  // 🔧 MODIFICACIÓN: useEffect para inicializar la vista tabla por defecto
+  useEffect(() => {
+    // Al montar el componente, asegurar que la vista sea tabla (false)
+    setVistaArbolLocal(false);
+    setVistaArbol(false);
+    
+    // Si hay un valor guardado en localStorage y quieres respetarlo, descomenta esto:
+    // try {
+    //   const vistaGuardada = localStorage.getItem('puc_vista_preferida');
+    //   const vista = vistaGuardada === 'true' ? true : false; // Por defecto tabla
+    //   setVistaArbolLocal(vista);
+    //   setVistaArbol(vista);
+    // } catch (error) {
+    //   console.warn('Error cargando vista guardada:', error);
+    //   setVistaArbolLocal(false);
+    //   setVistaArbol(false);
+    // }
+  }, []); // Solo se ejecuta al montar
+
+  // 🔧 MODIFICACIÓN: Sincronizar con prop vistaArbol solo si cambia externamente
+  useEffect(() => {
+    setVistaArbolLocal(vistaArbol);
+  }, [vistaArbol]);
+
+  // 🔧 MODIFICACIÓN: Función para cambiar vista y persistir en localStorage (opcional)
+  const cambiarVista = useCallback((nuevaVista) => {
+    setVistaArbolLocal(nuevaVista);
+    setVistaArbol(nuevaVista);
+    
+    // Opcional: Guardar preferencia en localStorage
+    // try {
+    //   localStorage.setItem('puc_vista_preferida', nuevaVista.toString());
+    // } catch (error) {
+    //   console.warn('Error guardando vista:', error);
+    // }
+  }, [setVistaArbol]);
+
+  // 📊 CÁLCULOS MEMOIZADOS
+  const estadisticasCalculadas = useMemo(() => {
+    const tieneActivosFiltros = FILTER_UTILS.tieneActivosFiltros(filtros);
+    const filtrosActivos = FILTER_UTILS.obtenerFiltrosActivos(filtros);
+    const porcentajeCobertura = estadisticas?.total 
+      ? (((cuentas?.length || 0) / estadisticas.total) * 100).toFixed(1)
+      : '0';
+    
+    return { tieneActivosFiltros, filtrosActivos, porcentajeCobertura };
+  }, [filtros, cuentas, estadisticas]);
 
   // Cargar historial y favoritos del localStorage
   useEffect(() => {
     try {
       const historial = JSON.parse(localStorage.getItem('puc_historial_busquedas') || '[]');
       const favoritos = JSON.parse(localStorage.getItem('puc_favoritos_busqueda') || '[]');
-      setHistorialBusquedas(historial.slice(0, 5)); // Solo los últimos 5
-      setFavoritosBusqueda(favoritos.slice(0, 10)); // Solo los primeros 10
+      setHistorialBusquedas(historial.slice(0, 5));
+      setFavoritosBusqueda(favoritos.slice(0, 10));
     } catch (error) {
       console.warn('Error cargando datos del localStorage:', error);
     }
@@ -83,7 +137,7 @@ const PucFilters = ({
     setFiltrosLocales(filtros);
   }, [filtros]);
 
-  // Debounce para búsquedas
+  // 🎯 HANDLERS OPTIMIZADOS CON USECALLBACK
   const [debounceTimer, setDebounceTimer] = useState(null);
   const debounceBusqueda = useCallback((valor, tipo = 'busqueda') => {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -99,7 +153,6 @@ const PucFilters = ({
     setDebounceTimer(newTimer);
   }, [filtrosLocales, setFiltros, debounceTimer]);
 
-  // Función mejorada para búsqueda específica
   const aplicarBusquedaEspecifica = useCallback((codigo) => {
     if (!codigo || !codigo.trim()) {
       setFiltros({
@@ -110,9 +163,8 @@ const PucFilters = ({
       return;
     }
 
-    const codigoLimpio = codigo.trim().replace(/[^0-9]/g, ''); // Solo números
+    const codigoLimpio = codigo.trim().replace(/[^0-9]/g, '');
     
-    // Validar formato de código PUC
     if (codigoLimpio.length === 0) {
       alert('Por favor ingresa un código válido (solo números)');
       return;
@@ -131,11 +183,10 @@ const PucFilters = ({
       console.warn('Error guardando historial:', error);
     }
 
-    // Aplicar filtro con lógica inteligente
     const nuevosFiltros = {
-      ...DEFAULT_FILTERS, // Limpiar todos los filtros
+      ...DEFAULT_FILTERS,
       busqueda_especifica: codigoLimpio,
-      estado: filtrosLocales.estado || 'ACTIVA', // Mantener estado
+      estado: filtrosLocales.estado || 'ACTIVA',
       limite: filtrosLocales.limite || 50,
       ordenar_por: 'codigo_completo',
       orden: 'ASC',
@@ -147,7 +198,6 @@ const PucFilters = ({
     setSugerenciasVisibles(false);
   }, [filtrosLocales, setFiltros, historialBusquedas]);
 
-  // Función para aplicar filtro por clase con lógica inteligente
   const aplicarFiltroClase = useCallback((codigoClase) => {
     const clase = PUC_CLASSES.find(c => c.codigo === codigoClase);
     if (!clase) return;
@@ -155,8 +205,8 @@ const PucFilters = ({
     const nuevosFiltros = {
       ...filtrosLocales,
       codigo_clase: codigoClase,
-      naturaleza: clase.naturaleza, // Auto-completar naturaleza
-      busqueda_especifica: '', // Limpiar búsqueda específica
+      naturaleza: clase.naturaleza,
+      busqueda_especifica: '',
       busqueda: '',
       pagina: 1
     };
@@ -165,105 +215,42 @@ const PucFilters = ({
     setFiltrosLocales(nuevosFiltros);
   }, [filtrosLocales, setFiltros]);
 
-  // Función para filtros inteligentes por tipo
-  const aplicarFiltroInteligentePorTipo = useCallback((tipo) => {
-    const tipoConfig = ACCOUNT_TYPES.find(t => t.value === tipo);
-    if (!tipoConfig) {
-      setFiltros({...filtrosLocales, tipo: tipo, pagina: 1});
-      return;
-    }
-
-    // Configurar filtros inteligentes basados en el tipo
-    let nuevosFiltros = {
-      ...filtrosLocales,
-      tipo: tipo,
-      pagina: 1
-    };
-
-    // Lógica específica por tipo
-    switch (tipo) {
-      case 'CLASE':
-        nuevosFiltros.nivel = '1';
-        break;
-      case 'GRUPO':
-        nuevosFiltros.nivel = '2';
-        break;
-      case 'CUENTA':
-        nuevosFiltros.nivel = '3';
-        break;
-      case 'SUBCUENTA':
-        nuevosFiltros.nivel = '4';
-        break;
-      case 'DETALLE':
-        nuevosFiltros.nivel = '5';
-        break;
-    }
-
-    setFiltros(nuevosFiltros);
-    setFiltrosLocales(nuevosFiltros);
-  }, [filtrosLocales, setFiltros]);
-
-  // Función para obtener sugerencias
-  const obtenerSugerencias = useCallback(async (termino) => {
-    if (!termino || termino.length < 2) {
-      setSugerencias([]);
-      setSugerenciasVisibles(false);
-      return;
-    }
-
+  const handleCargarTodasLasCuentas = useCallback(async () => {
     try {
-      // Aquí harías la llamada a tu API para obtener sugerencias
-      // const response = await api.get(`/puc/sugerencias?termino=${termino}`);
-      // setSugerencias(response.data.data);
+      const totalEsperado = estadisticas?.total || 0;
       
-      // Por ahora, sugerencias basadas en las clases PUC
-      const sugerenciasClases = PUC_CLASSES
-        .filter(clase => 
-          clase.codigo.startsWith(termino) || 
-          clase.nombre.toLowerCase().includes(termino.toLowerCase())
-        )
-        .map(clase => ({
-          codigo: clase.codigo,
-          descripcion: clase.nombre,
-          tipo: 'CLASE',
-          naturaleza: clase.naturaleza,
-          coincidencia: 'codigo'
-        }));
+      const confirmar = window.confirm(
+        `🚀 ¿Cargar TODAS las ${totalEsperado.toLocaleString()} cuentas del sistema?\n\n` +
+        `✅ Esto te permitirá:\n` +
+        `• Ver todas las cuentas sin paginación\n` +
+        `• Tener la estructura completa del árbol\n` +
+        `• Realizar búsquedas más rápidas\n\n` +
+        `⚠️ Nota: Puede tomar unos segundos dependiendo de la cantidad de datos.\n\n` +
+        `¿Continuar?`
+      );
       
-      setSugerencias(sugerenciasClases);
-      setSugerenciasVisibles(sugerenciasClases.length > 0);
+      if (!confirmar) return;
+      
+      await (forzarCargaCompleta || onCargarTodasLasCuentas)();
+      
+      setFiltrosLocales(prev => ({
+        ...prev,
+        limite: 99999,
+        pagina: 1
+      }));
+      
+      setFiltros({
+        ...filtrosLocales,
+        limite: 99999,
+        pagina: 1
+      });
+      
     } catch (error) {
-      console.warn('Error obteniendo sugerencias:', error);
-      setSugerencias([]);
-      setSugerenciasVisibles(false);
+      console.error('❌ Error en carga completa:', error);
+      alert(`Error cargando todas las cuentas:\n${error.message}\n\nIntenta de nuevo o contacta al administrador.`);
     }
-  }, []);
+  }, [estadisticas, forzarCargaCompleta, onCargarTodasLasCuentas, filtrosLocales, setFiltros]);
 
-  // Función para guardar búsqueda como favorita
-  const guardarEnFavoritos = useCallback((filtros, nombre) => {
-    try {
-      const nuevoFavorito = {
-        id: Date.now().toString(),
-        nombre: nombre || `Búsqueda ${new Date().toLocaleDateString()}`,
-        filtros: {...filtros},
-        fecha: new Date().toISOString()
-      };
-
-      const nuevosFavoritos = [nuevoFavorito, ...favoritosBusqueda].slice(0, 10);
-      setFavoritosBusqueda(nuevosFavoritos);
-      localStorage.setItem('puc_favoritos_busqueda', JSON.stringify(nuevosFavoritos));
-    } catch (error) {
-      console.warn('Error guardando favorito:', error);
-    }
-  }, [favoritosBusqueda]);
-
-  // Función para aplicar favorito
-  const aplicarFavorito = useCallback((favorito) => {
-    setFiltros(favorito.filtros);
-    setFiltrosLocales(favorito.filtros);
-  }, [setFiltros]);
-
-  // Validaciones en tiempo real
   const validarFiltros = useCallback(() => {
     const errores = [];
     
@@ -287,261 +274,250 @@ const PucFilters = ({
   }, [filtrosLocales]);
 
   const erroresValidacion = validarFiltros();
-  const tieneActivosFiltros = FILTER_UTILS.tieneActivosFiltros(filtros);
-
-  // ✅ NUEVO: Función para cargar todas las cuentas
-  const handleCargarTodasLasCuentas = async () => {
-    try {
-      const totalEsperado = estadisticas?.total || 0;
-      
-      const confirmar = window.confirm(
-        `🚀 ¿Cargar TODAS las ${totalEsperado.toLocaleString()} cuentas del sistema?\n\n` +
-        `✅ Esto te permitirá:\n` +
-        `• Ver todas las cuentas sin paginación\n` +
-        `• Tener la estructura completa del árbol\n` +
-        `• Realizar búsquedas más rápidas\n\n` +
-        `⚠️ Nota: Puede tomar unos segundos dependiendo de la cantidad de datos.\n\n` +
-        `¿Continuar?`
-      );
-      
-      if (!confirmar) return;
-      
-      console.log('🚀 Usuario confirmó carga completa, iniciando...');
-      
-      await (forzarCargaCompleta || onCargarTodasLasCuentas)();
-      
-      setFiltrosLocales(prev => ({
-        ...prev,
-        limite: 99999,
-        pagina: 1
-      }));
-      
-      setFiltros({
-        ...filtrosLocales,
-        limite: 99999,
-        pagina: 1
-      });
-      
-      console.log('✅ Carga completa finalizada exitosamente');
-      
-    } catch (error) {
-      console.error('❌ Error en carga completa:', error);
-      alert(`Error cargando todas las cuentas:\n${error.message}\n\nIntenta de nuevo o contacta al administrador.`);
-    }
-  };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-      {/* Header con estadísticas */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
-            <FaFilter className="text-blue-600" />
-            <span>Filtros PUC</span>
-            {tieneActivosFiltros && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                Activos
-              </span>
-            )}
-          </h2>
-          
-          {estadisticas && (
-            <div className="text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded">
-              📊 {estadisticas.total_encontrados?.toLocaleString()} encontrados
-              {estadisticas.total_filtrados !== estadisticas.total_encontrados && (
-                <span className="text-blue-600 ml-1">
-                  / {estadisticas.total_filtrados?.toLocaleString()} filtrados
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={onLimpiarFiltros}
-            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
-            icon={FaTimes}
-            disabled={loading}
-          >
-            Limpiar
-          </Button>
-          
-          <Button
-            onClick={() => setVistaArbol(!vistaArbol)}
-            className={`px-3 py-1 text-sm transition-colors ${
-              vistaArbol 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-            icon={vistaArbol ? FaTree : FaList}
-          >
-            {vistaArbol ? 'Árbol' : 'Lista'}
-          </Button>
-          
-          <Button
-            onClick={() => setMostrarAvanzados(!mostrarAvanzados)}
-            className={`px-3 py-1 text-sm transition-colors ${
-              mostrarAvanzados 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-            icon={FaCog}
-          >
-            Avanzado
-          </Button>
-        </div>
-      </div>
-
-      {/* Búsqueda Específica Mejorada */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-green-800 mb-3 flex items-center">
-          <FaBullseye className="mr-2 text-green-600" />
-          🎯 Búsqueda Inteligente de Cuenta
-        </h3>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-3">
-            <div className="relative">
-              <Input
-                label="Código de Cuenta"
-                placeholder="Ej: 1105, 11, 1 (solo números)"
-                value={filtrosLocales.busqueda_especifica || ''}
-                onChange={(e) => {
-                  const valor = e.target.value.replace(/[^0-9]/g, '');
-                  setFiltrosLocales({...filtrosLocales, busqueda_especifica: valor});
-                  obtenerSugerencias(valor);
-                }}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    aplicarBusquedaEspecifica(filtrosLocales.busqueda_especifica);
-                  }
-                }}
-                onFocus={() => {
-                  if (filtrosLocales.busqueda_especifica) {
-                    obtenerSugerencias(filtrosLocales.busqueda_especifica);
-                  }
-                }}
-                onBlur={() => {
-                  // Pequeño delay para permitir clicks en sugerencias
-                  setTimeout(() => setSugerenciasVisibles(false), 200);
-                }}
-                icon={FaBullseye}
-                className="text-lg font-mono"
-                disabled={loading}
-              />
-              
-              {/* Sugerencias en tiempo real */}
-              {sugerenciasVisibles && sugerencias.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                  {sugerencias.map((sugerencia, index) => (
-                    <button
-                      key={index}
-                      onClick={() => aplicarBusquedaEspecifica(sugerencia.codigo)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-mono font-bold text-green-600">{sugerencia.codigo}</span>
-                          <span className="ml-2">{sugerencia.descripcion}</span>
-                        </div>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          {sugerencia.tipo}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Historial de búsquedas */}
-            {historialBusquedas.length > 0 && (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header moderno con glassmorphism */}
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-xl p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+          {/* Título y estadísticas */}
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <FaFilter className="text-white text-xl" />
+              </div>
               <div>
-                <label className="text-xs text-gray-600 mb-1 block">
-                  <FaHistory className="inline mr-1" />
-                  Búsquedas recientes:
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {historialBusquedas.map((codigo, index) => (
-                    <button
-                      key={index}
-                      onClick={() => aplicarBusquedaEspecifica(codigo)}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-mono transition-colors"
-                      disabled={loading}
-                    >
-                      {codigo}
-                    </button>
-                  ))}
-                </div>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Filtros Inteligentes
+                </h2>
+                <p className="text-sm text-gray-500 font-medium">Plan Único de Cuentas</p>
+              </div>
+            </div>
+            
+            {estadisticasCalculadas.tieneActivosFiltros && (
+              <div className="flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+                <FaCheckCircle className="text-sm" />
+                <span className="text-sm font-medium">
+                  {estadisticasCalculadas.filtrosActivos.length} filtros activos
+                </span>
+              </div>
+            )}
+            
+            {estadisticas && (
+              <div className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-3 py-1 rounded-full border border-gray-200">
+                <FaDatabase className="text-sm" />
+                <span className="text-sm font-medium">
+                  {estadisticas.total_encontrados?.toLocaleString()} encontrados
+                </span>
               </div>
             )}
           </div>
           
-          <div className="flex flex-col gap-2">
+          {/* 🔧 MODIFICACIÓN: Controles principales con vista tabla por defecto */}
+          <div className="flex flex-wrap gap-3">
             <Button
-              onClick={() => aplicarBusquedaEspecifica(filtrosLocales.busqueda_especifica)}
-              disabled={!filtrosLocales.busqueda_especifica || loading}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-              icon={FaSearch}
-            >
-              Buscar
-            </Button>
-            
-            <Button
-              onClick={() => {
-                setFiltrosLocales({...filtrosLocales, busqueda_especifica: ''});
-                setFiltros({...filtros, busqueda_especifica: '', pagina: 1});
-                setSugerenciasVisibles(false);
-              }}
-              disabled={!filtros.busqueda_especifica || loading}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white disabled:opacity-50"
+              onClick={onLimpiarFiltros}
+              variant="ghost"
+              size="sm"
               icon={FaTimes}
+              disabled={loading}
             >
               Limpiar
             </Button>
-
-            {filtros.busqueda_especifica && (
-              <Button
-                onClick={() => {
-                  const nombre = prompt('Nombre para esta búsqueda:');
-                  if (nombre) guardarEnFavoritos(filtros, nombre);
-                }}
-                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm"
-                icon={FaBookmark}
-                disabled={loading}
-              >
-                Guardar
-              </Button>
-            )}
+            
+            {/* 🔧 MODIFICACIÓN: Botón de vista actualizado con estado local */}
+            <Button
+              onClick={() => cambiarVista(!vistaArbolLocal)}
+              variant={vistaArbolLocal ? "primary" : "secondary"}
+              size="sm"
+              icon={vistaArbolLocal ? FaTree : FaList}
+            >
+              {vistaArbolLocal ? 'Vista Árbol' : 'Vista Tabla'}
+            </Button>
+            
+            <Button
+              onClick={() => setMostrarAvanzados(!mostrarAvanzados)}
+              variant={mostrarAvanzados ? "info" : "ghost"}
+              size="sm"
+              icon={FaCog}
+            >
+              Avanzado
+            </Button>
           </div>
         </div>
 
-        {/* Información de la búsqueda activa */}
-        {filtros.busqueda_especifica && (
-          <div className="mt-3 p-3 bg-white border border-green-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="text-green-800 font-medium">🎯 Mostrando:</span>
-                <code className="px-2 py-1 bg-green-100 text-green-900 rounded font-mono font-bold">
-                  {filtros.busqueda_especifica}*
-                </code>
-                <span className="text-green-600">(cuenta + subcuentas)</span>
-              </div>
-            </div>
+        {/* Estado de datos cargados - Compacto */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-blue-700">{cuentas?.length?.toLocaleString() || 0}</div>
+            <div className="text-xs text-blue-600">En memoria</div>
           </div>
-        )}
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-purple-700">{estadisticas?.total?.toLocaleString() || '?'}</div>
+            <div className="text-xs text-purple-600">Total BD</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-green-700">{estadisticasCalculadas.porcentajeCobertura}%</div>
+            <div className="text-xs text-green-600">Cobertura</div>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-orange-700">{filtros.limite || 50}</div>
+            <div className="text-xs text-orange-600">Por página</div>
+          </div>
+        </div>
+
+        {/* 🔧 MODIFICACIÓN: Indicador de vista activa */}
+        <div className="mt-3 flex items-center justify-center">
+          <div className="flex items-center space-x-2 bg-gray-100 px-4 py-2 rounded-full border border-gray-200">
+            {vistaArbolLocal ? <FaTree className="text-green-600" /> : <FaList className="text-blue-600" />}
+            <span className="text-sm font-medium text-gray-700">
+              Vista {vistaArbolLocal ? 'Jerárquica' : 'Tabla'} activa
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Filtros Generales */}
+      {/* Búsqueda Específica Moderna */}
+      {mostrarBusquedaEspecifica && (
+        <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-teal-50 border border-emerald-200 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-emerald-800 flex items-center">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center mr-3">
+                <FaBullseye className="text-white text-sm" />
+              </div>
+              Búsqueda Inteligente de Cuenta
+            </h3>
+            <button
+              onClick={() => setMostrarBusquedaEspecifica(false)}
+              className="p-2 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100 rounded-lg transition-colors"
+            >
+              <FaChevronUp />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="relative">
+                <Input
+                  label="Código de Cuenta"
+                  placeholder="Ej: 1105, 11, 1 (solo números)"
+                  value={filtrosLocales.busqueda_especifica || ''}
+                  onChange={(e) => {
+                    const valor = e.target.value.replace(/[^0-9]/g, '');
+                    setFiltrosLocales({...filtrosLocales, busqueda_especifica: valor});
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      aplicarBusquedaEspecifica(filtrosLocales.busqueda_especifica);
+                    }
+                  }}
+                  icon={FaBullseye}
+                  size="lg"
+                  className="text-lg font-mono"
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Historial de búsquedas - Modernizado */}
+              {historialBusquedas.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-emerald-700 mb-2 block flex items-center">
+                    <FaHistory className="mr-1" />
+                    Búsquedas recientes
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {historialBusquedas.map((codigo, index) => (
+                      <button
+                        key={index}
+                        onClick={() => aplicarBusquedaEspecifica(codigo)}
+                        className="px-3 py-1.5 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-lg text-sm font-mono transition-all duration-200 hover:scale-105 shadow-sm"
+                        disabled={loading}
+                      >
+                        {codigo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={() => aplicarBusquedaEspecifica(filtrosLocales.busqueda_especifica)}
+                disabled={!filtrosLocales.busqueda_especifica || loading}
+                variant="success"
+                size="lg"
+                gradient
+                icon={FaSearch}
+              >
+                Buscar
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  setFiltrosLocales({...filtrosLocales, busqueda_especifica: ''});
+                  setFiltros({...filtros, busqueda_especifica: '', pagina: 1});
+                }}
+                disabled={!filtros.busqueda_especifica || loading}
+                variant="secondary"
+                size="lg"
+                icon={FaTimes}
+              >
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          {/* Información de la búsqueda activa */}
+          {filtros.busqueda_especifica && (
+            <div className="mt-4 p-4 bg-white border border-emerald-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <FaBullseye className="text-emerald-600" />
+                  <span className="text-emerald-800 font-medium">Mostrando:</span>
+                  <code className="px-3 py-1 bg-emerald-100 text-emerald-900 rounded-lg font-mono font-bold">
+                    {filtros.busqueda_especifica}*
+                  </code>
+                  <span className="text-emerald-600">(cuenta + subcuentas)</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Si búsqueda específica está colapsada */}
+      {!mostrarBusquedaEspecifica && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+          <button
+            onClick={() => setMostrarBusquedaEspecifica(true)}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <div className="flex items-center space-x-2">
+              <FaBullseye className="text-emerald-600" />
+              <span className="text-emerald-800 font-medium">Búsqueda Inteligente</span>
+              {filtros.busqueda_especifica && (
+                <code className="px-2 py-1 bg-emerald-100 text-emerald-900 rounded font-mono text-sm">
+                  {filtros.busqueda_especifica}*
+                </code>
+              )}
+            </div>
+            <FaChevronDown className="text-emerald-600" />
+          </button>
+        </div>
+      )}
+
+      {/* Filtros Generales - Solo cuando no hay búsqueda específica */}
       {!filtros.busqueda_especifica && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-            <FaSearch className="mr-2 text-blue-600" />
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+              <FaSearch className="text-white text-sm" />
+            </div>
             Filtros Generales
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Input
               label="Búsqueda General"
               placeholder="Descripción, código..."
@@ -557,7 +533,7 @@ const PucFilters = ({
             <Select
               label="Tipo de Cuenta"
               value={filtrosLocales.tipo || ''}
-              onChange={(e) => aplicarFiltroInteligentePorTipo(e.target.value)}
+              onChange={(e) => setFiltrosLocales({...filtrosLocales, tipo: e.target.value})}
               options={[
                 { value: '', label: 'Todos los tipos' },
                 ...ACCOUNT_TYPES.map(type => ({
@@ -591,30 +567,37 @@ const PucFilters = ({
             />
           </div>
 
-          {/* Filtros rápidos por clase */}
+          {/* Filtros rápidos por clase - Rediseñados */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block flex items-center">
+            <label className="text-sm font-bold text-gray-700 mb-3 block flex items-center">
               <FaLayerGroup className="mr-2 text-purple-600" />
               Filtros Rápidos por Clase PUC
             </label>
-            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-3">
               {PUC_CLASSES.map(clase => (
                 <button
                   key={clase.codigo}
                   onClick={() => aplicarFiltroClase(clase.codigo)}
-                  className={`px-2 py-2 rounded text-xs font-medium transition-all hover:scale-105 border ${
-                    filtros.codigo_clase === clase.codigo 
-                      ? `${clase.color} ring-2 ring-blue-500 ring-offset-1` 
-                      : `${clase.color} hover:opacity-80`
-                  }`}
+                  className={`
+                    group relative p-3 rounded-xl text-xs font-medium transition-all duration-200 hover:scale-105 border-2
+                    ${filtros.codigo_clase === clase.codigo 
+                      ? `${clase.color} ring-4 ring-blue-300 ring-offset-2 shadow-lg` 
+                      : `${clase.color} hover:shadow-md border-transparent`
+                    }
+                  `}
                   title={`Filtrar por ${clase.nombre} (${clase.naturaleza})`}
                   disabled={loading}
                 >
-                  <div className="text-center">
-                    <div className="font-bold text-lg">{clase.codigo}</div>
-                    <div className="text-xs truncate">{clase.nombre}</div>
-                    <div className="text-xs opacity-75">{clase.naturaleza}</div>
+                  <div className="text-center space-y-1">
+                    <div className="font-bold text-xl">{clase.codigo}</div>
+                    <div className="text-xs leading-tight">{clase.nombre}</div>
+                    <div className="text-xs opacity-75 font-medium">{clase.naturaleza}</div>
                   </div>
+                  {filtros.codigo_clase === clase.codigo && (
+                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                      <FaCheckCircle className="text-white text-sm" />
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -622,14 +605,13 @@ const PucFilters = ({
         </div>
       )}
 
-      {/* Resto del componente - Filtros Avanzados, Configuración, etc. */}
-      {/* ... (mantener el resto del código anterior) ... */}
-
-      {/* Configuración de Vista y Ordenamiento - SECCIÓN ACTUALIZADA */}
-      <div className="border-t border-gray-200 pt-4 space-y-4">
-        <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-          <FaSortAmountDown className="mr-2 text-blue-600" />
-          Vista y Ordenamiento
+      {/* Configuración de Vista y Ordenamiento */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center mr-3">
+            <FaSortAmountDown className="text-white text-sm" />
+          </div>
+          Vista y Configuración
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
@@ -640,9 +622,7 @@ const PucFilters = ({
               const nuevoLimite = parseInt(e.target.value);
               
               if (nuevoLimite >= 99999) {
-                console.log('🚀 Límite TODAS seleccionado, ejecutando carga completa...');
                 setFiltrosLocales({...filtrosLocales, limite: nuevoLimite, pagina: 1});
-                
                 setTimeout(() => {
                   handleCargarTodasLasCuentas();
                 }, 100);
@@ -659,7 +639,7 @@ const PucFilters = ({
               { value: 5000, label: '5,000 registros' },
               { value: 10000, label: '10,000 registros' },
               { value: 25000, label: '25,000 registros' },
-              { value: 99999, label: `🚀 TODAS (${estadisticas?.total?.toLocaleString() || '?'}) - Carga completa` }
+              { value: 99999, label: `🚀 TODAS (${estadisticas?.total?.toLocaleString() || '?'})` }
             ]}
             disabled={loading}
           />
@@ -680,15 +660,17 @@ const PucFilters = ({
             disabled={loading}
           />
           
-          {/* ✅ NUEVO BOTÓN: Cargar todas las cuentas */}
+          {/* Botón cargar todas las cuentas */}
           <Button
             onClick={handleCargarTodasLasCuentas}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium"
+            variant="primary"
+            gradient
+            glow
             icon={FaRocket}
             disabled={loading}
-            title={`Cargar TODAS las ${estadisticas?.total?.toLocaleString() || '?'} cuentas del sistema de una sola vez`}
+            title={`Cargar TODAS las ${estadisticas?.total?.toLocaleString() || '?'} cuentas del sistema`}
           >
-            🚀 TODAS ({estadisticas?.total?.toLocaleString() || '?'})
+            🚀 TODAS
           </Button>
           
           <Button
@@ -701,12 +683,9 @@ const PucFilters = ({
                 alert('Por favor corrige los errores de validación:\n' + erroresValidacion.join('\n'));
               }
             }}
-            className={`px-4 py-2 text-sm ${
-              erroresValidacion.length > 0 
-                ? 'bg-red-500 hover:bg-red-600' 
-                : 'bg-blue-600 hover:bg-blue-700'
-            } text-white`}
-            icon={erroresValidacion.length > 0 ? FaTimes : FaSearch}
+            variant={erroresValidacion.length > 0 ? "danger" : "success"}
+            gradient
+            icon={erroresValidacion.length > 0 ? FaExclamationTriangle : FaSearch}
             disabled={loading}
           >
             {erroresValidacion.length > 0 ? 'Errores' : 'Aplicar'}
@@ -714,104 +693,65 @@ const PucFilters = ({
           
           <Button
             onClick={onExportar}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm"
+            variant="info"
+            gradient
             icon={FaDownload}
             disabled={loading}
           >
             Exportar
           </Button>
+        </div>
 
-          {/* Controles específicos del árbol */}
-          {vistaArbol && (
-            <div className="flex gap-1">
+        {/* 🔧 MODIFICACIÓN: Controles específicos del árbol usando vistaArbolLocal */}
+        {vistaArbolLocal && (
+          <div className="mt-4 flex justify-center">
+            <div className="flex gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
               <Button
                 onClick={onExpandirTodos}
-                className="px-2 py-2 text-xs bg-green-100 hover:bg-green-200 text-green-700"
+                variant="ghost"
+                size="sm"
                 icon={FaExpand}
                 disabled={loading}
-                title="Expandir todos los nodos"
+                className="text-green-600 hover:bg-green-50"
               >
-                Exp
+                Expandir Todo
               </Button>
               <Button
                 onClick={onContraerTodos}
-                className="px-2 py-2 text-xs bg-red-100 hover:bg-red-200 text-red-700"
+                variant="ghost"
+                size="sm"
                 icon={FaCompress}
                 disabled={loading}
-                title="Contraer todos los nodos"
+                className="text-red-600 hover:bg-red-50"
               >
-                Con
+                Contraer Todo
+              </Button>
+              <Button
+                onClick={onExpandirSoloClases}
+                variant="ghost"
+                size="sm"
+                icon={FaLayerGroup}
+                disabled={loading}
+                className="text-purple-600 hover:bg-purple-50"
+              >
+                Solo Clases
               </Button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ✅ NUEVA SECCIÓN: Información de datos cargados */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center">
-          <FaDatabase className="mr-1" />
-          Estado de Datos Cargados
-        </h4>
-        <div className="text-xs text-blue-700 space-y-1">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <span className="font-medium">📊 En memoria:</span>
-              <br />
-              <span className="text-blue-900 font-mono">{cuentas?.length?.toLocaleString() || 0}</span>
-            </div>
-            <div>
-              <span className="font-medium">🗄️ Total BD:</span>
-              <br />
-              <span className="text-blue-900 font-mono">{estadisticas?.total?.toLocaleString() || '?'}</span>
-            </div>
-            <div>
-              <span className="font-medium">📄 Por página:</span>
-              <br />
-              <span className="text-blue-900 font-mono">{filtros.limite || 50}</span>
-            </div>
-            <div>
-              <span className="font-medium">📈 Cobertura:</span>
-              <br />
-              <span className={`font-mono ${
-                (cuentas?.length || 0) >= (estadisticas?.total || 1) ? 'text-green-700' : 'text-yellow-700'
-              }`}>
-                {estadisticas?.total 
-                  ? `${(((cuentas?.length || 0) / estadisticas.total) * 100).toFixed(1)}%`
-                  : '?%'
-                }
-              </span>
-            </div>
           </div>
-          
-          {/* Advertencia si no se han cargado todas las cuentas */}
-          {estadisticas?.total && (cuentas?.length || 0) < estadisticas.total && (
-            <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
-              ⚠️ <strong>Advertencia:</strong> Solo tienes {cuentas?.length?.toLocaleString() || 0} de {estadisticas.total.toLocaleString()} cuentas cargadas.
-              <br />
-              Para ver la estructura completa del árbol, haz clic en "🚀 Todas" o aumenta el límite por página.
-            </div>
-          )}
-          
-          {/* Confirmación si se han cargado todas */}
-          {estadisticas?.total && (cuentas?.length || 0) >= estadisticas.total && (
-            <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-green-800">
-              ✅ <strong>Completo:</strong> Todas las cuentas están cargadas en memoria. 
-              La vista de árbol mostrará la estructura completa.
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Filtros Avanzados (Solo cuando mostrarAvanzados es true) */}
+      {/* Filtros Avanzados */}
       {mostrarAvanzados && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-            <FaCog className="mr-2 text-purple-600" />
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 rounded-2xl border border-purple-200 shadow-lg p-6 animate-fade-in-down">
+          <h3 className="text-lg font-bold text-purple-800 mb-4 flex items-center">
+            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+              <FaCog className="text-white text-sm" />
+            </div>
             Filtros Avanzados
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <Input
               label="Cuenta Padre"
               placeholder="Código padre..."
@@ -873,67 +813,140 @@ const PucFilters = ({
           </div>
 
           {/* Checkboxes para filtros especiales */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-            <label className="flex items-center space-x-2 cursor-pointer">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white rounded-xl border border-purple-200">
+            <label className="flex items-center space-x-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={filtrosLocales.solo_movimiento || false}
                 onChange={(e) => setFiltrosLocales({...filtrosLocales, solo_movimiento: e.target.checked})}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
                 disabled={loading}
               />
-              <span className="text-sm text-gray-700">Solo con movimientos</span>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700 transition-colors">
+                Solo con movimientos
+              </span>
             </label>
             
-            <label className="flex items-center space-x-2 cursor-pointer">
+            <label className="flex items-center space-x-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={filtrosLocales.solo_con_saldo || false}
                 onChange={(e) => setFiltrosLocales({...filtrosLocales, solo_con_saldo: e.target.checked})}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
                 disabled={loading}
               />
-              <span className="text-sm text-gray-700">Solo con saldo</span>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700 transition-colors">
+                Solo con saldo
+              </span>
             </label>
             
-            <label className="flex items-center space-x-2 cursor-pointer">
+            <label className="flex items-center space-x-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={filtrosLocales.incluir_inactivas || false}
                 onChange={(e) => setFiltrosLocales({...filtrosLocales, incluir_inactivas: e.target.checked})}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
                 disabled={loading}
               />
-              <span className="text-sm text-gray-700">Incluir inactivas</span>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700 transition-colors">
+                Incluir inactivas
+              </span>
             </label>
             
-            <label className="flex items-center space-x-2 cursor-pointer">
+            <label className="flex items-center space-x-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={filtrosLocales.solo_con_movimientos || false}
                 onChange={(e) => setFiltrosLocales({...filtrosLocales, solo_con_movimientos: e.target.checked})}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
                 disabled={loading}
               />
-              <span className="text-sm text-gray-700">Con movimientos período</span>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700 transition-colors">
+                Con movimientos período
+              </span>
             </label>
           </div>
         </div>
       )}
 
-      {/* Favoritos de búsqueda */}
-      {favoritosBusqueda.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
-            <FaBookmark className="mr-2" />
-            Búsquedas Guardadas
+      {/* Filtros Activos - Modernizados */}
+      {estadisticasCalculadas.tieneActivosFiltros && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 shadow-sm">
+          <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center">
+            <FaFilter className="mr-2" />
+            Filtros Activos ({estadisticasCalculadas.filtrosActivos.length})
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          
+          <div className="flex flex-wrap gap-2 mb-3">
+            {estadisticasCalculadas.filtrosActivos.map((filtro, index) => (
+              <span
+                key={index}
+                className={`
+                  inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium shadow-sm
+                  ${filtro.tipo === 'especifica' 
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                    : filtro.tipo === 'clase'
+                    ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                  }
+                `}
+              >
+                {filtro.etiqueta}
+              </span>
+            ))}
+          </div>
+          
+          {/* Botones para limpiar filtros específicos */}
+          <div className="flex flex-wrap gap-2">
+            {filtros.busqueda_especifica && (
+              <Button
+                onClick={() => {
+                  setFiltros({...filtros, busqueda_especifica: '', pagina: 1});
+                  setFiltrosLocales({...filtrosLocales, busqueda_especifica: ''});
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
+                disabled={loading}
+              >
+                ✕ Quitar búsqueda específica
+              </Button>
+            )}
+            
+            {filtros.codigo_clase && (
+              <Button
+                onClick={() => {
+                  setFiltros({...filtros, codigo_clase: '', naturaleza: '', pagina: 1});
+                  setFiltrosLocales({...filtrosLocales, codigo_clase: '', naturaleza: ''});
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-purple-700 hover:bg-purple-50 border border-purple-200"
+                disabled={loading}
+              >
+                ✕ Quitar filtro de clase
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Favoritos de búsqueda - Rediseñados */}
+      {favoritosBusqueda.length > 0 && (
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-4 shadow-sm">
+          <h4 className="text-sm font-bold text-yellow-800 mb-3 flex items-center">
+            <FaBookmark className="mr-2" />
+            Búsquedas Guardadas ({favoritosBusqueda.length})
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {favoritosBusqueda.map(favorito => (
-              <div key={favorito.id} className="relative">
+              <div key={favorito.id} className="relative group">
                 <button
-                  onClick={() => aplicarFavorito(favorito)}
-                  className="w-full text-left p-2 bg-white border border-yellow-200 rounded hover:bg-yellow-50 transition-colors"
+                  onClick={() => {
+                    setFiltros(favorito.filtros);
+                    setFiltrosLocales(favorito.filtros);
+                  }}
+                  className="w-full text-left p-3 bg-white border border-yellow-200 rounded-xl hover:bg-yellow-50 transition-all duration-200 hover:scale-105 shadow-sm"
                   disabled={loading}
                 >
                   <div className="font-medium text-sm text-yellow-800">{favorito.nombre}</div>
@@ -941,7 +954,7 @@ const PucFilters = ({
                     {new Date(favorito.fecha).toLocaleDateString()}
                   </div>
                   {favorito.filtros.busqueda_especifica && (
-                    <div className="text-xs font-mono text-yellow-700">
+                    <div className="text-xs font-mono text-yellow-700 mt-1">
                       🎯 {favorito.filtros.busqueda_especifica}
                     </div>
                   )}
@@ -956,10 +969,10 @@ const PucFilters = ({
                       console.warn('Error eliminando favorito:', error);
                     }
                   }}
-                  className="absolute top-1 right-1 p-1 text-red-500 hover:text-red-700 text-xs"
+                  className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full shadow-sm"
                   title="Eliminar favorito"
                 >
-                  <FaTimes />
+                  <FaTimes className="text-xs" />
                 </button>
               </div>
             ))}
@@ -967,90 +980,123 @@ const PucFilters = ({
         </div>
       )}
 
-      {/* Validaciones y errores */}
-      {erroresValidacion.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <h4 className="text-sm font-semibold text-red-800 mb-1">⚠️ Errores de Validación:</h4>
-          <ul className="text-sm text-red-700 space-y-1">
-            {erroresValidacion.map((error, index) => (
-              <li key={index}>• {error}</li>
-            ))}
-          </ul>
+      {/* Alertas y validaciones */}
+      {estadisticas?.total && (cuentas?.length || 0) < estadisticas.total && !filtros.busqueda_especifica && (
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-300 rounded-2xl p-4 shadow-sm animate-fade-in">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FaExclamationTriangle className="text-white text-sm" />
+            </div>
+            <div>
+              <h4 className="font-bold text-yellow-800">Datos incompletos</h4>
+              <p className="text-yellow-700 text-sm">
+                Solo tienes <strong>{cuentas?.length?.toLocaleString() || 0}</strong> de <strong>{estadisticas.total.toLocaleString()}</strong> cuentas cargadas.
+              </p>
+              <p className="text-yellow-600 text-xs mt-1">
+                Para ver la estructura completa del árbol, carga todas las cuentas.
+              </p>
+              <Button
+                onClick={handleCargarTodasLasCuentas}
+                variant="warning"
+                size="sm"
+                icon={FaRocket}
+                className="mt-2"
+              >
+                🚀 Cargar Todas Ahora
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Información de filtros activos */}
-      {tieneActivosFiltros && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center">
-            <FaFilter className="mr-1" />
-            Filtros Activos
-          </h4>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {FILTER_UTILS.obtenerFiltrosActivos(filtros).map((filtro, index) => (
-              <span
-                key={index}
-                className={`px-3 py-1 rounded-full font-medium ${
-                  filtro.tipo === 'especifica' 
-                    ? 'bg-green-100 text-green-800' 
-                    : filtro.tipo === 'clase'
-                    ? 'bg-purple-100 text-purple-800'
-                    : 'bg-blue-100 text-blue-800'
-                }`}
-              >
-                {filtro.etiqueta}
-              </span>
-            ))}
+      {estadisticas?.total && (cuentas?.length || 0) >= estadisticas.total && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-300 rounded-2xl p-4 shadow-sm animate-fade-in">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+              <FaCheckCircle className="text-white text-sm" />
+            </div>
+            <div>
+              <h4 className="font-bold text-green-800">¡Datos completos!</h4>
+              <p className="text-green-700 text-sm">
+                Todas las <strong>{estadisticas.total.toLocaleString()}</strong> cuentas están cargadas en memoria.
+              </p>
+            </div>
           </div>
-          
-          {/* Botón para limpiar filtros específicos */}
-          <div className="mt-2 flex gap-2">
-            {filtros.busqueda_especifica && (
-              <button
-                onClick={() => {
-                  setFiltros({...filtros, busqueda_especifica: '', pagina: 1});
-                  setFiltrosLocales({...filtrosLocales, busqueda_especifica: ''});
-                }}
-                className="text-xs bg-white border border-green-200 text-green-700 px-2 py-1 rounded hover:bg-green-50"
-                disabled={loading}
-              >
-                ✕ Quitar búsqueda específica
-              </button>
-            )}
-            
-            {filtros.codigo_clase && (
-              <button
-                onClick={() => {
-                  setFiltros({...filtros, codigo_clase: '', naturaleza: '', pagina: 1});
-                  setFiltrosLocales({...filtrosLocales, codigo_clase: '', naturaleza: ''});
-                }}
-                className="text-xs bg-white border border-purple-200 text-purple-700 px-2 py-1 rounded hover:bg-purple-50"
-                disabled={loading}
-              >
-                ✕ Quitar filtro de clase
-              </button>
-            )}
+        </div>
+      )}
+
+      {/* Validaciones y errores */}
+      {erroresValidacion.length > 0 && (
+        <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-300 rounded-2xl p-4 shadow-sm animate-fade-in">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FaExclamationTriangle className="text-white text-sm" />
+            </div>
+            <div>
+              <h4 className="font-bold text-red-800">Errores de Validación</h4>
+              <ul className="text-sm text-red-700 space-y-1 mt-2">
+                {erroresValidacion.map((error, index) => (
+                  <li key={index} className="flex items-center space-x-2">
+                    <span className="w-1 h-1 bg-red-500 rounded-full flex-shrink-0"></span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       )}
 
       {/* Loading indicator */}
       {loading && (
-        <div className="flex items-center justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-sm text-gray-600">Aplicando filtros...</span>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="text-center">
+              <div className="text-base font-medium text-gray-700">Aplicando filtros...</div>
+              <div className="text-sm text-gray-500">Procesando solicitud</div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Tips y ayuda */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">💡 Tips de Uso:</h4>
-        <div className="text-xs text-gray-600 space-y-1">
-          <div>🎯 <strong>Búsqueda específica:</strong> Ingresa un código (ej: 1105) para ver esa cuenta + todas sus subcuentas</div>
-          <div>🔍 <strong>Búsqueda general:</strong> Busca por nombre o código parcial en todas las cuentas</div>
-          <div>⚡ <strong>Filtros rápidos:</strong> Haz click en las clases (1-9) para filtrar rápidamente</div>
-          <div>💾 <strong>Favoritos:</strong> Guarda tus búsquedas frecuentes para reutilizarlas</div>
-          <div>📊 <strong>Vista árbol:</strong> Cambia a vista jerárquica para ver la estructura del PUC</div>
+      {/* Tips y ayuda - Modernizados */}
+      <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-2xl p-4 shadow-sm">
+        <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+          <div className="w-6 h-6 bg-gray-500 rounded-lg flex items-center justify-center mr-2">
+            <span className="text-white text-xs">💡</span>
+          </div>
+          Tips de Uso
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-600">
+          <div className="flex items-start space-x-2">
+            <FaBullseye className="text-emerald-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Búsqueda específica:</strong> Ingresa un código (ej: 1105) para ver esa cuenta + todas sus subcuentas</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaSearch className="text-blue-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Búsqueda general:</strong> Busca por nombre o código parcial en todas las cuentas</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaLayerGroup className="text-purple-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Filtros rápidos:</strong> Haz click en las clases (1-9) para filtrar rápidamente</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaBookmark className="text-yellow-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Favoritos:</strong> Guarda tus búsquedas frecuentes para reutilizarlas</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaList className="text-blue-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Vista tabla (defecto):</strong> Vista por defecto al cargar la página, ideal para análisis rápido</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaTree className="text-green-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Vista árbol:</strong> Cambia manualmente para ver la estructura jerárquica del PUC</span>
+          </div>
+          <div className="flex items-start space-x-2">
+            <FaRocket className="text-indigo-500 mt-0.5 flex-shrink-0" />
+            <span><strong>Carga completa:</strong> Usa "🚀 TODAS" para cargar todas las cuentas de una vez</span>
+          </div>
         </div>
       </div>
     </div>
