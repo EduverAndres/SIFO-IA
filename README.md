@@ -1,179 +1,169 @@
+# SIFO
 
-```
-SIFO-IA
-├─ backend-nestjs
-│  ├─ .prettierrc
-│  ├─ eslint.config.mjs
-│  ├─ nest-cli.json
-│  ├─ package-lock.json
-│  ├─ package.json
-│  ├─ README.md
-│  ├─ src
-│  │  ├─ app.controller.spec.ts
-│  │  ├─ app.controller.ts
-│  │  ├─ app.module.ts
-│  │  ├─ app.service.ts
-│  │  ├─ auth
-│  │  │  ├─ auth.controller.ts
-│  │  │  ├─ auth.module.ts
-│  │  │  ├─ auth.service.ts
-│  │  │  ├─ dto
-│  │  │  │  ├─ login-user.dto.ts
-│  │  │  │  └─ register-user.dto.ts
-│  │  │  ├─ entities
-│  │  │  │  └─ user.entity.ts
-│  │  │  └─ strategies
-│  │  │     └─ jwt.strategy.ts
-│  │  ├─ common
-│  │  │  ├─ filters
-│  │  │  │  ├─ all-exceptions.filter.ts
-│  │  │  │  └─ http-exception.filter.ts
-│  │  │  └─ interceptors
-│  │  │     ├─ logging.interceptor.ts
-│  │  │     └─ transform.interceptor.ts
-│  │  ├─ config
-│  │  │  └─ supabase.config.ts
-│  │  ├─ debug.controller.ts
-│  │  ├─ ia-service
-│  │  │  └─ ia-service.controller.ts
-│  │  ├─ main.ts
-│  │  ├─ ordenes-compra
-│  │  │  ├─ detalle-orden.entity.ts
-│  │  │  ├─ dto
-│  │  │  │  ├─ create-detalle-orden.dto.ts
-│  │  │  │  ├─ create-orden-compra.dto.ts
-│  │  │  │  ├─ filtros-orden.dto.ts
-│  │  │  │  ├─ update-estado-orden.dto.ts
-│  │  │  │  └─ update-orden-compra.dto.ts
-│  │  │  ├─ orden-compra.entity.ts
-│  │  │  ├─ ordenes-compra.controller.ts
-│  │  │  ├─ ordenes-compra.module.ts
-│  │  │  └─ ordenes-compra.service.ts
-│  │  ├─ productos
-│  │  │  ├─ dto
-│  │  │  │  ├─ create-producto.dto.ts
-│  │  │  │  └─ update-producto.dto.ts
-│  │  │  ├─ producto.entity.ts
-│  │  │  ├─ productos.controller.ts
-│  │  │  ├─ productos.module.ts
-│  │  │  └─ productos.service.ts
-│  │  ├─ proveedores
-│  │  │  ├─ dto
-│  │  │  │  ├─ create-proveedor.dto.ts
-│  │  │  │  └─ update-proveedor.dto.ts
-│  │  │  ├─ proveedor.entity.ts
-│  │  │  ├─ proveedores.controller.ts
-│  │  │  ├─ proveedores.module.ts
-│  │  │  └─ proveedores.service.ts
-│  │  └─ puc
-│  │     ├─ dto
-│  │     │  ├─ arbol-puc.dto.ts
-│  │     │  ├─ create-cuenta-puc.dto.ts
-│  │     │  ├─ export-puc-excel.dto.ts
-│  │     │  ├─ filtros-puc.dto.ts
-│  │     │  ├─ import-puc-excel.dto.ts
-│  │     │  ├─ importar-puc.dto.ts
-│  │     │  ├─ response-puc.dto.ts
-│  │     │  ├─ resultado-importacion.dto.ts
-│  │     │  ├─ resultado-validacion.dto.ts
-│  │     │  ├─ resumen-importacion.dto.ts
-│  │     │  ├─ update-cuenta-puc.dto.ts
-│  │     │  └─ validar-excel.dto.ts
-│  │     ├─ entities
-│  │     │  └─ cuenta-puc.entity.ts
-│  │     ├─ interfaces
-│  │     │  ├─ excel-row.interface.ts
-│  │     │  └─ puc.interface.ts
-│  │     ├─ puc.controller.ts
-│  │     ├─ puc.module.ts
-│  │     ├─ puc.service.ts
-│  │     └─ services
-│  │        └─ puc-excel.service.ts
-│  ├─ test
-│  │  ├─ app.e2e-spec.ts
-│  │  └─ jest-e2e.json
-│  ├─ tsconfig.build.json
-│  ├─ tsconfig.json
-│  └─ uploads
-├─ database
-│  ├─ puc-schema.sql
-│  └─ schema.sql
-├─ frontend-react
-│  ├─ netlify.toml
-│  ├─ package-lock.json
-│  ├─ package.json
-│  ├─ postcss.config.js
-│  ├─ public
-│  │  ├─ favicon.ico
-│  │  ├─ index.html
-│  │  ├─ manifest.json
-│  │  └─ robots.txt
-│  ├─ README.md
-│  ├─ src
-│  │  ├─ api
-│  │  │  ├─ config.js
-│  │  │  ├─ ordenesApi.js
-│  │  │  ├─ produccionApi.js
-│  │  │  └─ pucApi.js
-│  │  ├─ App.js
-│  │  ├─ App.test.js
-│  │  ├─ assets
-│  │  │  └─ hero-illustration.svg
-│  │  ├─ components
-│  │  │  ├─ Button.jsx
-│  │  │  ├─ CrearProveedorModal.jsx
-│  │  │  ├─ Dashboard.jsx
-│  │  │  ├─ DashboardLayout.jsx
-│  │  │  ├─ DatePicker.jsx
-│  │  │  ├─ ErrorBoundary.jsx
-│  │  │  ├─ FileInput.jsx
-│  │  │  ├─ Input.jsx
-│  │  │  ├─ InputField.jsx
-│  │  │  ├─ Login.jsx
-│  │  │  ├─ Modal.jsx
-│  │  │  ├─ OrdenesDeCompraMenuModal.jsx
-│  │  │  ├─ ProtectedRoute.jsx
-│  │  │  ├─ puc
-│  │  │  │  ├─ CreateCuentaModal.jsx
-│  │  │  │  ├─ EditCuentaModal.jsx
-│  │  │  │  ├─ ExportPucModal.jsx
-│  │  │  │  ├─ ImportPucExcelModal.jsx
-│  │  │  │  ├─ ImportPucModal.jsx
-│  │  │  │  ├─ PucFilters.jsx
-│  │  │  │  ├─ PucManager.jsx
-│  │  │  │  ├─ PucStats.jsx
-│  │  │  │  └─ PucTableView.jsx
-│  │  │  ├─ Register.jsx
-│  │  │  ├─ Select.jsx
-│  │  │  ├─ SelectField.jsx
-│  │  │  ├─ ui
-│  │  │  └─ wi.sql
-│  │  ├─ hooks
-│  │  │  ├─ usePuc.js
-│  │  │  └─ useSafeRender.js
-│  │  ├─ index.css
-│  │  ├─ index.js
-│  │  ├─ pages
-│  │  │  ├─ AboutSIFO.jsx
-│  │  │  ├─ AboutUs.jsx
-│  │  │  ├─ dashboard
-│  │  │  │  ├─ DashboardOverview.jsx
-│  │  │  │  ├─ MenuFinanciero.jsx
-│  │  │  │  ├─ OrdenesCompra.jsx
-│  │  │  │  ├─ PlaceholderPage.jsx
-│  │  │  │  ├─ PlanCuentas.jsx
-│  │  │  │  ├─ Presupuesto.jsx
-│  │  │  │  └─ Produccion.jsx
-│  │  │  ├─ HomePage.jsx
-│  │  │  ├─ LoginPage.jsx
-│  │  │  ├─ ProjectVision.jsx
-│  │  │  ├─ PucPage.jsx
-│  │  │  └─ RegisterPage.jsx
-│  │  ├─ reportWebVitals.js
-│  │  ├─ setupTests.js
-│  │  └─ utils
-│  │     └─ domPatch.js
-│  └─ tailwind.config.js
-└─ README.md
+Back office de compras y contabilidad para pequeñas empresas colombianas: gestiona
+órdenes de compra, productos y proveedores sobre un Plan Único de Cuentas (PUC) que se
+carga masivamente desde Excel con validación previa.
 
+**[English](#english) · [Español](#español)**
+
+---
+
+## English
+
+### What it does and who it is for
+
+SIFO is a procurement and accounting back office aimed at small Colombian companies
+that keep their chart of accounts in spreadsheets. It manages purchase orders,
+products and suppliers on top of a PUC (*Plan Único de Cuentas*, the Colombian
+standard chart of accounts), which can be bulk-loaded from Excel: the file is
+validated row by row first, and the import reports which rows were accepted,
+which were rejected and why.
+
+The accounts are stored as a hierarchy, so the PUC can be browsed as a tree, filtered,
+and exported back to Excel or PDF.
+
+### Stack
+
+| Layer | Technologies |
+|---|---|
+| Backend | NestJS · TypeORM · PostgreSQL (Supabase) · JWT + Passport · Swagger · Multer |
+| Frontend | React · Tailwind CSS · React Router · axios · Recharts · SheetJS · jsPDF |
+
+### Requirements
+
+- Node.js 18+
+- A PostgreSQL database (the project is configured for Supabase, with SSL enabled)
+
+### Installation
+
+```bash
+git clone https://github.com/EduverAndres/SIFO-IA.git
+cd SIFO-IA
+
+# Backend
+cd backend-nestjs
+npm install
+
+# Frontend
+cd ../frontend-react
+npm install
 ```
+
+Create `backend-nestjs/.env`:
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/database
+NODE_ENV=development
+```
+
+The database schema lives in `database/schema.sql` and `database/puc-schema.sql`.
+
+### Running it
+
+```bash
+# Backend — http://localhost:3001
+cd backend-nestjs
+npm run start:dev
+
+# Frontend — http://localhost:3000
+cd frontend-react
+npm start
+```
+
+The REST API is served under `/api/v1`, and the Swagger documentation is available at
+`http://localhost:3001/api/docs`.
+
+### Screenshots
+
+<!-- Añadir aquí una captura del árbol PUC y otra del importador de Excel -->
+<!-- Add a screenshot of the PUC tree view and one of the Excel importer here -->
+
+### Status
+
+Personal project, still in development. The `ia-service` endpoint is a placeholder:
+AI-assisted product suggestion is declared in the route but not implemented yet.
+`synchronize` is enabled in TypeORM, which is convenient in development but must be
+turned off before running this against a production database.
+
+---
+
+## Español
+
+### Qué hace y para quién
+
+SIFO es un back office de compras y contabilidad pensado para pequeñas empresas
+colombianas que llevan su plan de cuentas en hojas de cálculo. Gestiona órdenes de
+compra, productos y proveedores sobre un PUC (Plan Único de Cuentas), que se puede
+cargar masivamente desde Excel: el archivo se valida fila por fila antes de importar,
+y el resultado informa qué filas se aceptaron, cuáles se rechazaron y por qué.
+
+Las cuentas se guardan como jerarquía, así que el PUC se puede recorrer en árbol,
+filtrar y exportar de vuelta a Excel o PDF.
+
+### Stack
+
+| Capa | Tecnologías |
+|---|---|
+| Backend | NestJS · TypeORM · PostgreSQL (Supabase) · JWT + Passport · Swagger · Multer |
+| Frontend | React · Tailwind CSS · React Router · axios · Recharts · SheetJS · jsPDF |
+
+### Requisitos
+
+- Node.js 18 o superior
+- Una base de datos PostgreSQL (el proyecto está configurado para Supabase, con SSL)
+
+### Instalación
+
+```bash
+git clone https://github.com/EduverAndres/SIFO-IA.git
+cd SIFO-IA
+
+# Backend
+cd backend-nestjs
+npm install
+
+# Frontend
+cd ../frontend-react
+npm install
+```
+
+Crea `backend-nestjs/.env`:
+
+```env
+DATABASE_URL=postgresql://usuario:contrasena@host:5432/basededatos
+NODE_ENV=development
+```
+
+El esquema de la base de datos está en `database/schema.sql` y `database/puc-schema.sql`.
+
+### Cómo ejecutarlo
+
+```bash
+# Backend — http://localhost:3001
+cd backend-nestjs
+npm run start:dev
+
+# Frontend — http://localhost:3000
+cd frontend-react
+npm start
+```
+
+La API REST se sirve bajo `/api/v1` y la documentación Swagger queda en
+`http://localhost:3001/api/docs`.
+
+### Capturas
+
+<!-- Añadir aquí una captura del árbol PUC y otra del importador de Excel -->
+
+### Estado
+
+Proyecto personal, en desarrollo. El endpoint `ia-service` es un placeholder: la
+sugerencia de productos con IA está declarada en la ruta pero todavía no está
+implementada. `synchronize` está activo en TypeORM, cómodo en desarrollo pero hay que
+desactivarlo antes de apuntar a una base de datos de producción.
+
+---
+
+## Licencia · License
+
+MIT — ver [LICENSE](LICENSE).
